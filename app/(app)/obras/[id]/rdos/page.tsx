@@ -173,8 +173,9 @@ export default async function ObraRdosPage({
                     month: "short",
                   });
                   return (
-                    <div
+                    <Link
                       key={r.id}
+                      href={`/obras/${id}/rdos/${r.id}`}
                       style={{
                         display: "flex",
                         alignItems: "center",
@@ -182,6 +183,8 @@ export default async function ObraRdosPage({
                         padding: "14px 20px",
                         borderTop: idx === 0 ? "none" : "1px solid var(--o-border)",
                         fontSize: 14,
+                        textDecoration: "none",
+                        color: "inherit",
                       }}
                     >
                       <div
@@ -228,7 +231,7 @@ export default async function ObraRdosPage({
                       >
                         {meta.label}
                       </span>
-                    </div>
+                    </Link>
                   );
                 })}
               </div>

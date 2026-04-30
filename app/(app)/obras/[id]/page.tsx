@@ -113,6 +113,12 @@ export default async function ObraDetailPage({
     .select("*", { count: "exact", head: true })
     .eq("site_id", id);
 
+  const { count: photoCount } = await supabase
+    .from("media")
+    .select("*", { count: "exact", head: true })
+    .eq("site_id", id)
+    .eq("kind", "photo");
+
   return (
     <div style={{ padding: "24px", maxWidth: 1280, margin: "0 auto" }}>
       {/* Breadcrumb */}
@@ -168,6 +174,23 @@ export default async function ObraDetailPage({
               }}
             >
               📋 {rdoCount} RDOs →
+            </Link>
+          )}
+          {(photoCount ?? 0) > 0 && (
+            <Link
+              href={`/obras/${id}/fotos`}
+              style={{
+                padding: "8px 14px",
+                background: "var(--o-paper)",
+                color: "var(--o-text-1)",
+                border: "1px solid var(--o-border)",
+                borderRadius: 8,
+                textDecoration: "none",
+                fontSize: 13,
+                fontWeight: 500,
+              }}
+            >
+              📸 {photoCount} fotos →
             </Link>
           )}
         </div>

@@ -35,14 +35,16 @@ export function Sidebar({ activeOrg, userName }: SidebarProps) {
         maxHeight: "100vh",
       }}
     >
-      {/* Workspace pill */}
+      {/* Workspace pill — uses tenant brand_color */}
       {activeOrg && (
         <div
           style={{
             margin: "6px 0 4px",
             padding: 12,
-            background: "rgba(8, 120, 155, 0.12)",
-            border: "1px solid rgba(8, 120, 155, 0.3)",
+            background: activeOrg.brand_color
+              ? `${activeOrg.brand_color}1F`
+              : "rgba(8, 120, 155, 0.12)",
+            border: `1px solid ${activeOrg.brand_color ? `${activeOrg.brand_color}55` : "rgba(8, 120, 155, 0.3)"}`,
             borderRadius: 10,
             display: "flex",
             alignItems: "center",
