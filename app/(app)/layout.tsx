@@ -40,7 +40,7 @@ export default async function AppLayout({
         userInitials={
           (profile?.full_name ?? user.email ?? "??")
             .split(" ")
-            .map((s) => s[0])
+            .map((s: string) => s[0])
             .slice(0, 2)
             .join("")
             .toUpperCase()
