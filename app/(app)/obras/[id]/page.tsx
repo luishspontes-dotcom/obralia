@@ -119,6 +119,16 @@ export default async function ObraDetailPage({
     .eq("site_id", id)
     .eq("kind", "photo");
 
+  // Anexos da obra (kind=file SEM daily_report_id = anexos do nível obra)
+  const { data: filesRaw } = await supabase
+    .from("media")
+    .select("id, storage_path, caption, size_bytes")
+    .eq("site_id", id)
+    .eq("kind", "file")
+    .is("daily_report_id", null)
+    .order("caption");
+  const obraFiles = (filesRaw ?? []) as { id: string; storage_path: string | null; caption: string | null; size_bytes: number | null }[];
+
   return (
     <div style={{ padding: "24px", maxWidth: 1280, margin: "0 auto" }}>
       {/* Breadcrumb */}
@@ -437,6 +447,45 @@ export default async function ObraDetailPage({
           }}
         >
           Esta obra ainda não tem fases ou atividades cadastradas.
+        </div>
+      )}
+
+      {obraFiles.length > 0 && (
+        <div style={{ marginTop: 32 }}>
+          <h3 style={{ font: "600 14px var(--font-inter)", textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--o-text-3)", margin: "0 0 12px" }}>
+            Documentos da obra · {obraFiles.length}
+          </h3>
+          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            {obraFiles.map((f) => (
+              <a
+                key={f.id}
+                href={f.storage_path ?? "#"}
+                target="_blank"
+                rel="noreferrer"
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 12,
+                  padding: "10px 14px",
+                  background: "var(--o-paper)",
+                  border: "1px solid var(--o-border)",
+                  borderRadius: 10,
+                  fontSize: 14,
+                  color: "var(--o-text-1)",
+                  textDecoration: "none",
+                }}
+              >
+                <span style={{ fontSize: 18 }}>📄</span>
+                <span style={{ flex: 1 }}>{f.caption ?? "Documento"}</span>
+                {f.size_bytes != null && (
+                  <span style={{ fontSize: 11, color: "var(--o-text-3)" }}>
+                    {(f.size_bytes / 1024).toFixed(0)} KB
+                  </span>
+                )}
+                <span style={{ fontSize: 12, color: "var(--o-text-3)" }}>abrir →</span>
+              </a>
+            ))}
+          </div>
         </div>
       )}
     </div>

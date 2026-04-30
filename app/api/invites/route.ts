@@ -1,7 +1,5 @@
-import { createClient } from "@supabase/supabase-js";
 import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabase } from "@/lib/supabase/server";
-import type { Database } from "@/lib/supabase/database.types";
 
 const INVITE_ROLES = new Set(["admin", "engineer", "viewer"]);
 const ADMIN_ROLES = new Set(["owner", "admin"]);
@@ -17,28 +15,6 @@ function json(status: number, message: string) {
   return NextResponse.json({ message }, { status });
 }
 
-function getPublicEnv() {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  if (!supabaseUrl) {
-    throw new Error("NEXT_PUBLIC_SUPABASE_URL is missing.");
-  }
-  return { supabaseUrl };
-}
-
-function getAdminClient() {
-  const { supabaseUrl } = getPublicEnv();
-  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!serviceRoleKey) {
-    throw new Error("SUPABASE_SERVICE_ROLE_KEY is missing.");
-  }
-  return createClient<Database>(supabaseUrl, serviceRoleKey, {
-    auth: {
-      persistSession: false,
-      autoRefreshToken: false,
-    },
-  });
-}
-
 export async function POST(request: NextRequest) {
   let body: InviteBody;
   try {
@@ -52,7 +28,7 @@ export async function POST(request: NextRequest) {
   const fullName =
     typeof body.name === "string" && body.name.trim()
       ? body.name.trim()
-      : email;
+      : null;
   const role = typeof body.role === "string" ? body.role : "";
   const organizationId =
     typeof body.organizationId === "string" ? body.organizationId : "";
@@ -61,7 +37,7 @@ export async function POST(request: NextRequest) {
     return json(400, "Informe um e-mail válido.");
   }
   if (!INVITE_ROLES.has(role)) {
-    return json(400, "Papel inválido para convite.");
+    return json(400, "Papel inválido.");
   }
   if (!organizationId) {
     return json(400, "Organização inválida.");
@@ -71,10 +47,7 @@ export async function POST(request: NextRequest) {
   const {
     data: { user },
   } = await supabase.auth.getUser();
-
-  if (!user) {
-    return json(401, "Faça login para convidar usuários.");
-  }
+  if (!user) return json(401, "Faça login para convidar.");
 
   const { data: membershipRaw } = await supabase
     .from("organization_members")
@@ -82,61 +55,48 @@ export async function POST(request: NextRequest) {
     .eq("organization_id", organizationId)
     .eq("profile_id", user.id)
     .maybeSingle();
-  const membership = membershipRaw as { role: string } | null;
-
-  if (!ADMIN_ROLES.has(membership?.role ?? "")) {
-    return json(403, "Você não tem permissão para convidar usuários.");
+  const memberRole = (membershipRaw as { role?: string } | null)?.role;
+  if (!ADMIN_ROLES.has(memberRole ?? "")) {
+    return json(403, "Sem permissão.");
   }
 
-  let admin;
-  try {
-    admin = getAdminClient();
-  } catch {
-    return json(500, "Convites ainda não estão configurados no servidor.");
-  }
-
-  const redirectTo = `${
-    process.env.NEXT_PUBLIC_APP_URL ?? request.nextUrl.origin
-  }/auth/callback`;
-
-  const { data, error } = await admin.auth.admin.inviteUserByEmail(email, {
-    data: {
-      full_name: fullName,
-      invited_to_org: organizationId,
-      invited_role: role,
-    },
-    redirectTo,
-  });
-
-  if (error || !data.user) {
-    return json(400, error?.message ?? "Não foi possível criar o convite.");
-  }
-
-  const invitedUserId = data.user.id;
-
-  const { error: profileError } = await admin.from("profiles").upsert({
-    id: invitedUserId,
-    full_name: fullName,
-    default_org_id: organizationId,
-  });
-
-  if (profileError) {
-    return json(500, "Convite criado, mas falhou ao criar o perfil.");
-  }
-
-  const { error: memberError } = await admin
-    .from("organization_members")
+  // Save pending invite (RLS allows admins of org to insert)
+  const { error: pendingErr } = await supabase
+    .from("pending_invites")
     .upsert(
       {
+        email,
         organization_id: organizationId,
-        profile_id: invitedUserId,
         role,
+        full_name: fullName,
+        invited_by: user.id,
+        consumed_at: null,
       },
-      { onConflict: "organization_id,profile_id" }
+      { onConflict: "email,organization_id" }
     );
 
-  if (memberError) {
-    return json(500, "Convite criado, mas falhou ao vincular a organização.");
+  if (pendingErr) {
+    return json(500, `Falha ao registrar convite: ${pendingErr.message}`);
+  }
+
+  // Send magic link with shouldCreateUser=true. The handle_new_user trigger consumes
+  // pending_invites on first login and links the user to the org with the chosen role.
+  const redirectTo =
+    (process.env.NEXT_PUBLIC_APP_URL ?? request.nextUrl.origin) +
+    "/auth/callback?next=" +
+    encodeURIComponent("/inicio");
+
+  const { error: otpErr } = await supabase.auth.signInWithOtp({
+    email,
+    options: {
+      emailRedirectTo: redirectTo,
+      shouldCreateUser: true,
+      data: fullName ? { full_name: fullName } : undefined,
+    },
+  });
+
+  if (otpErr) {
+    return json(500, `Falha ao enviar link: ${otpErr.message}`);
   }
 
   return NextResponse.json({ ok: true });
