@@ -30,6 +30,18 @@ npm run dev
 # abre http://localhost:3000
 ```
 
+## Qualidade local
+
+```bash
+npm run typecheck
+npm run lint
+npm run build
+npm audit --audit-level=moderate
+```
+
+O deploy não deve ignorar TypeScript nem lint. Se qualquer comando acima falhar,
+corrija antes de mandar para `main`.
+
 ## Estrutura
 
 ```
@@ -60,8 +72,18 @@ Configure no Vercel (Production + Preview + Development):
 |---|---|
 | `NEXT_PUBLIC_SUPABASE_URL` | Supabase project settings |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase API keys (publishable) |
-| `SUPABASE_SERVICE_ROLE_KEY` | Supabase API keys (server-only, NUNCA exponha no client) |
-| `NEXT_PUBLIC_APP_URL` | `https://app.obralia.app` em prod |
+| `SUPABASE_SERVICE_ROLE_KEY` | Supabase API keys (server-only; necessário para convites de usuários; NUNCA exponha no client) |
+| `NEXT_PUBLIC_APP_URL` | `https://www.obralia.com.br` em prod |
+
+## Banco
+
+O schema versionado fica em [`supabase/migrations`](./supabase/migrations).
+Depois de vincular o projeto Supabase, aplique com:
+
+```bash
+npx supabase link --project-ref bhhscygbhaqyewejlgug
+npx supabase db push
+```
 
 ## Branches
 

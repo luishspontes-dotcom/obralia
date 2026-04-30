@@ -61,6 +61,33 @@ html, body {
   text-rendering: optimizeLegibility;
 }
 
+.app-shell {
+  display: grid;
+  grid-template-columns: 64px 280px minmax(0, 1fr);
+  min-height: 100vh;
+}
+
+.app-main {
+  background: var(--o-cream);
+  overflow-y: auto;
+  max-height: 100vh;
+}
+
+@media (max-width: 900px) {
+  .app-shell {
+    grid-template-columns: 56px minmax(0, 1fr);
+  }
+
+  .app-shell > aside:nth-of-type(2) {
+    display: none;
+  }
+
+  .app-main {
+    max-height: none;
+    min-height: 100vh;
+  }
+}
+
 ::selection { background: var(--o-accent-soft); color: var(--o-accent-h); }
 
 /* Number tabular */

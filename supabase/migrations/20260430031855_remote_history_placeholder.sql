@@ -1,0 +1,2 @@
+-- Placeholder for a migration that was applied directly to the remote Supabase
+-- project before migrations were committed to Git.

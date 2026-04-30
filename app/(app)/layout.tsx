@@ -3,6 +3,18 @@ import { createServerSupabase } from "@/lib/supabase/server";
 import { Rail } from "@/components/layout/Rail";
 import { Sidebar } from "@/components/layout/Sidebar";
 
+type Profile = {
+  full_name: string | null;
+  default_org_id: string | null;
+};
+
+type Organization = {
+  id: string;
+  name: string;
+  slug: string;
+  brand_color: string | null;
+};
+
 export default async function AppLayout({
   children,
 }: {
@@ -16,27 +28,24 @@ export default async function AppLayout({
   if (!user) redirect("/login");
 
   // Try to fetch first organization the user belongs to
-  const { data: profile } = await supabase
+  const { data: profileRaw } = await supabase
     .from("profiles")
     .select("full_name, default_org_id")
     .eq("id", user.id)
     .maybeSingle();
+  const profile = profileRaw as Profile | null;
 
-  const { data: orgs } = await supabase
+  const { data: orgsRaw } = await supabase
     .from("organizations")
     .select("id, name, slug, brand_color");
+  const orgs = (orgsRaw ?? []) as Organization[];
 
-  const activeOrg = orgs?.[0] ?? null;
+  const activeOrg =
+    orgs.find((org) => org.id === profile?.default_org_id) ?? orgs[0] ?? null;
   const fullName = profile?.full_name ?? null;
 
   return (
-    <div
-      style={{
-        display: "grid",
-        gridTemplateColumns: "64px 280px 1fr",
-        minHeight: "100vh",
-      }}
-    >
+    <div className="app-shell">
       <Rail
         userInitials={
           (fullName ?? user.email ?? "??")
@@ -49,12 +58,7 @@ export default async function AppLayout({
       />
       <Sidebar activeOrg={activeOrg} userName={fullName} />
       <main
-        className="light-scroll"
-        style={{
-          background: "var(--o-cream)",
-          overflowY: "auto",
-          maxHeight: "100vh",
-        }}
+        className="app-main light-scroll"
       >
         {children}
       </main>

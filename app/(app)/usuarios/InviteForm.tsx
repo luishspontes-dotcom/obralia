@@ -1,39 +1,42 @@
 "use client";
 
 import { useState, FormEvent } from "react";
-import { createBrowserSupabase } from "@/lib/supabase/client";
 
 export function InviteForm({ orgId }: { orgId: string }) {
   const [email, setEmail] = useState("");
   const [name, setName] = useState("");
-  const [role, setRole] = useState<"admin" | "member">("member");
+  const [role, setRole] = useState<"admin" | "engineer" | "viewer">("engineer");
   const [status, setStatus] = useState<"idle" | "sending" | "ok" | "err">("idle");
   const [msg, setMsg] = useState("");
 
   async function submit(e: FormEvent) {
     e.preventDefault();
     setStatus("sending");
-    const supabase = createBrowserSupabase();
+    setMsg("");
 
-    const redirect =
-      (process.env.NEXT_PUBLIC_APP_URL ?? window.location.origin) + "/auth/callback";
-
-    const { error } = await supabase.auth.signInWithOtp({
-      email,
-      options: {
-        emailRedirectTo: redirect,
-        shouldCreateUser: true,
-        data: { full_name: name, invited_to_org: orgId, invited_role: role },
-      },
+    const res = await fetch("/api/invites", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        email,
+        name,
+        role,
+        organizationId: orgId,
+      }),
     });
 
-    if (error) {
+    const payload = (await res.json().catch(() => null)) as {
+      message?: string;
+    } | null;
+
+    if (!res.ok) {
       setStatus("err");
-      setMsg(error.message);
+      setMsg(payload?.message ?? "Não foi possível enviar o convite.");
       return;
     }
+
     setStatus("ok");
-    setMsg(`Convite enviado para ${email}. Quando ele clicar no link, vincule manualmente como ${role}.`);
+    setMsg(`Convite enviado para ${email}. O usuário já ficou vinculado à organização como ${role}.`);
     setEmail("");
     setName("");
   }
@@ -69,11 +72,12 @@ export function InviteForm({ orgId }: { orgId: string }) {
       />
       <select
         value={role}
-        onChange={(e) => setRole(e.target.value as "admin" | "member")}
+        onChange={(e) => setRole(e.target.value as "admin" | "engineer" | "viewer")}
         style={inputStyle}
       >
-        <option value="member">Membro</option>
         <option value="admin">Admin</option>
+        <option value="engineer">Engenharia</option>
+        <option value="viewer">Visualizador</option>
       </select>
       <button
         type="submit"

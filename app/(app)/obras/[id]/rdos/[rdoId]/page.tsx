@@ -50,7 +50,9 @@ export default async function RdoDetailPage({
   const { data: rdoRaw } = await supabase
     .from("daily_reports")
     .select("id, number, date, status, weather_morning, weather_afternoon, condition_morning, condition_afternoon, general_notes")
-    .eq("id", rdoId).maybeSingle();
+    .eq("id", rdoId)
+    .eq("site_id", id)
+    .maybeSingle();
   const rdo = rdoRaw as DR | null;
   if (!rdo) notFound();
 
@@ -62,6 +64,7 @@ export default async function RdoDetailPage({
   const { data: mediaRaw } = await supabase
     .from("media").select("id, storage_path, thumbnail_path, caption")
     .eq("daily_report_id", rdoId)
+    .eq("site_id", id)
     .eq("kind", "photo")
     .limit(50);
   const photos = (mediaRaw ?? []) as Media[];

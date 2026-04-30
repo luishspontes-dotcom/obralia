@@ -7,6 +7,15 @@ type Member = {
   profiles: { id: string; full_name: string; avatar_url: string | null } | null;
 };
 
+type Profile = {
+  default_org_id: string | null;
+};
+
+type Organization = {
+  id: string;
+  name: string;
+};
+
 export default async function UsuariosPage() {
   const supabase = await createServerSupabase();
   const {
@@ -14,16 +23,26 @@ export default async function UsuariosPage() {
   } = await supabase.auth.getUser();
   if (!user) return null;
 
+  const { data: profileRaw } = await supabase
+    .from("profiles")
+    .select("default_org_id")
+    .eq("id", user.id)
+    .maybeSingle();
+  const profile = profileRaw as Profile | null;
+
   const { data: orgsRaw } = await supabase
     .from("organizations").select("id, name");
-  const orgs = (orgsRaw ?? []) as { id: string; name: string }[];
-  const activeOrg = orgs[0] ?? null;
+  const orgs = (orgsRaw ?? []) as Organization[];
+  const activeOrg =
+    orgs.find((org) => org.id === profile?.default_org_id) ?? orgs[0] ?? null;
 
   const { data: membersRaw } = await supabase
     .from("organization_members")
     .select("profile_id, role, profiles(id, full_name, avatar_url)")
     .eq("organization_id", activeOrg?.id ?? "");
   const members = (membersRaw ?? []) as unknown as Member[];
+  const currentMember = members.find((member) => member.profile_id === user.id);
+  const canInvite = ["owner", "admin"].includes(currentMember?.role ?? "");
 
   return (
     <div style={{ padding: "24px", maxWidth: 1280, margin: "0 auto" }}>
@@ -84,9 +103,15 @@ export default async function UsuariosPage() {
         <div style={{ background: "var(--o-paper)", border: "1px solid var(--o-border)", borderRadius: 12, padding: 20 }}>
           <h3 style={{ margin: "0 0 12px", font: "600 14px var(--font-inter)" }}>Convidar usuário</h3>
           <p style={{ margin: "0 0 16px", fontSize: 13, color: "var(--o-text-2)", lineHeight: 1.5 }}>
-            O usuário recebe um link mágico no e-mail. Quando ele clica, é vinculado à sua organização como membro.
+            O usuário recebe um link seguro no e-mail e já fica vinculado à organização no papel escolhido.
           </p>
-          {activeOrg && <InviteForm orgId={activeOrg.id} />}
+          {activeOrg && canInvite ? (
+            <InviteForm orgId={activeOrg.id} />
+          ) : (
+            <div style={{ fontSize: 13, color: "var(--o-text-2)", lineHeight: 1.5 }}>
+              Apenas owners e admins podem convidar usuários.
+            </div>
+          )}
         </div>
       </div>
     </div>

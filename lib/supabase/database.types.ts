@@ -7,6 +7,8 @@ export type Json =
   | Json[]
 
 export type Database = {
+  // Allows to automatically instantiate createClient with right options
+  // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
     PostgrestVersion: "14.5"
   }
@@ -43,7 +45,22 @@ export type Database = {
           target_id?: string
           target_table?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "comments_author_id_fkey"
+            columns: ["author_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "comments_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       daily_reports: {
         Row: {
@@ -94,7 +111,29 @@ export type Database = {
           weather_afternoon?: string | null
           weather_morning?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "daily_reports_approved_by_fkey"
+            columns: ["approved_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "daily_reports_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "daily_reports_site_id_fkey"
+            columns: ["site_id"]
+            isOneToOne: false
+            referencedRelation: "sites"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       media: {
         Row: {
@@ -151,7 +190,36 @@ export type Database = {
           wbs_item_id?: string | null
           width?: number | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "media_daily_report_id_fkey"
+            columns: ["daily_report_id"]
+            isOneToOne: false
+            referencedRelation: "daily_reports"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "media_site_id_fkey"
+            columns: ["site_id"]
+            isOneToOne: false
+            referencedRelation: "sites"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "media_taken_by_fkey"
+            columns: ["taken_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "media_wbs_item_id_fkey"
+            columns: ["wbs_item_id"]
+            isOneToOne: false
+            referencedRelation: "wbs_items"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       notifications: {
         Row: {
@@ -199,7 +267,22 @@ export type Database = {
           snoozed_until?: string | null
           title?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "notifications_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "notifications_recipient_id_fkey"
+            columns: ["recipient_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       organization_members: {
         Row: {
@@ -220,7 +303,22 @@ export type Database = {
           profile_id?: string
           role?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "organization_members_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "organization_members_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       organizations: {
         Row: {
@@ -259,6 +357,7 @@ export type Database = {
           default_org_id: string | null
           full_name: string
           id: string
+          is_platform_admin: boolean
         }
         Insert: {
           avatar_url?: string | null
@@ -266,6 +365,7 @@ export type Database = {
           default_org_id?: string | null
           full_name: string
           id: string
+          is_platform_admin?: boolean
         }
         Update: {
           avatar_url?: string | null
@@ -273,8 +373,17 @@ export type Database = {
           default_org_id?: string | null
           full_name?: string
           id?: string
+          is_platform_admin?: boolean
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "profiles_default_org_id_fkey"
+            columns: ["default_org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       report_activities: {
         Row: {
@@ -301,7 +410,22 @@ export type Database = {
           progress_pct?: number | null
           wbs_item_id?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "report_activities_daily_report_id_fkey"
+            columns: ["daily_report_id"]
+            isOneToOne: false
+            referencedRelation: "daily_reports"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "report_activities_wbs_item_id_fkey"
+            columns: ["wbs_item_id"]
+            isOneToOne: false
+            referencedRelation: "wbs_items"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       report_equipment: {
         Row: {
@@ -322,7 +446,15 @@ export type Database = {
           id?: string
           name?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "report_equipment_daily_report_id_fkey"
+            columns: ["daily_report_id"]
+            isOneToOne: false
+            referencedRelation: "daily_reports"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       report_workforce: {
         Row: {
@@ -343,7 +475,15 @@ export type Database = {
           id?: string
           role?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "report_workforce_daily_report_id_fkey"
+            columns: ["daily_report_id"]
+            isOneToOne: false
+            referencedRelation: "daily_reports"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       sites: {
         Row: {
@@ -391,7 +531,22 @@ export type Database = {
           start_date?: string | null
           status?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "sites_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sites_responsible_id_fkey"
+            columns: ["responsible_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       wbs_items: {
         Row: {
@@ -439,15 +594,181 @@ export type Database = {
           status?: string | null
           weight?: number | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "wbs_items_assignee_id_fkey"
+            columns: ["assignee_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wbs_items_parent_id_fkey"
+            columns: ["parent_id"]
+            isOneToOne: false
+            referencedRelation: "wbs_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wbs_items_site_id_fkey"
+            columns: ["site_id"]
+            isOneToOne: false
+            referencedRelation: "sites"
+            referencedColumns: ["id"]
+          },
+        ]
       }
     }
-    Views: { [_ in never]: never }
+    Views: {
+      [_ in never]: never
+    }
     Functions: {
+      can_access_daily_report: {
+        Args: { target_daily_report_id: string }
+        Returns: boolean
+      }
+      can_access_profile: {
+        Args: { target_profile_id: string }
+        Returns: boolean
+      }
+      can_access_site: { Args: { target_site_id: string }; Returns: boolean }
+      can_write_daily_report: {
+        Args: { target_daily_report_id: string }
+        Returns: boolean
+      }
+      can_write_site: { Args: { target_site_id: string }; Returns: boolean }
       current_user_admin_orgs: { Args: never; Returns: string[] }
       current_user_orgs: { Args: never; Returns: string[] }
+      current_user_writer_orgs: { Args: never; Returns: string[] }
     }
-    Enums: { [_ in never]: never }
-    CompositeTypes: { [_ in never]: never }
+    Enums: {
+      [_ in never]: never
+    }
+    CompositeTypes: {
+      [_ in never]: never
+    }
   }
 }
+
+type DatabaseWithoutInternals = Omit<Database, "__InternalSupabase">
+
+type DefaultSchema = DatabaseWithoutInternals[Extract<keyof Database, "public">]
+
+export type Tables<
+  DefaultSchemaTableNameOrOptions extends
+    | keyof (DefaultSchema["Tables"] & DefaultSchema["Views"])
+    | { schema: keyof DatabaseWithoutInternals },
+  TableName extends DefaultSchemaTableNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
+        DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])
+    : never = never,
+> = DefaultSchemaTableNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
+      DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])[TableName] extends {
+      Row: infer R
+    }
+    ? R
+    : never
+  : DefaultSchemaTableNameOrOptions extends keyof (DefaultSchema["Tables"] &
+        DefaultSchema["Views"])
+    ? (DefaultSchema["Tables"] &
+        DefaultSchema["Views"])[DefaultSchemaTableNameOrOptions] extends {
+        Row: infer R
+      }
+      ? R
+      : never
+    : never
+
+export type TablesInsert<
+  DefaultSchemaTableNameOrOptions extends
+    | keyof DefaultSchema["Tables"]
+    | { schema: keyof DatabaseWithoutInternals },
+  TableName extends DefaultSchemaTableNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
+    : never = never,
+> = DefaultSchemaTableNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"][TableName] extends {
+      Insert: infer I
+    }
+    ? I
+    : never
+  : DefaultSchemaTableNameOrOptions extends keyof DefaultSchema["Tables"]
+    ? DefaultSchema["Tables"][DefaultSchemaTableNameOrOptions] extends {
+        Insert: infer I
+      }
+      ? I
+      : never
+    : never
+
+export type TablesUpdate<
+  DefaultSchemaTableNameOrOptions extends
+    | keyof DefaultSchema["Tables"]
+    | { schema: keyof DatabaseWithoutInternals },
+  TableName extends DefaultSchemaTableNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
+    : never = never,
+> = DefaultSchemaTableNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"][TableName] extends {
+      Update: infer U
+    }
+    ? U
+    : never
+  : DefaultSchemaTableNameOrOptions extends keyof DefaultSchema["Tables"]
+    ? DefaultSchema["Tables"][DefaultSchemaTableNameOrOptions] extends {
+        Update: infer U
+      }
+      ? U
+      : never
+    : never
+
+export type Enums<
+  DefaultSchemaEnumNameOrOptions extends
+    | keyof DefaultSchema["Enums"]
+    | { schema: keyof DatabaseWithoutInternals },
+  EnumName extends DefaultSchemaEnumNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"]
+    : never = never,
+> = DefaultSchemaEnumNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"][EnumName]
+  : DefaultSchemaEnumNameOrOptions extends keyof DefaultSchema["Enums"]
+    ? DefaultSchema["Enums"][DefaultSchemaEnumNameOrOptions]
+    : never
+
+export type CompositeTypes<
+  PublicCompositeTypeNameOrOptions extends
+    | keyof DefaultSchema["CompositeTypes"]
+    | { schema: keyof DatabaseWithoutInternals },
+  CompositeTypeName extends PublicCompositeTypeNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
+    : never = never,
+> = PublicCompositeTypeNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"][CompositeTypeName]
+  : PublicCompositeTypeNameOrOptions extends keyof DefaultSchema["CompositeTypes"]
+    ? DefaultSchema["CompositeTypes"][PublicCompositeTypeNameOrOptions]
+    : never
+
+export const Constants = {
+  public: {
+    Enums: {},
+  },
+} as const

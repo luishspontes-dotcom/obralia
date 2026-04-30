@@ -44,11 +44,6 @@ export default async function InicioPage() {
     ((lateRows ?? []) as { site_id: string }[]).map((r) => r.site_id)
   );
 
-  const { count: tasksDoneCount } = await supabase
-    .from("wbs_items")
-    .select("*", { count: "exact", head: true })
-    .eq("status", "done");
-
   const { count: tasksInProgressCount } = await supabase
     .from("wbs_items")
     .select("*", { count: "exact", head: true })
