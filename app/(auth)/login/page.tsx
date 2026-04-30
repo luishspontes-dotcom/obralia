@@ -1,13 +1,19 @@
 "use client";
 
 import { useState, FormEvent } from "react";
+import { useRouter } from "next/navigation";
 import { createBrowserSupabase } from "@/lib/supabase/client";
 
+type Mode = "password" | "magic";
+
 export default function LoginPage() {
+  const router = useRouter();
+  const [mode, setMode] = useState<Mode>("password");
   const [email, setEmail] = useState("");
-  const [status, setStatus] = useState<"idle" | "sending" | "sent" | "error">(
-    "idle"
-  );
+  const [password, setPassword] = useState("");
+  const [status, setStatus] = useState<
+    "idle" | "sending" | "sent" | "error"
+  >("idle");
   const [errorMsg, setErrorMsg] = useState<string>("");
 
   async function handleSubmit(e: FormEvent) {
@@ -17,6 +23,27 @@ export default function LoginPage() {
     setErrorMsg("");
 
     const supabase = createBrowserSupabase();
+
+    if (mode === "password") {
+      if (!password) {
+        setStatus("error");
+        setErrorMsg("Informe sua senha.");
+        return;
+      }
+      const { error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+      if (error) {
+        setStatus("error");
+        setErrorMsg("E-mail ou senha incorretos.");
+        return;
+      }
+      router.push("/inicio");
+      router.refresh();
+      return;
+    }
+
     const redirect =
       (process.env.NEXT_PUBLIC_APP_URL ?? window.location.origin) +
       "/auth/callback";
@@ -56,7 +83,6 @@ export default function LoginPage() {
           textAlign: "center",
         }}
       >
-        {/* Mark */}
         <div
           style={{
             width: 56,
@@ -116,6 +142,8 @@ export default function LoginPage() {
         <div style={{ fontSize: 14, color: "var(--o-text-2)", marginBottom: 28 }}>
           {status === "sent"
             ? `Enviamos um link de acesso para ${email}. Abra no seu computador.`
+            : mode === "password"
+            ? "Use o e-mail e senha cadastrados pela sua construtora."
             : "Use o e-mail cadastrado pela sua construtora. Enviamos um link mágico."}
         </div>
 
@@ -141,14 +169,44 @@ export default function LoginPage() {
               }}
               onFocus={(e) => {
                 e.currentTarget.style.borderColor = "var(--o-accent)";
-                e.currentTarget.style.boxShadow =
-                  "0 0 0 3px var(--o-accent-soft)";
+                e.currentTarget.style.boxShadow = "0 0 0 3px var(--o-accent-soft)";
               }}
               onBlur={(e) => {
                 e.currentTarget.style.borderColor = "var(--o-border)";
                 e.currentTarget.style.boxShadow = "none";
               }}
             />
+
+            {mode === "password" && (
+              <input
+                type="password"
+                required
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="Sua senha"
+                style={{
+                  width: "100%",
+                  background: "var(--o-cream)",
+                  border: "1px solid var(--o-border)",
+                  borderRadius: 10,
+                  padding: "12px 14px",
+                  font: "400 15px var(--font-inter)",
+                  color: "var(--o-text-1)",
+                  marginBottom: 12,
+                  textAlign: "left",
+                  outline: "none",
+                }}
+                onFocus={(e) => {
+                  e.currentTarget.style.borderColor = "var(--o-accent)";
+                  e.currentTarget.style.boxShadow = "0 0 0 3px var(--o-accent-soft)";
+                }}
+                onBlur={(e) => {
+                  e.currentTarget.style.borderColor = "var(--o-border)";
+                  e.currentTarget.style.boxShadow = "none";
+                }}
+              />
+            )}
+
             <button
               type="submit"
               disabled={status === "sending"}
@@ -166,9 +224,35 @@ export default function LoginPage() {
               }}
             >
               {status === "sending"
-                ? "Enviando…"
+                ? "Entrando…"
+                : mode === "password"
+                ? "Entrar"
                 : "Enviar link de acesso →"}
             </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                setMode(mode === "password" ? "magic" : "password");
+                setErrorMsg("");
+                setStatus("idle");
+              }}
+              style={{
+                width: "100%",
+                padding: "10px 12px",
+                marginTop: 10,
+                background: "transparent",
+                color: "var(--o-text-2)",
+                border: 0,
+                font: "500 13px var(--font-inter)",
+                cursor: "pointer",
+              }}
+            >
+              {mode === "password"
+                ? "Prefere link mágico no e-mail?"
+                : "Prefere entrar com senha?"}
+            </button>
+
             {status === "error" && (
               <div
                 style={{
