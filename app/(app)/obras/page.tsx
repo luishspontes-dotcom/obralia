@@ -40,6 +40,16 @@ export default async function ObrasPage({
 
   const items = (itemsRaw ?? []) as WbsItem[];
 
+  // RDO counts per site
+  const { data: rdoRowsRaw } = await supabase
+    .from("daily_reports")
+    .select("site_id");
+  const rdoRows = (rdoRowsRaw ?? []) as { site_id: string }[];
+  const rdoCount = new Map<string, number>();
+  for (const r of rdoRows) {
+    rdoCount.set(r.site_id, (rdoCount.get(r.site_id) ?? 0) + 1);
+  }
+
   // Aggregate per site
   const perSite = new Map<
     string,
@@ -237,7 +247,9 @@ export default async function ObrasPage({
               >
                 <span>{stats.progressAvg}% concluído</span>
                 <span className="tnum">
-                  {stats.done}/{stats.total} atividades
+                  {stats.total > 0
+                    ? `${stats.done}/${stats.total} atividades`
+                    : `${rdoCount.get(s.id) ?? 0} RDOs`}
                 </span>
               </div>
 

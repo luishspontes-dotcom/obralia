@@ -107,6 +107,12 @@ export default async function ObraDetailPage({
         )
       : 0;
 
+  // RDO count for this site
+  const { count: rdoCount } = await supabase
+    .from("daily_reports")
+    .select("*", { count: "exact", head: true })
+    .eq("site_id", id);
+
   return (
     <div style={{ padding: "24px", maxWidth: 1280, margin: "0 auto" }}>
       {/* Breadcrumb */}
@@ -146,6 +152,25 @@ export default async function ObraDetailPage({
         >
           {site.name}
         </h1>
+        {/* Action bar */}
+        <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
+          {(rdoCount ?? 0) > 0 && (
+            <Link
+              href={`/obras/${id}/rdos`}
+              style={{
+                padding: "8px 14px",
+                background: "var(--o-accent)",
+                color: "white",
+                borderRadius: 8,
+                textDecoration: "none",
+                fontSize: 13,
+                fontWeight: 500,
+              }}
+            >
+              📋 {rdoCount} RDOs →
+            </Link>
+          )}
+        </div>
         {site.address && (
           <div
             style={{

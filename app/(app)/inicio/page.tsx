@@ -54,11 +54,15 @@ export default async function InicioPage() {
     .select("*", { count: "exact", head: true })
     .eq("status", "in_progress");
 
+  const { count: rdosCount } = await supabase
+    .from("daily_reports")
+    .select("*", { count: "exact", head: true });
+
   const stats = [
-    { label: "Obras ativas", value: String(obrasCount ?? 0), href: "/obras" },
+    { label: "Obras", value: String(obrasCount ?? 0), href: "/obras" },
+    { label: "RDOs registrados", value: String(rdosCount ?? 0), href: "/obras" },
+    { label: "Atividades em curso", value: String(tasksInProgressCount ?? 0), href: "/tarefas?status=in_progress" },
     { label: "Em risco", value: String(lateSiteIds.size), href: "/obras?status=at-risk" },
-    { label: "Atividades em curso", value: String(tasksInProgressCount ?? 0), href: "/obras" },
-    { label: "Concluídas", value: String(tasksDoneCount ?? 0), href: "/obras" },
   ];
 
   return (
