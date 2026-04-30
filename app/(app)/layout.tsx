@@ -20,13 +20,14 @@ export default async function AppLayout({
     .from("profiles")
     .select("full_name, default_org_id")
     .eq("id", user.id)
-    .single();
+    .maybeSingle();
 
   const { data: orgs } = await supabase
     .from("organizations")
     .select("id, name, slug, brand_color");
 
   const activeOrg = orgs?.[0] ?? null;
+  const fullName = profile?.full_name ?? null;
 
   return (
     <div
@@ -38,7 +39,7 @@ export default async function AppLayout({
     >
       <Rail
         userInitials={
-          (profile?.full_name ?? user.email ?? "??")
+          (fullName ?? user.email ?? "??")
             .split(" ")
             .map((s: string) => s[0])
             .slice(0, 2)
@@ -46,7 +47,7 @@ export default async function AppLayout({
             .toUpperCase()
         }
       />
-      <Sidebar activeOrg={activeOrg} userName={profile?.full_name ?? null} />
+      <Sidebar activeOrg={activeOrg} userName={fullName} />
       <main
         className="light-scroll"
         style={{

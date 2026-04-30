@@ -14,14 +14,18 @@ export default async function InicioPage() {
     data: { user },
   } = await supabase.auth.getUser();
 
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("full_name")
-    .eq("id", user!.id)
-    .single();
+  let fullName: string | null = null;
+  if (user) {
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("full_name")
+      .eq("id", user.id)
+      .maybeSingle();
+    fullName = profile?.full_name ?? null;
+  }
 
   const firstName =
-    profile?.full_name?.split(" ")[0] ??
+    fullName?.split(" ")[0] ??
     user?.email?.split("@")[0] ??
     "";
 
