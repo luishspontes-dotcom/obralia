@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { createServerSupabase } from "@/lib/supabase/server";
 
 function greeting(): string {
@@ -21,13 +22,44 @@ export default async function InicioPage() {
       .select("full_name")
       .eq("id", user.id)
       .maybeSingle();
-    fullName = profile?.full_name ?? null;
+    fullName = (profile as { full_name?: string } | null)?.full_name ?? null;
   }
 
   const firstName =
     fullName?.split(" ")[0] ??
     user?.email?.split("@")[0] ??
     "";
+
+  // Real counts
+  const { count: obrasCount } = await supabase
+    .from("sites")
+    .select("*", { count: "exact", head: true });
+
+  const { data: lateRows } = await supabase
+    .from("wbs_items")
+    .select("site_id")
+    .eq("status", "late");
+
+  const lateSiteIds = new Set(
+    ((lateRows ?? []) as { site_id: string }[]).map((r) => r.site_id)
+  );
+
+  const { count: tasksDoneCount } = await supabase
+    .from("wbs_items")
+    .select("*", { count: "exact", head: true })
+    .eq("status", "done");
+
+  const { count: tasksInProgressCount } = await supabase
+    .from("wbs_items")
+    .select("*", { count: "exact", head: true })
+    .eq("status", "in_progress");
+
+  const stats = [
+    { label: "Obras ativas", value: String(obrasCount ?? 0), href: "/obras" },
+    { label: "Em risco", value: String(lateSiteIds.size), href: "/obras?status=at-risk" },
+    { label: "Atividades em curso", value: String(tasksInProgressCount ?? 0), href: "/obras" },
+    { label: "Concluídas", value: String(tasksDoneCount ?? 0), href: "/obras" },
+  ];
 
   return (
     <div style={{ padding: "24px", maxWidth: 1280, margin: "0 auto" }}>
@@ -51,9 +83,8 @@ export default async function InicioPage() {
         }}
       >
         Bem-vindo ao <strong style={{ color: "var(--o-text-1)" }}>Obralia</strong>.
-        Por enquanto, esta é a base — Sprint 1 da fundação está rodando. Em
-        breve aqui mostramos sua caixa de entrada, frentes em andamento e obras
-        que exigem atenção.
+        Aqui está o resumo da operação. Use a barra lateral pra navegar pelas
+        obras, RDOs e mensagens.
       </p>
 
       <div
@@ -64,20 +95,20 @@ export default async function InicioPage() {
           marginBottom: 24,
         }}
       >
-        {[
-          { label: "Obras", value: "0" },
-          { label: "Em risco", value: "0" },
-          { label: "RDOs para aprovar", value: "0" },
-          { label: "Fotos esta semana", value: "0" },
-        ].map((s) => (
-          <div
+        {stats.map((s) => (
+          <Link
             key={s.label}
+            href={s.href}
             style={{
               background: "var(--o-paper)",
               border: "1px solid var(--o-border)",
               borderLeft: "3px solid var(--t-brand)",
               borderRadius: 12,
               padding: "16px 18px",
+              textDecoration: "none",
+              color: "inherit",
+              transition: "150ms",
+              display: "block",
             }}
           >
             <div
@@ -100,7 +131,7 @@ export default async function InicioPage() {
             >
               {s.value}
             </div>
-          </div>
+          </Link>
         ))}
       </div>
 
@@ -120,19 +151,25 @@ export default async function InicioPage() {
             marginBottom: 4,
           }}
         >
-          Caixa de entrada vazia
+          {obrasCount && obrasCount > 0 ? `${obrasCount} obras importadas do ClickUp` : "Caixa de entrada vazia"}
         </div>
         <div
           className="font-body-lora"
           style={{
             color: "var(--o-text-2)",
             fontSize: 14,
-            maxWidth: 480,
+            maxWidth: 560,
             margin: "0 auto",
           }}
         >
-          Quando alguém atribuir uma tarefa, criar um RDO ou comentar em uma
-          obra, vai aparecer aqui. Em breve.
+          {obrasCount && obrasCount > 0 ? (
+            <>
+              Vá em <Link href="/obras" style={{ color: "var(--o-accent)", textDecoration: "none", fontWeight: 500 }}>Obras → Em andamento</Link> pra ver a lista completa
+              com status, fases e atividades. RDOs e fotos do Diário virão em breve.
+            </>
+          ) : (
+            "Quando alguém atribuir uma tarefa, criar um RDO ou comentar em uma obra, vai aparecer aqui."
+          )}
         </div>
       </div>
     </div>
