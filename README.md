@@ -35,6 +35,7 @@ npm run dev
 ```bash
 npm run typecheck
 npm run lint
+npm run schema:check
 npm run build
 npm audit --audit-level=moderate
 ```
