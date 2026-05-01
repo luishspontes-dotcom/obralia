@@ -1,9 +1,11 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createServerSupabase } from "@/lib/supabase/server";
+import { withSignedMediaUrls } from "@/lib/supabase/media-url";
 import { PhotoGrid } from "@/components/PhotoLightbox";
+import { PhotoUploadPanel } from "@/components/PhotoUploadPanel";
 
-type Site = { id: string; name: string };
+type Site = { id: string; name: string; organization_id: string };
 type Photo = {
   id: string;
   storage_path: string | null;
@@ -11,6 +13,12 @@ type Photo = {
   caption: string | null;
   taken_at: string | null;
   daily_report_id: string | null;
+};
+type DailyReportOption = {
+  id: string;
+  number: number;
+  date: string;
+  status: string | null;
 };
 
 export default async function ObraFotosPage({
@@ -28,9 +36,21 @@ export default async function ObraFotosPage({
 
   const supabase = await createServerSupabase();
   const { data: siteRaw } = await supabase
-    .from("sites").select("id, name").eq("id", id).maybeSingle();
+    .from("sites").select("id, name, organization_id").eq("id", id).maybeSingle();
   const site = siteRaw as Site | null;
   if (!site) notFound();
+
+  const { data: canUpload } = await supabase.rpc("can_write_site", {
+    target_site_id: id,
+  });
+
+  const { data: rdosRaw } = await supabase
+    .from("daily_reports")
+    .select("id, number, date, status")
+    .eq("site_id", id)
+    .order("date", { ascending: false })
+    .limit(80);
+  const dailyReports = (rdosRaw ?? []) as DailyReportOption[];
 
   const { count: totalCount } = await supabase
     .from("media")
@@ -45,7 +65,10 @@ export default async function ObraFotosPage({
     .eq("kind", "photo")
     .order("taken_at", { ascending: false, nullsFirst: false })
     .range(offset, offset + PER_PAGE - 1);
-  const photos = (photosRaw ?? []) as Photo[];
+  const photos = await withSignedMediaUrls(
+    supabase,
+    (photosRaw ?? []) as Photo[]
+  );
 
   const total = totalCount ?? photos.length;
   const totalPages = Math.max(1, Math.ceil(total / PER_PAGE));
@@ -90,6 +113,17 @@ export default async function ObraFotosPage({
           </div>
         )}
       </div>
+
+      {canUpload && (
+        <div style={{ marginBottom: 24 }}>
+          <PhotoUploadPanel
+            siteId={id}
+            organizationId={site.organization_id}
+            canUpload={Boolean(canUpload)}
+            dailyReports={dailyReports}
+          />
+        </div>
+      )}
 
       {photos.length === 0 ? (
         <div style={{ background: "var(--o-paper)", border: "1px solid var(--o-border)", borderRadius: 12, padding: 48, textAlign: "center", color: "var(--o-text-2)" }}>

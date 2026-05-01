@@ -2,6 +2,8 @@ import Link from "next/link";
 import { revalidatePath } from "next/cache";
 import { notFound, redirect } from "next/navigation";
 import { createServerSupabase } from "@/lib/supabase/server";
+import { withSignedMediaUrls } from "@/lib/supabase/media-url";
+import { PhotoUploadPanel } from "@/components/PhotoUploadPanel";
 
 type Site = {
   id: string;
@@ -330,9 +332,9 @@ export default async function RdoDetailPage({
   const activities = (actsR.data ?? []) as Activity[];
   const workforce = (wfR.data ?? []) as Workforce[];
   const equipment = (eqR.data ?? []) as Equipment[];
-  const photos = (photosR.data ?? []) as Media[];
-  const videos = (videosR.data ?? []) as Media[];
-  const files = (filesR.data ?? []) as Media[];
+  const photos = await withSignedMediaUrls(supabase, (photosR.data ?? []) as Media[]);
+  const videos = await withSignedMediaUrls(supabase, (videosR.data ?? []) as Media[]);
+  const files = await withSignedMediaUrls(supabase, (filesR.data ?? []) as Media[]);
   const comments = (commentsR.data ?? []) as Comment[];
   const { data: canWriteRdo } = await supabase.rpc("can_write_daily_report", {
     target_daily_report_id: rdoId,
@@ -405,6 +407,26 @@ export default async function RdoDetailPage({
             </span>
           </div>
         </Block>
+      )}
+
+      {canEditRdo && (
+        <Section title="Fotos do RDO">
+          <PhotoUploadPanel
+            siteId={id}
+            organizationId={site.organization_id}
+            canUpload={canEditRdo}
+            dailyReports={[
+              {
+                id: rdoId,
+                number: rdo.number,
+                date: rdo.date,
+                status: rdo.status,
+              },
+            ]}
+            defaultDailyReportId={rdoId}
+            lockDailyReport
+          />
+        </Section>
       )}
 
       {canEditRdo && (

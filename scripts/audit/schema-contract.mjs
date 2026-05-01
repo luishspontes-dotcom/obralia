@@ -71,6 +71,7 @@ const functions = [
   "audit_site_changes",
   "audit_daily_report_changes",
   "audit_pending_invite_changes",
+  "audit_media_created",
 ];
 
 for (const functionName of functions) {
@@ -96,6 +97,7 @@ for (const functionName of [
   "audit_site_changes",
   "audit_daily_report_changes",
   "audit_pending_invite_changes",
+  "audit_media_created",
 ]) {
   requireFunctionClause(functionName, /security\s+definer/);
   requireFunctionClause(functionName, /set\s+search_path\s*=\s*public/);
@@ -165,6 +167,10 @@ requireMatch(
 requireMatch(
   "Pending invite audit trigger must be attached",
   /create\s+trigger\s+on_pending_invites_audit[\s\S]*on\s+public\.pending_invites/
+);
+requireMatch(
+  "Media audit trigger must be attached",
+  /create\s+trigger\s+on_media_audit[\s\S]*on\s+public\.media/
 );
 
 if (failures.length > 0) {

@@ -204,6 +204,11 @@ html, body {
 
 /* Number tabular */
 .tnum { font-feature-settings: 'tnum'; }
+.spin-icon { animation: spin 0.9s linear infinite; }
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
 
 /* Tipografia helpers */
 .font-display { font-family: var(--font-inter); letter-spacing: -0.02em; }

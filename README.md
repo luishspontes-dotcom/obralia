@@ -103,6 +103,7 @@ npx supabase db push
 
 - Healthcheck público: `GET /api/health`
 - O healthcheck valida app, variáveis públicas, `SUPABASE_SERVICE_ROLE_KEY`, banco e Storage sem retornar segredos.
+- Fotos de campo usam upload direto para o bucket privado `media`, com compressão no navegador e RLS por organização/obra.
 
 ## Branches
 
