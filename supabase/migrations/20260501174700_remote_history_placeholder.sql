@@ -1,0 +1,2 @@
+-- Remote migration history placeholder.
+-- This version exists in Supabase's migration history but was not present in the local checkout.

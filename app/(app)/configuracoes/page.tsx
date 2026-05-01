@@ -1,6 +1,7 @@
 import { createServerSupabase } from "@/lib/supabase/server";
 import { canAdmin } from "@/lib/authz";
 import { ChangePasswordForm } from "./ChangePasswordForm";
+import Link from "next/link";
 
 type Profile = { id: string; full_name: string; default_org_id: string | null; is_platform_admin?: boolean };
 type Org = { id: string; name: string; brand_color: string | null; plan: string | null; slug: string };
@@ -81,6 +82,31 @@ export default async function ConfigPage() {
               </span>
             </div>
           )}
+        </Section>
+      )}
+
+      {canReadAudit && (
+        <Section title="Integrações">
+          <Link
+            href="/configuracoes/integracoes"
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              gap: 16,
+              padding: "12px 0",
+              color: "var(--o-text-1)",
+              textDecoration: "none",
+              borderBottom: "1px solid var(--o-border)",
+            }}
+          >
+            <span>
+              <span style={{ display: "block", fontWeight: 600 }}>ClickUp e Diário de Obras</span>
+              <span style={{ display: "block", color: "var(--o-text-2)", fontSize: 13, marginTop: 3 }}>
+                Contas externas, credenciais e histórico de sincronização.
+              </span>
+            </span>
+            <span style={{ color: "var(--o-accent)", fontWeight: 600 }}>Abrir</span>
+          </Link>
         </Section>
       )}
 

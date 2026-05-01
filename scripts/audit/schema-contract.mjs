@@ -41,6 +41,8 @@ const rlsTables = [
   "channels",
   "pending_invites",
   "audit_events",
+  "external_accounts",
+  "sync_runs",
 ];
 
 for (const table of rlsTables) {
@@ -72,6 +74,9 @@ const functions = [
   "audit_daily_report_changes",
   "audit_pending_invite_changes",
   "audit_media_created",
+  "touch_updated_at",
+  "audit_external_account_changes",
+  "audit_sync_run_changes",
 ];
 
 for (const functionName of functions) {
@@ -98,6 +103,8 @@ for (const functionName of [
   "audit_daily_report_changes",
   "audit_pending_invite_changes",
   "audit_media_created",
+  "audit_external_account_changes",
+  "audit_sync_run_changes",
 ]) {
   requireFunctionClause(functionName, /security\s+definer/);
   requireFunctionClause(functionName, /set\s+search_path\s*=\s*public/);
@@ -130,6 +137,10 @@ const requiredPolicies = [
   "admins manage channels",
   "admins manage pending invites",
   "admins read audit events",
+  "admins read external accounts",
+  "admins manage external accounts",
+  "admins read sync runs",
+  "admins manage sync runs",
   "members read media objects",
   "writers manage media objects",
   "users read own avatar objects",
@@ -171,6 +182,14 @@ requireMatch(
 requireMatch(
   "Media audit trigger must be attached",
   /create\s+trigger\s+on_media_audit[\s\S]*on\s+public\.media/
+);
+requireMatch(
+  "External account audit trigger must be attached",
+  /create\s+trigger\s+on_external_accounts_audit[\s\S]*on\s+public\.external_accounts/
+);
+requireMatch(
+  "Sync run audit trigger must be attached",
+  /create\s+trigger\s+on_sync_runs_audit[\s\S]*on\s+public\.sync_runs/
 );
 
 if (failures.length > 0) {

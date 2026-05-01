@@ -148,6 +148,69 @@ export type Database = {
           },
         ]
       }
+      external_accounts: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          external_account_id: string | null
+          id: string
+          label: string
+          last_error: string | null
+          last_success_at: string | null
+          last_sync_at: string | null
+          metadata: Json
+          organization_id: string
+          provider: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          external_account_id?: string | null
+          id?: string
+          label: string
+          last_error?: string | null
+          last_success_at?: string | null
+          last_sync_at?: string | null
+          metadata?: Json
+          organization_id: string
+          provider: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          external_account_id?: string | null
+          id?: string
+          label?: string
+          last_error?: string | null
+          last_success_at?: string | null
+          last_sync_at?: string | null
+          metadata?: Json
+          organization_id?: string
+          provider?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "external_accounts_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "external_accounts_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       daily_reports: {
         Row: {
           approved_at: string | null
@@ -157,11 +220,16 @@ export type Database = {
           created_at: string | null
           created_by: string | null
           date: string
+          external_id: string | null
+          external_provider: string | null
+          external_url: string | null
           general_notes: string | null
           id: string
+          last_synced_at: string | null
           number: number
           site_id: string
           status: string | null
+          sync_metadata: Json
           weather_afternoon: string | null
           weather_morning: string | null
         }
@@ -173,11 +241,16 @@ export type Database = {
           created_at?: string | null
           created_by?: string | null
           date: string
+          external_id?: string | null
+          external_provider?: string | null
+          external_url?: string | null
           general_notes?: string | null
           id?: string
+          last_synced_at?: string | null
           number: number
           site_id: string
           status?: string | null
+          sync_metadata?: Json
           weather_afternoon?: string | null
           weather_morning?: string | null
         }
@@ -189,11 +262,16 @@ export type Database = {
           created_at?: string | null
           created_by?: string | null
           date?: string
+          external_id?: string | null
+          external_provider?: string | null
+          external_url?: string | null
           general_notes?: string | null
           id?: string
+          last_synced_at?: string | null
           number?: number
           site_id?: string
           status?: string | null
+          sync_metadata?: Json
           weather_afternoon?: string | null
           weather_morning?: string | null
         }
@@ -226,14 +304,19 @@ export type Database = {
           caption: string | null
           created_at: string | null
           daily_report_id: string | null
+          external_id: string | null
+          external_provider: string | null
+          external_url: string | null
           gps_lat: number | null
           gps_lng: number | null
           height: number | null
           id: string
           kind: string
+          last_synced_at: string | null
           site_id: string
           size_bytes: number | null
           storage_path: string
+          sync_metadata: Json
           taken_at: string | null
           taken_by: string | null
           thumbnail_path: string | null
@@ -244,14 +327,19 @@ export type Database = {
           caption?: string | null
           created_at?: string | null
           daily_report_id?: string | null
+          external_id?: string | null
+          external_provider?: string | null
+          external_url?: string | null
           gps_lat?: number | null
           gps_lng?: number | null
           height?: number | null
           id?: string
           kind: string
+          last_synced_at?: string | null
           site_id: string
           size_bytes?: number | null
           storage_path: string
+          sync_metadata?: Json
           taken_at?: string | null
           taken_by?: string | null
           thumbnail_path?: string | null
@@ -262,14 +350,19 @@ export type Database = {
           caption?: string | null
           created_at?: string | null
           daily_report_id?: string | null
+          external_id?: string | null
+          external_provider?: string | null
+          external_url?: string | null
           gps_lat?: number | null
           gps_lng?: number | null
           height?: number | null
           id?: string
           kind?: string
+          last_synced_at?: string | null
           site_id?: string
           size_bytes?: number | null
           storage_path?: string
+          sync_metadata?: Json
           taken_at?: string | null
           taken_by?: string | null
           thumbnail_path?: string | null
@@ -628,12 +721,17 @@ export type Database = {
           cover_url: string | null
           created_at: string | null
           end_date: string | null
+          external_id: string | null
+          external_provider: string | null
+          external_url: string | null
           id: string
+          last_synced_at: string | null
           name: string
           organization_id: string
           responsible_id: string | null
           start_date: string | null
           status: string
+          sync_metadata: Json
         }
         Insert: {
           address?: string | null
@@ -643,12 +741,17 @@ export type Database = {
           cover_url?: string | null
           created_at?: string | null
           end_date?: string | null
+          external_id?: string | null
+          external_provider?: string | null
+          external_url?: string | null
           id?: string
+          last_synced_at?: string | null
           name: string
           organization_id: string
           responsible_id?: string | null
           start_date?: string | null
           status?: string
+          sync_metadata?: Json
         }
         Update: {
           address?: string | null
@@ -658,12 +761,17 @@ export type Database = {
           cover_url?: string | null
           created_at?: string | null
           end_date?: string | null
+          external_id?: string | null
+          external_provider?: string | null
+          external_url?: string | null
           id?: string
+          last_synced_at?: string | null
           name?: string
           organization_id?: string
           responsible_id?: string | null
           start_date?: string | null
           status?: string
+          sync_metadata?: Json
         }
         Relationships: [
           {
@@ -682,13 +790,84 @@ export type Database = {
           },
         ]
       }
+      sync_runs: {
+        Row: {
+          created_at: string
+          error: string | null
+          external_account_id: string | null
+          finished_at: string | null
+          id: string
+          organization_id: string
+          provider: string
+          requested_by: string | null
+          scope: string
+          started_at: string | null
+          stats: Json
+          status: string
+        }
+        Insert: {
+          created_at?: string
+          error?: string | null
+          external_account_id?: string | null
+          finished_at?: string | null
+          id?: string
+          organization_id: string
+          provider: string
+          requested_by?: string | null
+          scope?: string
+          started_at?: string | null
+          stats?: Json
+          status?: string
+        }
+        Update: {
+          created_at?: string
+          error?: string | null
+          external_account_id?: string | null
+          finished_at?: string | null
+          id?: string
+          organization_id?: string
+          provider?: string
+          requested_by?: string | null
+          scope?: string
+          started_at?: string | null
+          stats?: Json
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sync_runs_external_account_id_fkey"
+            columns: ["external_account_id"]
+            isOneToOne: false
+            referencedRelation: "external_accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sync_runs_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sync_runs_requested_by_fkey"
+            columns: ["requested_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       wbs_items: {
         Row: {
           assignee_id: string | null
           code: string
           created_at: string | null
           due_date: string | null
+          external_id: string | null
+          external_provider: string | null
+          external_url: string | null
           id: string
+          last_synced_at: string | null
           name: string
           parent_id: string | null
           position: number | null
@@ -696,6 +875,7 @@ export type Database = {
           site_id: string
           start_date: string | null
           status: string | null
+          sync_metadata: Json
           weight: number | null
         }
         Insert: {
@@ -703,7 +883,11 @@ export type Database = {
           code: string
           created_at?: string | null
           due_date?: string | null
+          external_id?: string | null
+          external_provider?: string | null
+          external_url?: string | null
           id?: string
+          last_synced_at?: string | null
           name: string
           parent_id?: string | null
           position?: number | null
@@ -711,6 +895,7 @@ export type Database = {
           site_id: string
           start_date?: string | null
           status?: string | null
+          sync_metadata?: Json
           weight?: number | null
         }
         Update: {
@@ -718,7 +903,11 @@ export type Database = {
           code?: string
           created_at?: string | null
           due_date?: string | null
+          external_id?: string | null
+          external_provider?: string | null
+          external_url?: string | null
           id?: string
+          last_synced_at?: string | null
           name?: string
           parent_id?: string | null
           position?: number | null
@@ -726,6 +915,7 @@ export type Database = {
           site_id?: string
           start_date?: string | null
           status?: string | null
+          sync_metadata?: Json
           weight?: number | null
         }
         Relationships: [

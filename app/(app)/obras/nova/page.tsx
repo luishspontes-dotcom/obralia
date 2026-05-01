@@ -1,7 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createServerSupabase } from "@/lib/supabase/server";
-import { canWrite } from "@/lib/authz";
 
 async function createObraAction(formData: FormData) {
   "use server";
@@ -12,20 +11,10 @@ async function createObraAction(formData: FormData) {
   const { data: profileR } = await supabase
     .from("profiles").select("default_org_id").eq("id", user.id).maybeSingle();
   const orgId = (profileR as { default_org_id?: string } | null)?.default_org_id;
-
-  const { data: memberships } = await supabase
-    .from("organization_members")
-    .select("organization_id, role")
-    .eq("profile_id", user.id);
-  const writerOrgIds = (memberships ?? [])
-    .filter((membership) => canWrite(membership.role))
-    .map((membership) => membership.organization_id);
-  const finalOrgId =
-    writerOrgIds.find((membershipOrgId) => membershipOrgId === orgId) ??
-    writerOrgIds[0];
-
-  if (!finalOrgId) {
-    throw new Error("Sem permissão para criar obras nesta organização.");
+  if (!orgId) {
+    const { data: orgsR } = await supabase.from("organizations").select("id").limit(1);
+    const fallbackOrgId = (orgsR as { id: string }[] | null)?.[0]?.id;
+    if (!fallbackOrgId) throw new Error("Sem organização ativa.");
   }
 
   const name = (formData.get("name") as string)?.trim();
@@ -35,6 +24,10 @@ async function createObraAction(formData: FormData) {
   const start_date = (formData.get("start_date") as string) || null;
   const end_date = (formData.get("end_date") as string) || null;
   const contract_number = (formData.get("contract_number") as string)?.trim() || null;
+
+  const orgFallback = await supabase.from("organizations").select("id").limit(1).single();
+  const finalOrgId = orgId ?? (orgFallback.data as { id: string } | null)?.id;
+  if (!finalOrgId) throw new Error("Sem organização.");
 
   const { data: inserted, error } = await supabase
     .from("sites")
@@ -47,32 +40,16 @@ async function createObraAction(formData: FormData) {
       end_date,
       contract_number,
       status: "in_progress",
-    })
+    } as never)
     .select("id")
     .single();
 
   if (error) throw new Error(error.message);
   const insertedId = (inserted as { id: string } | null)?.id;
-  if (!insertedId) throw new Error("Obra criada sem identificador.");
   redirect(`/obras/${insertedId}`);
 }
 
-export default async function NovaObraPage() {
-  const supabase = await createServerSupabase();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) redirect("/login");
-
-  const { data: memberships } = await supabase
-    .from("organization_members")
-    .select("role")
-    .eq("profile_id", user.id);
-
-  if (!memberships?.some((membership) => canWrite(membership.role))) {
-    redirect("/obras");
-  }
-
+export default function NovaObraPage() {
   const inputStyle: React.CSSProperties = {
     width: "100%",
     background: "var(--o-cream)",

@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createServerSupabase } from "@/lib/supabase/server";
-import { withSignedMediaUrls } from "@/lib/supabase/media-url";
+import { mediaUrl } from "@/lib/storage";
 
 type Site = {
   id: string;
@@ -128,15 +128,7 @@ export default async function ObraDetailPage({
     .eq("kind", "file")
     .is("daily_report_id", null)
     .order("caption");
-  const obraFiles = await withSignedMediaUrls(
-    supabase,
-    (filesRaw ?? []) as {
-      id: string;
-      storage_path: string | null;
-      caption: string | null;
-      size_bytes: number | null;
-    }[]
-  );
+  const obraFiles = (filesRaw ?? []) as { id: string; storage_path: string | null; caption: string | null; size_bytes: number | null }[];
 
   return (
     <div style={{ padding: "24px", maxWidth: 1280, margin: "0 auto" }}>
@@ -195,21 +187,23 @@ export default async function ObraDetailPage({
               📋 {rdoCount} RDOs →
             </Link>
           )}
-          <Link
-            href={`/obras/${id}/fotos`}
-            style={{
-              padding: "8px 14px",
-              background: "var(--o-paper)",
-              color: "var(--o-text-1)",
-              border: "1px solid var(--o-border)",
-              borderRadius: 8,
-              textDecoration: "none",
-              fontSize: 13,
-              fontWeight: 500,
-            }}
-          >
-            Fotos · {photoCount ?? 0} →
-          </Link>
+          {(photoCount ?? 0) > 0 && (
+            <Link
+              href={`/obras/${id}/fotos`}
+              style={{
+                padding: "8px 14px",
+                background: "var(--o-paper)",
+                color: "var(--o-text-1)",
+                border: "1px solid var(--o-border)",
+                borderRadius: 8,
+                textDecoration: "none",
+                fontSize: 13,
+                fontWeight: 500,
+              }}
+            >
+              📸 {photoCount} fotos →
+            </Link>
+          )}
         </div>
         {site.address && (
           <div
@@ -466,7 +460,7 @@ export default async function ObraDetailPage({
             {obraFiles.map((f) => (
               <a
                 key={f.id}
-                href={f.storage_path ?? "#"}
+                href={mediaUrl(f.storage_path) || "#"}
                 target="_blank"
                 rel="noreferrer"
                 style={{

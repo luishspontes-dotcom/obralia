@@ -24,13 +24,22 @@ const jbMono = JetBrains_Mono({
   weight: ["400", "500"],
 });
 
+function getMetadataBase() {
+  const fallback = "http://localhost:3000";
+  const configured = process.env.NEXT_PUBLIC_APP_URL?.trim() || fallback;
+
+  try {
+    return new URL(configured);
+  } catch {
+    return new URL(fallback);
+  }
+}
+
 export const metadata: Metadata = {
   title: "Obralia — sistema operacional da obra",
   description:
     "SaaS multi-tenant para construtoras de alto padrão. RDO, EAP, fotos, cronograma e inbox em um só lugar.",
-  metadataBase: new URL(
-    process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000"
-  ),
+  metadataBase: getMetadataBase(),
   icons: {
     icon: "/favicon.svg",
   },

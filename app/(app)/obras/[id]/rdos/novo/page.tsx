@@ -4,8 +4,8 @@ import { createServerSupabase } from "@/lib/supabase/server";
 
 async function createRdoAction(formData: FormData) {
   "use server";
-  const siteId = (formData.get("siteId") as string)?.trim();
-  const date = (formData.get("date") as string)?.trim();
+  const siteId = formData.get("siteId") as string;
+  const date = formData.get("date") as string;
   const wm = (formData.get("weather_morning") as string) || null;
   const wa = (formData.get("weather_afternoon") as string) || null;
   const cm = (formData.get("condition_morning") as string) || null;
@@ -17,17 +17,31 @@ async function createRdoAction(formData: FormData) {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
-  const { data: insertedId, error } = await supabase.rpc("create_daily_report", {
-    target_site_id: siteId,
-    report_date: date,
-    p_weather_morning: wm ?? undefined,
-    p_weather_afternoon: wa ?? undefined,
-    p_condition_morning: cm ?? undefined,
-    p_condition_afternoon: ca ?? undefined,
-    p_general_notes: notes ?? undefined,
-  });
+  // next number per site
+  const { data: maxR } = await supabase
+    .from("daily_reports").select("number").eq("site_id", siteId)
+    .order("number", { ascending: false }).limit(1).maybeSingle();
+  const nextNumber = ((maxR as { number?: number } | null)?.number ?? 0) + 1;
+
+  const { data: inserted, error } = await supabase
+    .from("daily_reports")
+    .insert({
+      site_id: siteId,
+      number: nextNumber,
+      date,
+      status: "draft",
+      weather_morning: wm,
+      weather_afternoon: wa,
+      condition_morning: cm,
+      condition_afternoon: ca,
+      general_notes: notes,
+      created_by: user.id,
+    } as never)
+    .select("id")
+    .single();
+
   if (error) throw new Error(error.message);
-  if (!insertedId) throw new Error("RDO criado sem identificador.");
+  const insertedId = (inserted as { id: string } | null)?.id;
   redirect(`/obras/${siteId}/rdos/${insertedId}`);
 }
 
@@ -38,11 +52,6 @@ export default async function NovoRdoPage({ params }: { params: Promise<{ id: st
     .from("sites").select("id, name").eq("id", id).maybeSingle();
   const site = siteRaw as { id: string; name: string } | null;
   if (!site) redirect("/obras");
-
-  const { data: canCreateRdo } = await supabase.rpc("can_write_site", {
-    target_site_id: id,
-  });
-  if (!canCreateRdo) redirect(`/obras/${id}/rdos`);
 
   const today = new Date().toISOString().slice(0, 10);
 

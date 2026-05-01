@@ -1,13 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabase } from "@/lib/supabase/server";
-import { canAdmin } from "@/lib/authz";
 
 const INVITE_ROLES = new Set(["admin", "engineer", "viewer"]);
-const MAX_INVITES_PER_WINDOW = 10;
-const RATE_LIMIT_WINDOW_MS = 15 * 60 * 1000;
-const UUID_RE =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const ADMIN_ROLES = new Set(["owner", "admin"]);
 
 type InviteBody = {
   email?: unknown;
@@ -38,13 +33,13 @@ export async function POST(request: NextRequest) {
   const organizationId =
     typeof body.organizationId === "string" ? body.organizationId : "";
 
-  if (!EMAIL_RE.test(email)) {
+  if (!email || !email.includes("@")) {
     return json(400, "Informe um e-mail válido.");
   }
   if (!INVITE_ROLES.has(role)) {
     return json(400, "Papel inválido.");
   }
-  if (!UUID_RE.test(organizationId)) {
+  if (!organizationId) {
     return json(400, "Organização inválida.");
   }
 
@@ -61,25 +56,8 @@ export async function POST(request: NextRequest) {
     .eq("profile_id", user.id)
     .maybeSingle();
   const memberRole = (membershipRaw as { role?: string } | null)?.role;
-  if (!canAdmin(memberRole)) {
+  if (!ADMIN_ROLES.has(memberRole ?? "")) {
     return json(403, "Sem permissão.");
-  }
-
-  const windowStart = new Date(Date.now() - RATE_LIMIT_WINDOW_MS).toISOString();
-  const { count: recentInviteCount, error: rateLimitErr } = await supabase
-    .from("pending_invites")
-    .select("id", { count: "exact", head: true })
-    .eq("organization_id", organizationId)
-    .eq("invited_by", user.id)
-    .gte("created_at", windowStart);
-
-  if (rateLimitErr) {
-    console.error("invite rate limit check failed", rateLimitErr);
-    return json(500, "Falha ao validar limite de convites.");
-  }
-
-  if ((recentInviteCount ?? 0) >= MAX_INVITES_PER_WINDOW) {
-    return json(429, "Limite de convites atingido. Tente novamente em alguns minutos.");
   }
 
   // Save pending invite (RLS allows admins of org to insert)
@@ -93,13 +71,12 @@ export async function POST(request: NextRequest) {
         full_name: fullName,
         invited_by: user.id,
         consumed_at: null,
-      },
+      } as never,
       { onConflict: "email,organization_id" }
     );
 
   if (pendingErr) {
-    console.error("invite pending upsert failed", pendingErr);
-    return json(500, "Falha ao registrar convite.");
+    return json(500, `Falha ao registrar convite: ${pendingErr.message}`);
   }
 
   // Send magic link with shouldCreateUser=true. The handle_new_user trigger consumes
@@ -119,8 +96,7 @@ export async function POST(request: NextRequest) {
   });
 
   if (otpErr) {
-    console.error("invite magic link failed", otpErr);
-    return json(500, "Falha ao enviar link de convite.");
+    return json(500, `Falha ao enviar link: ${otpErr.message}`);
   }
 
   return NextResponse.json({ ok: true });

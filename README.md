@@ -75,6 +75,9 @@ Configure no Vercel (Production + Preview + Development):
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase API keys (publishable) |
 | `SUPABASE_SERVICE_ROLE_KEY` | Supabase API keys (server-only; reserve para rotas administrativas; NUNCA exponha no client) |
 | `NEXT_PUBLIC_APP_URL` | `https://www.obralia.com.br` em Production |
+| `CLICKUP_API_TOKEN` | Token API do ClickUp para backfill/sync de cronogramas e atividades |
+| `DIARIO_API_TOKEN` / `DIARIO_AUTH_TOKEN` | Token do Diário de Obras, quando disponível |
+| `DIARIO_EMAIL` / `DIARIO_PASSWORD` | Fallback para sessão autenticada do Diário de Obras |
 | `SENTRY_DSN` / `NEXT_PUBLIC_SENTRY_DSN` | Sentry project settings (opcional; ativa captura de erros server/client) |
 | `SENTRY_TRACES_SAMPLE_RATE` / `NEXT_PUBLIC_SENTRY_TRACES_SAMPLE_RATE` | Amostragem de performance do Sentry; padrão recomendado inicial `0.05` |
 
@@ -104,6 +107,7 @@ npx supabase db push
 - Healthcheck público: `GET /api/health`
 - O healthcheck valida app, variáveis públicas, `SUPABASE_SERVICE_ROLE_KEY`, banco e Storage sem retornar segredos.
 - Fotos de campo usam upload direto para o bucket privado `media`, com compressão no navegador e RLS por organização/obra.
+- Integrações internas: `/configuracoes/integracoes` mostra credenciais esperadas, contas externas e histórico de sincronização por organização.
 
 ## Branches
 
