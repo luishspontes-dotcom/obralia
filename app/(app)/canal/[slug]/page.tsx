@@ -25,7 +25,7 @@ async function postMessage(formData: FormData) {
     target_table: "channel",
     target_id: channelId,
     body: body.substring(0, 2000),
-  });
+  } as never);
   redirect(`/canal/${formData.get("slug")}`);
 }
 

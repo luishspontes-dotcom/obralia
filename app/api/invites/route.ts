@@ -71,7 +71,7 @@ export async function POST(request: NextRequest) {
         full_name: fullName,
         invited_by: user.id,
         consumed_at: null,
-      },
+      } as never,
       { onConflict: "email,organization_id" }
     );
 

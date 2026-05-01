@@ -36,7 +36,7 @@ async function createRdoAction(formData: FormData) {
       condition_afternoon: ca,
       general_notes: notes,
       created_by: user.id,
-    })
+    } as never)
     .select("id")
     .single();
 

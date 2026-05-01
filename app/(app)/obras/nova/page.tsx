@@ -39,7 +39,7 @@ async function createObraAction(formData: FormData) {
       end_date,
       contract_number,
       status: "in_progress",
-    })
+    } as never)
     .select("id")
     .single();
 
