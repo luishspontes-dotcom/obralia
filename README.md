@@ -6,7 +6,7 @@
 
 - **Next.js 15** (App Router) + **React 19** + **TypeScript**
 - **Tailwind v3** + tokens do design system Obralia
-- **Supabase** (Postgres + Auth + Storage + Realtime + Edge Functions)
+- **Supabase** (Postgres + Auth + Storage + Realtime)
 - **Vercel** para hospedagem
 - **Inter** + **Lora** para tipografia
 
@@ -72,8 +72,8 @@ Configure no Vercel (Production + Preview + Development):
 |---|---|
 | `NEXT_PUBLIC_SUPABASE_URL` | Supabase project settings |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase API keys (publishable) |
-| `SUPABASE_SERVICE_ROLE_KEY` | Supabase API keys (server-only; necessário para convites de usuários; NUNCA exponha no client) |
-| `NEXT_PUBLIC_APP_URL` | `https://www.obralia.com.br` em prod |
+| `SUPABASE_SERVICE_ROLE_KEY` | Supabase API keys (server-only; reserve para rotas administrativas; NUNCA exponha no client) |
+| `NEXT_PUBLIC_APP_URL` | `https://www.obralia.com.br` em Production |
 
 ## Banco
 
@@ -87,9 +87,8 @@ npx supabase db push
 
 ## Branches
 
-- `main` → deploy production em `app.obralia.app`
-- `develop` → deploy staging
-- `feature/*` → preview por PR
+- `main` → deploy production em `https://www.obralia.com.br`
+- branches/PRs → preview no Vercel
 
 ## Sprint 1 — fundação (em curso)
 
@@ -100,6 +99,6 @@ npx supabase db push
 - [ ] Login com magic link
 - [ ] Layout shell (Rail + Sidebar + Topbar)
 - [ ] Tela `/inicio` com saudação e inbox vazia
-- [ ] Deploy em `app.obralia.app`
+- [x] Deploy em `https://www.obralia.com.br`
 
 Roadmap completo em [`projeto-v2/docs/03-roadmap.md`](../docs/03-roadmap.md).

@@ -4,8 +4,8 @@ import { createServerSupabase } from "@/lib/supabase/server";
 
 async function createRdoAction(formData: FormData) {
   "use server";
-  const siteId = formData.get("siteId") as string;
-  const date = formData.get("date") as string;
+  const siteId = (formData.get("siteId") as string)?.trim();
+  const date = (formData.get("date") as string)?.trim();
   const wm = (formData.get("weather_morning") as string) || null;
   const wa = (formData.get("weather_afternoon") as string) || null;
   const cm = (formData.get("condition_morning") as string) || null;
@@ -16,6 +16,13 @@ async function createRdoAction(formData: FormData) {
   const supabase = await createServerSupabase();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/login");
+
+  const { data: canWriteSite } = await supabase.rpc("can_write_site", {
+    target_site_id: siteId,
+  });
+  if (!canWriteSite) {
+    throw new Error("Sem permissão para criar RDO nesta obra.");
+  }
 
   // next number per site
   const { data: maxR } = await supabase
@@ -36,12 +43,13 @@ async function createRdoAction(formData: FormData) {
       condition_afternoon: ca,
       general_notes: notes,
       created_by: user.id,
-    } as never)
+    })
     .select("id")
     .single();
 
   if (error) throw new Error(error.message);
   const insertedId = (inserted as { id: string } | null)?.id;
+  if (!insertedId) throw new Error("RDO criado sem identificador.");
   redirect(`/obras/${siteId}/rdos/${insertedId}`);
 }
 

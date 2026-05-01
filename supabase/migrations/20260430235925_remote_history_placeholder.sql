@@ -1,0 +1,3 @@
+-- Placeholder for a migration that was applied directly to the remote Supabase
+-- project before local migration history was reconciled. Keep this file so
+-- `supabase db push` can compare local and remote history deterministically.

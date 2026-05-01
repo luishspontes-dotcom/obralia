@@ -14,6 +14,12 @@ export async function GET(request: NextRequest) {
     const supabase = await createServerSupabase();
     const { error } = await supabase.auth.exchangeCodeForSession(code);
     if (!error) {
+      const { error: inviteError } = await supabase.rpc(
+        "consume_pending_invites"
+      );
+      if (inviteError) {
+        console.error("pending invite consumption failed", inviteError);
+      }
       return NextResponse.redirect(`${origin}${next}`);
     }
   }

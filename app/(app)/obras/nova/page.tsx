@@ -2,6 +2,8 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createServerSupabase } from "@/lib/supabase/server";
 
+const WRITER_ROLES = ["owner", "admin", "engineer"];
+
 async function createObraAction(formData: FormData) {
   "use server";
   const supabase = await createServerSupabase();
@@ -11,10 +13,21 @@ async function createObraAction(formData: FormData) {
   const { data: profileR } = await supabase
     .from("profiles").select("default_org_id").eq("id", user.id).maybeSingle();
   const orgId = (profileR as { default_org_id?: string } | null)?.default_org_id;
-  if (!orgId) {
-    const { data: orgsR } = await supabase.from("organizations").select("id").limit(1);
-    const fallbackOrgId = (orgsR as { id: string }[] | null)?.[0]?.id;
-    if (!fallbackOrgId) throw new Error("Sem organização ativa.");
+
+  const { data: memberships } = await supabase
+    .from("organization_members")
+    .select("organization_id, role")
+    .eq("profile_id", user.id)
+    .in("role", WRITER_ROLES);
+  const writerOrgIds = (memberships ?? []).map(
+    (membership) => membership.organization_id
+  );
+  const finalOrgId =
+    writerOrgIds.find((membershipOrgId) => membershipOrgId === orgId) ??
+    writerOrgIds[0];
+
+  if (!finalOrgId) {
+    throw new Error("Sem permissão para criar obras nesta organização.");
   }
 
   const name = (formData.get("name") as string)?.trim();
@@ -24,10 +37,6 @@ async function createObraAction(formData: FormData) {
   const start_date = (formData.get("start_date") as string) || null;
   const end_date = (formData.get("end_date") as string) || null;
   const contract_number = (formData.get("contract_number") as string)?.trim() || null;
-
-  const orgFallback = await supabase.from("organizations").select("id").limit(1).single();
-  const finalOrgId = orgId ?? (orgFallback.data as { id: string } | null)?.id;
-  if (!finalOrgId) throw new Error("Sem organização.");
 
   const { data: inserted, error } = await supabase
     .from("sites")
@@ -40,12 +49,13 @@ async function createObraAction(formData: FormData) {
       end_date,
       contract_number,
       status: "in_progress",
-    } as never)
+    })
     .select("id")
     .single();
 
   if (error) throw new Error(error.message);
   const insertedId = (inserted as { id: string } | null)?.id;
+  if (!insertedId) throw new Error("Obra criada sem identificador.");
   redirect(`/obras/${insertedId}`);
 }
 

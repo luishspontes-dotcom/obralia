@@ -31,7 +31,9 @@ export default async function UsuariosPage() {
   const profile = profileRaw as Profile | null;
 
   const { data: orgsRaw } = await supabase
-    .from("organizations").select("id, name");
+    .from("organizations")
+    .select("id, name")
+    .order("name");
   const orgs = (orgsRaw ?? []) as Organization[];
   const activeOrg =
     orgs.find((org) => org.id === profile?.default_org_id) ?? orgs[0] ?? null;
@@ -40,7 +42,7 @@ export default async function UsuariosPage() {
     .from("organization_members")
     .select("profile_id, role, profiles(id, full_name, avatar_url)")
     .eq("organization_id", activeOrg?.id ?? "");
-  const members = (membersRaw ?? []) as unknown as Member[];
+  const members = (membersRaw ?? []) as Member[];
   const currentMember = members.find((member) => member.profile_id === user.id);
   const canInvite = ["owner", "admin"].includes(currentMember?.role ?? "");
 

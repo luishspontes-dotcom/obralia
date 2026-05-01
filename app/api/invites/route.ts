@@ -3,6 +3,9 @@ import { createServerSupabase } from "@/lib/supabase/server";
 
 const INVITE_ROLES = new Set(["admin", "engineer", "viewer"]);
 const ADMIN_ROLES = new Set(["owner", "admin"]);
+const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 type InviteBody = {
   email?: unknown;
@@ -33,13 +36,13 @@ export async function POST(request: NextRequest) {
   const organizationId =
     typeof body.organizationId === "string" ? body.organizationId : "";
 
-  if (!email || !email.includes("@")) {
+  if (!EMAIL_RE.test(email)) {
     return json(400, "Informe um e-mail válido.");
   }
   if (!INVITE_ROLES.has(role)) {
     return json(400, "Papel inválido.");
   }
-  if (!organizationId) {
+  if (!UUID_RE.test(organizationId)) {
     return json(400, "Organização inválida.");
   }
 
@@ -71,12 +74,13 @@ export async function POST(request: NextRequest) {
         full_name: fullName,
         invited_by: user.id,
         consumed_at: null,
-      } as never,
+      },
       { onConflict: "email,organization_id" }
     );
 
   if (pendingErr) {
-    return json(500, `Falha ao registrar convite: ${pendingErr.message}`);
+    console.error("invite pending upsert failed", pendingErr);
+    return json(500, "Falha ao registrar convite.");
   }
 
   // Send magic link with shouldCreateUser=true. The handle_new_user trigger consumes
@@ -96,7 +100,8 @@ export async function POST(request: NextRequest) {
   });
 
   if (otpErr) {
-    return json(500, `Falha ao enviar link: ${otpErr.message}`);
+    console.error("invite magic link failed", otpErr);
+    return json(500, "Falha ao enviar link de convite.");
   }
 
   return NextResponse.json({ ok: true });

@@ -9,24 +9,37 @@ type Message = {
   created_at: string | null;
   profiles: { full_name: string } | null;
 };
+type Profile = { default_org_id: string | null };
+type Organization = { id: string };
 
 async function postMessage(formData: FormData) {
   "use server";
-  const channelId = formData.get("channelId") as string;
-  const orgId = formData.get("orgId") as string;
+  const channelId = typeof formData.get("channelId") === "string"
+    ? (formData.get("channelId") as string)
+    : "";
   const body = (formData.get("body") as string)?.trim();
-  if (!channelId || !body || !orgId) return;
+  if (!channelId || !body) return;
   const supabase = await createServerSupabase();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/login");
-  await supabase.from("comments").insert({
-    organization_id: orgId,
+
+  const { data: channel } = await supabase
+    .from("channels")
+    .select("id, slug, organization_id")
+    .eq("id", channelId)
+    .maybeSingle();
+
+  if (!channel) return;
+
+  const { error } = await supabase.from("comments").insert({
+    organization_id: channel.organization_id,
     author_id: user.id,
     target_table: "channel",
     target_id: channelId,
     body: body.substring(0, 2000),
-  } as never);
-  redirect(`/canal/${formData.get("slug")}`);
+  });
+  if (error) throw new Error("Não foi possível enviar a mensagem.");
+  redirect(`/canal/${channel.slug}`);
 }
 
 export default async function CanalPage({
@@ -37,10 +50,30 @@ export default async function CanalPage({
   const { slug } = await params;
   const supabase = await createServerSupabase();
   const { data: { user } } = await supabase.auth.getUser();
+  if (!user) redirect("/login");
+
+  const { data: profileRaw } = await supabase
+    .from("profiles")
+    .select("default_org_id")
+    .eq("id", user.id)
+    .maybeSingle();
+  const profile = profileRaw as Profile | null;
+
+  const { data: orgsRaw } = await supabase
+    .from("organizations")
+    .select("id")
+    .order("name");
+  const orgs = (orgsRaw ?? []) as Organization[];
+  const activeOrgId =
+    orgs.find((org) => org.id === profile?.default_org_id)?.id ??
+    orgs[0]?.id ??
+    null;
 
   const { data: channelRaw } = await supabase
     .from("channels").select("id, slug, name, description, organization_id")
-    .eq("slug", slug).maybeSingle();
+    .eq("slug", slug)
+    .eq("organization_id", activeOrgId ?? "")
+    .maybeSingle();
   const channel = channelRaw as Channel | null;
 
   if (!channel) {
@@ -55,10 +88,11 @@ export default async function CanalPage({
   const { data: messagesRaw } = await supabase
     .from("comments")
     .select("id, body, author_id, created_at, profiles(full_name)")
+    .eq("organization_id", channel.organization_id)
     .eq("target_table", "channel")
     .eq("target_id", channel.id)
     .order("created_at", { ascending: true });
-  const messages = (messagesRaw ?? []) as unknown as Message[];
+  const messages = (messagesRaw ?? []) as Message[];
 
   return (
     <div style={{ padding: "24px", maxWidth: 1024, margin: "0 auto", display: "flex", flexDirection: "column", height: "calc(100vh - 24px)" }}>
@@ -116,8 +150,6 @@ export default async function CanalPage({
         borderTop: "1px solid var(--o-border)",
       }}>
         <input type="hidden" name="channelId" value={channel.id} />
-        <input type="hidden" name="orgId" value={channel.organization_id} />
-        <input type="hidden" name="slug" value={channel.slug} />
         <div style={{ display: "flex", gap: 8 }}>
           <input
             name="body"

@@ -36,7 +36,9 @@ export function InviteForm({ orgId }: { orgId: string }) {
     }
 
     setStatus("ok");
-    setMsg(`Convite enviado para ${email}. O usuário já ficou vinculado à organização como ${role}.`);
+    setMsg(
+      `Convite enviado para ${email}. O usuário ficará vinculado à organização ao entrar pelo link.`
+    );
     setEmail("");
     setName("");
   }
