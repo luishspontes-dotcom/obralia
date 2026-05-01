@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createServerSupabase } from "@/lib/supabase/server";
 
@@ -78,7 +79,7 @@ export default async function NovoRdoPage({ params }: { params: Promise<{ id: st
   return (
     <div style={{ padding: "24px", maxWidth: 720, margin: "0 auto" }}>
       <div style={{ marginBottom: 16, fontSize: 13 }}>
-        <a href={`/obras/${id}/rdos`} style={{ color: "var(--o-text-2)", textDecoration: "none" }}>← RDOs</a>
+        <Link href={`/obras/${id}/rdos`} style={{ color: "var(--o-text-2)", textDecoration: "none" }}>← RDOs</Link>
       </div>
       <h1 style={{ margin: "0 0 4px", font: "700 28px var(--font-inter)", letterSpacing: "-0.02em" }}>
         Novo RDO
