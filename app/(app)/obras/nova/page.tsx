@@ -25,7 +25,8 @@ async function createObraAction(formData: FormData) {
   const end_date = (formData.get("end_date") as string) || null;
   const contract_number = (formData.get("contract_number") as string)?.trim() || null;
 
-  const finalOrgId = orgId ?? (await supabase.from("organizations").select("id").limit(1).single()).data?.id;
+  const orgFallback = await supabase.from("organizations").select("id").limit(1).single();
+  const finalOrgId = orgId ?? (orgFallback.data as { id: string } | null)?.id;
   if (!finalOrgId) throw new Error("Sem organização.");
 
   const { data: inserted, error } = await supabase
