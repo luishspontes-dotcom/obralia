@@ -41,7 +41,8 @@ async function createRdoAction(formData: FormData) {
     .single();
 
   if (error) throw new Error(error.message);
-  redirect(`/obras/${siteId}/rdos/${inserted!.id}`);
+  const insertedId = (inserted as { id: string } | null)?.id;
+  redirect(`/obras/${siteId}/rdos/${insertedId}`);
 }
 
 export default async function NovoRdoPage({ params }: { params: Promise<{ id: string }> }) {

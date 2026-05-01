@@ -44,7 +44,8 @@ async function createObraAction(formData: FormData) {
     .single();
 
   if (error) throw new Error(error.message);
-  redirect(`/obras/${inserted!.id}`);
+  const insertedId = (inserted as { id: string } | null)?.id;
+  redirect(`/obras/${insertedId}`);
 }
 
 export default function NovaObraPage() {
