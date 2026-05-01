@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createServerSupabase } from "@/lib/supabase/server";
+import { PhotoGrid } from "@/components/PhotoLightbox";
 
 type Site = { id: string; name: string };
 type Photo = {
@@ -101,31 +102,7 @@ export default async function ObraFotosPage({
               <h3 style={{ margin: "0 0 10px", font: "600 12px var(--font-inter)", textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--o-text-3)" }}>
                 {month} · {list.length}
               </h3>
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))", gap: 6 }}>
-                {list.map((p) => (
-                  <a
-                    key={p.id}
-                    href={p.storage_path ?? "#"}
-                    target="_blank"
-                    rel="noreferrer"
-                    style={{
-                      display: "block",
-                      aspectRatio: "1 / 1",
-                      background: "var(--o-border)",
-                      borderRadius: 6,
-                      overflow: "hidden",
-                    }}
-                  >
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      src={p.thumbnail_path ?? p.storage_path ?? ""}
-                      alt={p.caption ?? "Foto"}
-                      loading="lazy"
-                      style={{ width: "100%", height: "100%", objectFit: "cover", transition: "transform 200ms" }}
-                    />
-                  </a>
-                ))}
-              </div>
+              <PhotoGrid photos={list} />
             </div>
           ))}
         </div>

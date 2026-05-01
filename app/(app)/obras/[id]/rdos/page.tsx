@@ -106,7 +106,7 @@ export default async function ObraRdosPage({
             {totalAll} relatórios · {site.name}
           </p>
         </div>
-        <div style={{ display: "flex", gap: 8 }}>
+        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
           <Chip label="Todos" href={`/obras/${id}/rdos`} active={!filter} />
           <Chip
             label="Aprovados"
@@ -125,6 +125,21 @@ export default async function ObraRdosPage({
             href={`/obras/${id}/rdos?status=draft`}
             active={filter === "draft"}
           />
+          <Link
+            href={`/obras/${id}/rdos/novo`}
+            style={{
+              padding: "6px 14px",
+              background: "var(--o-accent)",
+              color: "white",
+              borderRadius: 999,
+              fontSize: 12,
+              fontWeight: 500,
+              textDecoration: "none",
+              marginLeft: 8,
+            }}
+          >
+            + Novo RDO
+          </Link>
         </div>
       </div>
 
