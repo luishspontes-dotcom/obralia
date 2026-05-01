@@ -17,38 +17,16 @@ async function createRdoAction(formData: FormData) {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
-  const { data: canWriteSite } = await supabase.rpc("can_write_site", {
+  const { data: insertedId, error } = await supabase.rpc("create_daily_report", {
     target_site_id: siteId,
+    report_date: date,
+    p_weather_morning: wm ?? undefined,
+    p_weather_afternoon: wa ?? undefined,
+    p_condition_morning: cm ?? undefined,
+    p_condition_afternoon: ca ?? undefined,
+    p_general_notes: notes ?? undefined,
   });
-  if (!canWriteSite) {
-    throw new Error("Sem permissão para criar RDO nesta obra.");
-  }
-
-  // next number per site
-  const { data: maxR } = await supabase
-    .from("daily_reports").select("number").eq("site_id", siteId)
-    .order("number", { ascending: false }).limit(1).maybeSingle();
-  const nextNumber = ((maxR as { number?: number } | null)?.number ?? 0) + 1;
-
-  const { data: inserted, error } = await supabase
-    .from("daily_reports")
-    .insert({
-      site_id: siteId,
-      number: nextNumber,
-      date,
-      status: "draft",
-      weather_morning: wm,
-      weather_afternoon: wa,
-      condition_morning: cm,
-      condition_afternoon: ca,
-      general_notes: notes,
-      created_by: user.id,
-    })
-    .select("id")
-    .single();
-
   if (error) throw new Error(error.message);
-  const insertedId = (inserted as { id: string } | null)?.id;
   if (!insertedId) throw new Error("RDO criado sem identificador.");
   redirect(`/obras/${siteId}/rdos/${insertedId}`);
 }

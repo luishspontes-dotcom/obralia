@@ -90,15 +90,15 @@ npx supabase db push
 - `main` → deploy production em `https://www.obralia.com.br`
 - branches/PRs → preview no Vercel
 
-## Sprint 1 — fundação (em curso)
+## Sprint 1 — fundação (concluída)
 
 - [x] Schema multi-tenant + RLS no Supabase
 - [x] Storage buckets (media/avatars/exports)
 - [x] Auth signup trigger
-- [ ] Tokens.css completo
-- [ ] Login com magic link
-- [ ] Layout shell (Rail + Sidebar + Topbar)
-- [ ] Tela `/inicio` com saudação e inbox vazia
+- [x] Tokens.css completo
+- [x] Login com magic link
+- [x] Layout shell (Rail + Sidebar + Topbar)
+- [x] Tela `/inicio` com saudação e inbox vazia
 - [x] Deploy em `https://www.obralia.com.br`
 
 Roadmap completo em [`projeto-v2/docs/03-roadmap.md`](../docs/03-roadmap.md).

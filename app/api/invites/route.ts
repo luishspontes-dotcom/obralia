@@ -3,6 +3,8 @@ import { createServerSupabase } from "@/lib/supabase/server";
 
 const INVITE_ROLES = new Set(["admin", "engineer", "viewer"]);
 const ADMIN_ROLES = new Set(["owner", "admin"]);
+const MAX_INVITES_PER_WINDOW = 10;
+const RATE_LIMIT_WINDOW_MS = 15 * 60 * 1000;
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -61,6 +63,23 @@ export async function POST(request: NextRequest) {
   const memberRole = (membershipRaw as { role?: string } | null)?.role;
   if (!ADMIN_ROLES.has(memberRole ?? "")) {
     return json(403, "Sem permissão.");
+  }
+
+  const windowStart = new Date(Date.now() - RATE_LIMIT_WINDOW_MS).toISOString();
+  const { count: recentInviteCount, error: rateLimitErr } = await supabase
+    .from("pending_invites")
+    .select("id", { count: "exact", head: true })
+    .eq("organization_id", organizationId)
+    .eq("invited_by", user.id)
+    .gte("created_at", windowStart);
+
+  if (rateLimitErr) {
+    console.error("invite rate limit check failed", rateLimitErr);
+    return json(500, "Falha ao validar limite de convites.");
+  }
+
+  if ((recentInviteCount ?? 0) >= MAX_INVITES_PER_WINDOW) {
+    return json(429, "Limite de convites atingido. Tente novamente em alguns minutos.");
   }
 
   // Save pending invite (RLS allows admins of org to insert)

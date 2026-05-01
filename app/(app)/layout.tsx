@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { Rail } from "@/components/layout/Rail";
 import { Sidebar } from "@/components/layout/Sidebar";
+import { Topbar } from "@/components/layout/Topbar";
 
 type Profile = {
   full_name: string | null;
@@ -60,7 +61,8 @@ export default async function AppLayout({
       <main
         className="app-main light-scroll"
       >
-        {children}
+        <Topbar activeOrg={activeOrg} userName={fullName} />
+        <div className="app-content">{children}</div>
       </main>
     </div>
   );

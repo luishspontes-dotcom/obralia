@@ -1,5 +1,14 @@
 import Link from "next/link";
+import { ArrowRight, Inbox } from "lucide-react";
 import { createServerSupabase } from "@/lib/supabase/server";
+
+type InboxItem = {
+  id: string;
+  title: string;
+  body: string | null;
+  link: string | null;
+  created_at: string | null;
+};
 
 function greeting(): string {
   const h = new Date().getHours();
@@ -52,6 +61,17 @@ export default async function InicioPage() {
   const { count: rdosCount } = await supabase
     .from("daily_reports")
     .select("*", { count: "exact", head: true });
+
+  const { data: inboxRows } = user
+    ? await supabase
+        .from("notifications")
+        .select("id, title, body, link, created_at")
+        .eq("recipient_id", user.id)
+        .is("archived_at", null)
+        .order("created_at", { ascending: false })
+        .limit(5)
+    : { data: [] };
+  const inboxItems = (inboxRows ?? []) as InboxItem[];
 
   const stats = [
     { label: "Obras", value: String(obrasCount ?? 0), href: "/obras" },
@@ -139,37 +159,101 @@ export default async function InicioPage() {
           background: "var(--o-paper)",
           border: "1px solid var(--o-border)",
           borderRadius: 12,
-          padding: 32,
-          textAlign: "center",
+          overflow: "hidden",
         }}
       >
-        <div style={{ fontSize: 32, marginBottom: 8 }}>🏗</div>
         <div
           style={{
-            font: "600 17px var(--font-inter)",
-            marginBottom: 4,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: 16,
+            padding: "18px 20px",
+            borderBottom: "1px solid var(--o-border)",
           }}
         >
-          {obrasCount && obrasCount > 0 ? `${obrasCount} obras importadas do ClickUp` : "Caixa de entrada vazia"}
+          <div>
+            <h2 style={{ margin: 0, font: "600 17px var(--font-inter)" }}>
+              Caixa de entrada
+            </h2>
+            <p style={{ margin: "2px 0 0", color: "var(--o-text-2)", fontSize: 13 }}>
+              {inboxItems.length === 0
+                ? "Nenhuma pendência agora."
+                : `${inboxItems.length} ${inboxItems.length === 1 ? "item" : "itens"} recentes.`}
+            </p>
+          </div>
+          <Link
+            href="/caixa"
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 6,
+              color: "var(--o-accent)",
+              fontWeight: 600,
+              fontSize: 13,
+              textDecoration: "none",
+            }}
+          >
+            Abrir <ArrowRight size={15} />
+          </Link>
         </div>
-        <div
-          className="font-body-lora"
-          style={{
-            color: "var(--o-text-2)",
-            fontSize: 14,
-            maxWidth: 560,
-            margin: "0 auto",
-          }}
-        >
-          {obrasCount && obrasCount > 0 ? (
-            <>
-              Vá em <Link href="/obras" style={{ color: "var(--o-accent)", textDecoration: "none", fontWeight: 500 }}>Obras → Em andamento</Link> pra ver a lista completa
-              com status, fases e atividades. RDOs e fotos do Diário virão em breve.
-            </>
-          ) : (
-            "Quando alguém atribuir uma tarefa, criar um RDO ou comentar em uma obra, vai aparecer aqui."
-          )}
-        </div>
+
+        {inboxItems.length === 0 ? (
+          <div style={{ padding: 36, textAlign: "center" }}>
+            <div
+              style={{
+                width: 46,
+                height: 46,
+                borderRadius: 12,
+                display: "grid",
+                placeItems: "center",
+                margin: "0 auto 12px",
+                color: "var(--t-brand)",
+                background: "var(--t-brand-soft)",
+              }}
+            >
+              <Inbox size={22} />
+            </div>
+            <div style={{ font: "600 16px var(--font-inter)", marginBottom: 4 }}>
+              Caixa de entrada vazia
+            </div>
+            <div
+              className="font-body-lora"
+              style={{
+                color: "var(--o-text-2)",
+                fontSize: 14,
+                maxWidth: 560,
+                margin: "0 auto",
+              }}
+            >
+              Quando alguém atribuir uma tarefa, criar um RDO ou comentar em uma
+              obra, vai aparecer aqui.
+            </div>
+          </div>
+        ) : (
+          inboxItems.map((item, index) => (
+            <Link
+              key={item.id}
+              href={item.link ?? "/caixa"}
+              style={{
+                display: "block",
+                padding: "14px 20px",
+                borderTop: index === 0 ? "none" : "1px solid var(--o-border)",
+                color: "inherit",
+                textDecoration: "none",
+              }}
+            >
+              <div style={{ font: "600 14px var(--font-inter)" }}>
+                {item.title}
+              </div>
+              {item.body && (
+                <div style={{ color: "var(--o-text-2)", fontSize: 13, marginTop: 2 }}>
+                  {item.body}
+                </div>
+              )}
+            </Link>
+          ))
+        )}
       </div>
     </div>
   );

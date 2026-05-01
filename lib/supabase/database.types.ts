@@ -725,6 +725,18 @@ export type Database = {
         Args: { target_email: string; target_user_id: string }
         Returns: undefined
       }
+      create_daily_report: {
+        Args: {
+          p_condition_afternoon?: string
+          p_condition_morning?: string
+          p_general_notes?: string
+          p_weather_afternoon?: string
+          p_weather_morning?: string
+          report_date: string
+          target_site_id: string
+        }
+        Returns: string
+      }
       current_user_admin_orgs: { Args: never; Returns: string[] }
       current_user_orgs: { Args: never; Returns: string[] }
       current_user_writer_orgs: { Args: never; Returns: string[] }
