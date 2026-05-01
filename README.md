@@ -74,6 +74,19 @@ Configure no Vercel (Production + Preview + Development):
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase API keys (publishable) |
 | `SUPABASE_SERVICE_ROLE_KEY` | Supabase API keys (server-only; reserve para rotas administrativas; NUNCA exponha no client) |
 | `NEXT_PUBLIC_APP_URL` | `https://www.obralia.com.br` em Production |
+| `SENTRY_DSN` / `NEXT_PUBLIC_SENTRY_DSN` | Sentry project settings (opcional; ativa captura de erros server/client) |
+| `SENTRY_TRACES_SAMPLE_RATE` / `NEXT_PUBLIC_SENTRY_TRACES_SAMPLE_RATE` | Amostragem de performance do Sentry; padrão recomendado inicial `0.05` |
+
+## Testes E2E
+
+```bash
+npm run build
+npm run test:e2e
+```
+
+Os smoke tests anônimos rodam sempre. O fluxo autenticado roda quando
+`E2E_AUTH_EMAIL` e `E2E_AUTH_PASSWORD` estiverem configurados no ambiente ou
+nos secrets do GitHub.
 
 ## Banco
 

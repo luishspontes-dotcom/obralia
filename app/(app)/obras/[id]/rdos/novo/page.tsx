@@ -39,6 +39,11 @@ export default async function NovoRdoPage({ params }: { params: Promise<{ id: st
   const site = siteRaw as { id: string; name: string } | null;
   if (!site) redirect("/obras");
 
+  const { data: canCreateRdo } = await supabase.rpc("can_write_site", {
+    target_site_id: id,
+  });
+  if (!canCreateRdo) redirect(`/obras/${id}/rdos`);
+
   const today = new Date().toISOString().slice(0, 10);
 
   const inputStyle: React.CSSProperties = {

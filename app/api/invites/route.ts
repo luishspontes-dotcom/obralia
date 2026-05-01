@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabase } from "@/lib/supabase/server";
+import { canAdmin } from "@/lib/authz";
 
 const INVITE_ROLES = new Set(["admin", "engineer", "viewer"]);
-const ADMIN_ROLES = new Set(["owner", "admin"]);
 const MAX_INVITES_PER_WINDOW = 10;
 const RATE_LIMIT_WINDOW_MS = 15 * 60 * 1000;
 const UUID_RE =
@@ -61,7 +61,7 @@ export async function POST(request: NextRequest) {
     .eq("profile_id", user.id)
     .maybeSingle();
   const memberRole = (membershipRaw as { role?: string } | null)?.role;
-  if (!ADMIN_ROLES.has(memberRole ?? "")) {
+  if (!canAdmin(memberRole)) {
     return json(403, "Sem permissão.");
   }
 

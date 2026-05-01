@@ -1,8 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createServerSupabase } from "@/lib/supabase/server";
-
-const WRITER_ROLES = ["owner", "admin", "engineer"];
+import { canWrite } from "@/lib/authz";
 
 async function createObraAction(formData: FormData) {
   "use server";
@@ -17,11 +16,10 @@ async function createObraAction(formData: FormData) {
   const { data: memberships } = await supabase
     .from("organization_members")
     .select("organization_id, role")
-    .eq("profile_id", user.id)
-    .in("role", WRITER_ROLES);
-  const writerOrgIds = (memberships ?? []).map(
-    (membership) => membership.organization_id
-  );
+    .eq("profile_id", user.id);
+  const writerOrgIds = (memberships ?? [])
+    .filter((membership) => canWrite(membership.role))
+    .map((membership) => membership.organization_id);
   const finalOrgId =
     writerOrgIds.find((membershipOrgId) => membershipOrgId === orgId) ??
     writerOrgIds[0];
@@ -59,7 +57,22 @@ async function createObraAction(formData: FormData) {
   redirect(`/obras/${insertedId}`);
 }
 
-export default function NovaObraPage() {
+export default async function NovaObraPage() {
+  const supabase = await createServerSupabase();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) redirect("/login");
+
+  const { data: memberships } = await supabase
+    .from("organization_members")
+    .select("role")
+    .eq("profile_id", user.id);
+
+  if (!memberships?.some((membership) => canWrite(membership.role))) {
+    redirect("/obras");
+  }
+
   const inputStyle: React.CSSProperties = {
     width: "100%",
     background: "var(--o-cream)",

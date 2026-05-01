@@ -1,5 +1,7 @@
 import { createServerSupabase } from "@/lib/supabase/server";
+import { canAdmin } from "@/lib/authz";
 import { InviteForm } from "./InviteForm";
+import { redirect } from "next/navigation";
 
 type Member = {
   profile_id: string;
@@ -44,7 +46,8 @@ export default async function UsuariosPage() {
     .eq("organization_id", activeOrg?.id ?? "");
   const members = (membersRaw ?? []) as Member[];
   const currentMember = members.find((member) => member.profile_id === user.id);
-  const canInvite = ["owner", "admin"].includes(currentMember?.role ?? "");
+  const canInvite = canAdmin(currentMember?.role);
+  if (!canInvite) redirect("/inicio");
 
   return (
     <div style={{ padding: "24px", maxWidth: 1280, margin: "0 auto" }}>

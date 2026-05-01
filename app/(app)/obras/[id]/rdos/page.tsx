@@ -38,6 +38,10 @@ export default async function ObraRdosPage({
   const site = siteRaw as Site | null;
   if (!site) notFound();
 
+  const { data: canCreateRdo } = await supabase.rpc("can_write_site", {
+    target_site_id: id,
+  });
+
   let rdoQuery = supabase
     .from("daily_reports")
     .select("id, number, date, status, weather_morning, weather_afternoon, general_notes")
@@ -125,21 +129,23 @@ export default async function ObraRdosPage({
             href={`/obras/${id}/rdos?status=draft`}
             active={filter === "draft"}
           />
-          <Link
-            href={`/obras/${id}/rdos/novo`}
-            style={{
-              padding: "6px 14px",
-              background: "var(--o-accent)",
-              color: "white",
-              borderRadius: 999,
-              fontSize: 12,
-              fontWeight: 500,
-              textDecoration: "none",
-              marginLeft: 8,
-            }}
-          >
-            + Novo RDO
-          </Link>
+          {canCreateRdo && (
+            <Link
+              href={`/obras/${id}/rdos/novo`}
+              style={{
+                padding: "6px 14px",
+                background: "var(--o-accent)",
+                color: "white",
+                borderRadius: 999,
+                fontSize: 12,
+                fontWeight: 500,
+                textDecoration: "none",
+                marginLeft: 8,
+              }}
+            >
+              + Novo RDO
+            </Link>
+          )}
         </div>
       </div>
 

@@ -1,4 +1,5 @@
 import type { NextConfig } from "next";
+import { withSentryConfig } from "@sentry/nextjs";
 
 const cspDirectives = [
   "default-src 'self'",
@@ -8,7 +9,7 @@ const cspDirectives = [
   "object-src 'none'",
   "img-src 'self' data: blob: https://*.supabase.co https://www.meuviverconstrutora.com.br",
   "font-src 'self' data:",
-  "connect-src 'self' https://*.supabase.co wss://*.supabase.co",
+  "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://*.ingest.sentry.io https://*.sentry.io",
   "script-src 'self' 'unsafe-inline'",
   "style-src 'self' 'unsafe-inline'",
   "worker-src 'self' blob:",
@@ -50,6 +51,36 @@ const nextConfig: NextConfig = {
       { protocol: "https", hostname: "www.meuviverconstrutora.com.br" },
     ],
   },
+  webpack(config) {
+    config.ignoreWarnings = [
+      ...(config.ignoreWarnings ?? []),
+      {
+        module: /@opentelemetry[\\/]instrumentation/,
+        message:
+          /Critical dependency: the request of a dependency is an expression/,
+      },
+    ];
+
+    return config;
+  },
 };
 
-export default nextConfig;
+const shouldUseSentryBuildConfig = Boolean(
+  process.env.SENTRY_DSN ||
+    process.env.NEXT_PUBLIC_SENTRY_DSN ||
+    process.env.SENTRY_AUTH_TOKEN
+);
+
+export default shouldUseSentryBuildConfig
+  ? withSentryConfig(nextConfig, {
+      silent: true,
+      sourcemaps: {
+        disable: !process.env.SENTRY_AUTH_TOKEN,
+      },
+      webpack: {
+        treeshake: {
+          removeDebugLogging: true,
+        },
+      },
+    })
+  : nextConfig;

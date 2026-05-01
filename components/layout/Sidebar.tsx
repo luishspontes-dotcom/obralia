@@ -13,14 +13,22 @@ import {
   PlusCircle,
   Hash,
   ChevronsUpDown,
+  Users,
 } from "lucide-react";
 
 interface SidebarProps {
   activeOrg: { id: string; name: string; slug: string; brand_color: string | null } | null;
   userName: string | null;
+  canManageSites: boolean;
+  canManageUsers: boolean;
 }
 
-export function Sidebar({ activeOrg, userName }: SidebarProps) {
+export function Sidebar({
+  activeOrg,
+  userName,
+  canManageSites,
+  canManageUsers,
+}: SidebarProps) {
   const pathname = usePathname();
 
   return (
@@ -115,21 +123,27 @@ export function Sidebar({ activeOrg, userName }: SidebarProps) {
         accent="var(--st-late)"
       />
 
-      <Link
-        href="/obras/nova"
-        style={{
-          display: "flex",
-          alignItems: "center",
-          gap: 10,
-          padding: "8px 12px",
-          marginTop: 12,
-          color: "var(--o-accent)",
-          fontSize: 14,
-          textDecoration: "none",
-        }}
-      >
-        <PlusCircle size={16} /> Nova obra
-      </Link>
+      {canManageSites && (
+        <Link
+          href="/obras/nova"
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 10,
+            padding: "8px 12px",
+            marginTop: 12,
+            color: "var(--o-accent)",
+            fontSize: 14,
+            textDecoration: "none",
+          }}
+        >
+          <PlusCircle size={16} /> Nova obra
+        </Link>
+      )}
+
+      {canManageUsers && (
+        <NavItem href="/usuarios" icon={Users} label="Usuários" pathname={pathname} small />
+      )}
 
       <SectionHeading>Canais</SectionHeading>
       <NavItem href="/canal/geral" icon={Hash} label="Geral" pathname={pathname} small />
