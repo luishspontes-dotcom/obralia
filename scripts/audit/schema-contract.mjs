@@ -40,6 +40,7 @@ const rlsTables = [
   "comments",
   "channels",
   "pending_invites",
+  "audit_events",
 ];
 
 for (const table of rlsTables) {
@@ -66,6 +67,10 @@ const functions = [
   "handle_new_user",
   "notify_daily_report_created",
   "notify_comment_mentions",
+  "audit_log_event",
+  "audit_site_changes",
+  "audit_daily_report_changes",
+  "audit_pending_invite_changes",
 ];
 
 for (const functionName of functions) {
@@ -87,6 +92,10 @@ for (const functionName of [
   "handle_new_user",
   "notify_daily_report_created",
   "notify_comment_mentions",
+  "audit_log_event",
+  "audit_site_changes",
+  "audit_daily_report_changes",
+  "audit_pending_invite_changes",
 ]) {
   requireFunctionClause(functionName, /security\s+definer/);
   requireFunctionClause(functionName, /set\s+search_path\s*=\s*public/);
@@ -118,6 +127,7 @@ const requiredPolicies = [
   "members read channels",
   "admins manage channels",
   "admins manage pending invites",
+  "admins read audit events",
   "members read media objects",
   "writers manage media objects",
   "users read own avatar objects",
@@ -143,6 +153,18 @@ requireMatch(
 requireMatch(
   "Comment mention notification trigger must be attached",
   /create\s+trigger\s+on_comment_mentions_notify[\s\S]*on\s+public\.comments/
+);
+requireMatch(
+  "Site audit trigger must be attached",
+  /create\s+trigger\s+on_sites_audit[\s\S]*on\s+public\.sites/
+);
+requireMatch(
+  "Daily report audit trigger must be attached",
+  /create\s+trigger\s+on_daily_reports_audit[\s\S]*on\s+public\.daily_reports/
+);
+requireMatch(
+  "Pending invite audit trigger must be attached",
+  /create\s+trigger\s+on_pending_invites_audit[\s\S]*on\s+public\.pending_invites/
 );
 
 if (failures.length > 0) {

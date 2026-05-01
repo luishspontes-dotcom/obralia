@@ -1,8 +1,15 @@
 import { createServerSupabase } from "@/lib/supabase/server";
+import { canAdmin } from "@/lib/authz";
 import { ChangePasswordForm } from "./ChangePasswordForm";
 
 type Profile = { id: string; full_name: string; default_org_id: string | null; is_platform_admin?: boolean };
 type Org = { id: string; name: string; brand_color: string | null; plan: string | null; slug: string };
+type AuditEvent = {
+  id: string;
+  action: string;
+  summary: string;
+  created_at: string;
+};
 
 export default async function ConfigPage() {
   const supabase = await createServerSupabase();
@@ -18,6 +25,29 @@ export default async function ConfigPage() {
     .from("organizations").select("id, name, brand_color, plan, slug");
   const orgs = (orgsR ?? []) as Org[];
   const activeOrg = orgs.find((o) => o.id === profile?.default_org_id) ?? orgs[0] ?? null;
+
+  const { data: membershipRaw } = activeOrg
+    ? await supabase
+        .from("organization_members")
+        .select("role")
+        .eq("organization_id", activeOrg.id)
+        .eq("profile_id", user.id)
+        .maybeSingle()
+    : { data: null };
+  const canReadAudit = canAdmin(
+    (membershipRaw as { role?: string } | null)?.role
+  );
+
+  const { data: auditRows } =
+    activeOrg && canReadAudit
+      ? await supabase
+          .from("audit_events")
+          .select("id, action, summary, created_at")
+          .eq("organization_id", activeOrg.id)
+          .order("created_at", { ascending: false })
+          .limit(12)
+      : { data: [] };
+  const auditEvents = (auditRows ?? []) as AuditEvent[];
 
   return (
     <div style={{ padding: "24px", maxWidth: 720, margin: "0 auto" }}>
@@ -57,6 +87,35 @@ export default async function ConfigPage() {
       <Section title="Trocar senha">
         <ChangePasswordForm />
       </Section>
+
+      {canReadAudit && (
+        <Section title="Auditoria recente">
+          {auditEvents.length === 0 ? (
+            <div style={{ color: "var(--o-text-2)", fontSize: 14 }}>
+              Nenhum evento operacional registrado ainda.
+            </div>
+          ) : (
+            <div style={{ display: "grid", gap: 10 }}>
+              {auditEvents.map((event) => (
+                <div
+                  key={event.id}
+                  style={{
+                    borderBottom: "1px solid var(--o-border)",
+                    paddingBottom: 10,
+                  }}
+                >
+                  <div style={{ font: "600 14px var(--font-inter)" }}>
+                    {event.summary}
+                  </div>
+                  <div style={{ color: "var(--o-text-3)", fontSize: 12, marginTop: 3 }}>
+                    {event.action} · {new Date(event.created_at).toLocaleString("pt-BR")}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </Section>
+      )}
 
       <Section title="Sair">
         <form action="/auth/signout" method="post">

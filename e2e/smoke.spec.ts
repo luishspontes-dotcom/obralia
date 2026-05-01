@@ -1,6 +1,12 @@
 import { expect, test } from "@playwright/test";
 
-const protectedPaths = ["/inicio", "/obras", "/canal/geral"];
+const protectedPaths = [
+  "/inicio",
+  "/obras",
+  "/caixa",
+  "/configuracoes",
+  "/canal/geral",
+];
 
 test("login page renders", async ({ page }) => {
   await page.goto("/login");
@@ -46,6 +52,17 @@ test("invite API requires authentication", async ({ request }) => {
   });
 
   expect(response.status()).toBe(401);
+});
+
+test("health endpoint returns structured status", async ({ request }) => {
+  const response = await request.get("/api/health");
+  expect([200, 503]).toContain(response.status());
+
+  const body = await response.json();
+  expect(typeof body.ok).toBe("boolean");
+  expect(body.checks.app).toBe(true);
+  expect(body).not.toHaveProperty("serviceRoleKey");
+  expect(body).not.toHaveProperty("supabaseServiceRoleKey");
 });
 
 test("authenticated user can reach the app shell", async ({ page }) => {

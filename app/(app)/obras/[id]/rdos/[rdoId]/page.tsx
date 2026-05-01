@@ -1,8 +1,14 @@
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { revalidatePath } from "next/cache";
+import { notFound, redirect } from "next/navigation";
 import { createServerSupabase } from "@/lib/supabase/server";
 
-type Site = { id: string; name: string; client_name: string | null };
+type Site = {
+  id: string;
+  name: string;
+  client_name: string | null;
+  organization_id: string;
+};
 type DR = {
   id: string;
   number: number;
@@ -41,6 +47,250 @@ const STATUS_META: Record<string, { label: string; color: string; bg: string }> 
   approved: { label: "Aprovado", color: "var(--st-done)", bg: "rgba(34, 139, 34, 0.08)" },
 };
 
+async function submitRdoAction(formData: FormData) {
+  "use server";
+
+  const siteId = (formData.get("siteId") as string)?.trim();
+  const rdoId = (formData.get("rdoId") as string)?.trim();
+  if (!siteId || !rdoId) return;
+
+  const supabase = await createServerSupabase();
+  const { data: canWrite } = await supabase.rpc("can_write_daily_report", {
+    target_daily_report_id: rdoId,
+  });
+  if (!canWrite) throw new Error("Sem permissão para alterar este RDO.");
+
+  const { data: rdoRaw } = await supabase
+    .from("daily_reports")
+    .select("status")
+    .eq("id", rdoId)
+    .eq("site_id", siteId)
+    .maybeSingle();
+  const status = (rdoRaw as { status?: string } | null)?.status;
+  if (status !== "draft") {
+    throw new Error("Apenas RDOs em rascunho podem ser enviados para revisão.");
+  }
+
+  await supabase
+    .from("daily_reports")
+    .update({ status: "review", approved_by: null, approved_at: null })
+    .eq("id", rdoId)
+    .eq("site_id", siteId);
+
+  revalidatePath(`/obras/${siteId}/rdos/${rdoId}`);
+  revalidatePath("/caixa");
+}
+
+async function approveRdoAction(formData: FormData) {
+  "use server";
+
+  const siteId = (formData.get("siteId") as string)?.trim();
+  const rdoId = (formData.get("rdoId") as string)?.trim();
+  if (!siteId || !rdoId) return;
+
+  const supabase = await createServerSupabase();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) redirect("/login");
+
+  const { data: siteRaw } = await supabase
+    .from("sites")
+    .select("organization_id")
+    .eq("id", siteId)
+    .maybeSingle();
+  const organizationId = (siteRaw as { organization_id?: string } | null)
+    ?.organization_id;
+  const { data: adminOrgIds } = await supabase.rpc("current_user_admin_orgs");
+  if (!organizationId || !adminOrgIds?.includes(organizationId)) {
+    throw new Error("Apenas owners e admins podem aprovar RDOs.");
+  }
+
+  const { data: rdoRaw } = await supabase
+    .from("daily_reports")
+    .select("status")
+    .eq("id", rdoId)
+    .eq("site_id", siteId)
+    .maybeSingle();
+  const status = (rdoRaw as { status?: string } | null)?.status;
+  if (status !== "review") {
+    throw new Error("Apenas RDOs em revisão podem ser aprovados.");
+  }
+
+  await supabase
+    .from("daily_reports")
+    .update({
+      status: "approved",
+      approved_by: user.id,
+      approved_at: new Date().toISOString(),
+    })
+    .eq("id", rdoId)
+    .eq("site_id", siteId);
+
+  revalidatePath(`/obras/${siteId}/rdos/${rdoId}`);
+  revalidatePath("/caixa");
+}
+
+async function reopenRdoAction(formData: FormData) {
+  "use server";
+
+  const siteId = (formData.get("siteId") as string)?.trim();
+  const rdoId = (formData.get("rdoId") as string)?.trim();
+  if (!siteId || !rdoId) return;
+
+  const supabase = await createServerSupabase();
+  const { data: canWrite } = await supabase.rpc("can_write_daily_report", {
+    target_daily_report_id: rdoId,
+  });
+  if (!canWrite) throw new Error("Sem permissão para reabrir este RDO.");
+
+  const { data: rdoRaw } = await supabase
+    .from("daily_reports")
+    .select("status")
+    .eq("id", rdoId)
+    .eq("site_id", siteId)
+    .maybeSingle();
+  const status = (rdoRaw as { status?: string } | null)?.status;
+
+  if (status === "approved") {
+    const { data: siteRaw } = await supabase
+      .from("sites")
+      .select("organization_id")
+      .eq("id", siteId)
+      .maybeSingle();
+    const organizationId = (siteRaw as { organization_id?: string } | null)
+      ?.organization_id;
+    const { data: adminOrgIds } = await supabase.rpc("current_user_admin_orgs");
+    if (!organizationId || !adminOrgIds?.includes(organizationId)) {
+      throw new Error("Apenas owners e admins podem reabrir RDO aprovado.");
+    }
+  }
+
+  await supabase
+    .from("daily_reports")
+    .update({ status: "draft", approved_by: null, approved_at: null })
+    .eq("id", rdoId)
+    .eq("site_id", siteId);
+
+  revalidatePath(`/obras/${siteId}/rdos/${rdoId}`);
+  revalidatePath("/caixa");
+}
+
+async function addActivityAction(formData: FormData) {
+  "use server";
+
+  const siteId = (formData.get("siteId") as string)?.trim();
+  const rdoId = (formData.get("rdoId") as string)?.trim();
+  const description = (formData.get("description") as string)?.trim();
+  const notes = (formData.get("notes") as string)?.trim() || null;
+  const progress = Number(formData.get("progress_pct") ?? 0);
+  if (!siteId || !rdoId || !description) return;
+
+  await ensureWritableDraft(rdoId);
+  const supabase = await createServerSupabase();
+  await supabase.from("report_activities").insert({
+    daily_report_id: rdoId,
+    description,
+    notes,
+    progress_pct: Number.isFinite(progress) ? Math.max(0, Math.min(100, progress)) : 0,
+  });
+
+  revalidatePath(`/obras/${siteId}/rdos/${rdoId}`);
+}
+
+async function addWorkforceAction(formData: FormData) {
+  "use server";
+
+  const siteId = (formData.get("siteId") as string)?.trim();
+  const rdoId = (formData.get("rdoId") as string)?.trim();
+  const role = (formData.get("role") as string)?.trim();
+  const count = Number(formData.get("count") ?? 0);
+  if (!siteId || !rdoId || !role) return;
+
+  await ensureWritableDraft(rdoId);
+  const supabase = await createServerSupabase();
+  await supabase.from("report_workforce").insert({
+    daily_report_id: rdoId,
+    role,
+    count: Number.isFinite(count) ? Math.max(0, Math.floor(count)) : 0,
+  });
+
+  revalidatePath(`/obras/${siteId}/rdos/${rdoId}`);
+}
+
+async function addEquipmentAction(formData: FormData) {
+  "use server";
+
+  const siteId = (formData.get("siteId") as string)?.trim();
+  const rdoId = (formData.get("rdoId") as string)?.trim();
+  const name = (formData.get("name") as string)?.trim();
+  const hours = Number(formData.get("hours") ?? 0);
+  if (!siteId || !rdoId || !name) return;
+
+  await ensureWritableDraft(rdoId);
+  const supabase = await createServerSupabase();
+  await supabase.from("report_equipment").insert({
+    daily_report_id: rdoId,
+    name,
+    hours: Number.isFinite(hours) ? Math.max(0, hours) : 0,
+  });
+
+  revalidatePath(`/obras/${siteId}/rdos/${rdoId}`);
+}
+
+async function addCommentAction(formData: FormData) {
+  "use server";
+
+  const siteId = (formData.get("siteId") as string)?.trim();
+  const rdoId = (formData.get("rdoId") as string)?.trim();
+  const body = (formData.get("body") as string)?.trim();
+  const kind = (formData.get("kind") as string)?.trim();
+  if (!siteId || !rdoId || !body) return;
+
+  const supabase = await createServerSupabase();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) redirect("/login");
+
+  const { data: siteRaw } = await supabase
+    .from("sites")
+    .select("organization_id")
+    .eq("id", siteId)
+    .maybeSingle();
+  const organizationId = (siteRaw as { organization_id?: string } | null)
+    ?.organization_id;
+  if (!organizationId) return;
+
+  await supabase.from("comments").insert({
+    organization_id: organizationId,
+    author_id: user.id,
+    target_table: "daily_report",
+    target_id: rdoId,
+    body: kind === "occurrence" ? `[OCORRÊNCIA] ${body}` : body,
+  });
+
+  revalidatePath(`/obras/${siteId}/rdos/${rdoId}`);
+}
+
+async function ensureWritableDraft(rdoId: string) {
+  const supabase = await createServerSupabase();
+  const { data: canWrite } = await supabase.rpc("can_write_daily_report", {
+    target_daily_report_id: rdoId,
+  });
+  if (!canWrite) throw new Error("Sem permissão para editar este RDO.");
+
+  const { data: rdoRaw } = await supabase
+    .from("daily_reports")
+    .select("status")
+    .eq("id", rdoId)
+    .maybeSingle();
+  const status = (rdoRaw as { status?: string } | null)?.status;
+  if (status === "approved") {
+    throw new Error("RDO aprovado não pode receber novos lançamentos.");
+  }
+}
+
 export default async function RdoDetailPage({
   params,
 }: {
@@ -48,9 +298,13 @@ export default async function RdoDetailPage({
 }) {
   const { id, rdoId } = await params;
   const supabase = await createServerSupabase();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) redirect("/login");
 
   const { data: siteRaw } = await supabase
-    .from("sites").select("id, name, client_name")
+    .from("sites").select("id, name, client_name, organization_id")
     .eq("id", id).maybeSingle();
   const site = siteRaw as Site | null;
   if (!site) notFound();
@@ -80,6 +334,14 @@ export default async function RdoDetailPage({
   const videos = (videosR.data ?? []) as Media[];
   const files = (filesR.data ?? []) as Media[];
   const comments = (commentsR.data ?? []) as Comment[];
+  const { data: canWriteRdo } = await supabase.rpc("can_write_daily_report", {
+    target_daily_report_id: rdoId,
+  });
+  const { data: adminOrgIds } = await supabase.rpc("current_user_admin_orgs");
+  const canApproveRdo = adminOrgIds?.includes(site.organization_id) ?? false;
+  const canEditRdo = Boolean(canWriteRdo) && rdo.status !== "approved";
+  const canReopenRdo =
+    rdo.status === "approved" ? canApproveRdo : Boolean(canWriteRdo);
 
   const meta = STATUS_META[rdo.status] ?? STATUS_META.draft;
   const d = new Date(rdo.date);
@@ -108,6 +370,92 @@ export default async function RdoDetailPage({
         </div>
         <div style={{ fontSize: 16, color: "var(--o-text-2)", textTransform: "capitalize" }}>{dateLong}</div>
       </div>
+
+      {(canWriteRdo || canApproveRdo) && (
+        <Block title="Fluxo de aprovação" style={{ marginBottom: 28 }}>
+          <div style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: 10 }}>
+            {canWriteRdo && rdo.status === "draft" && (
+              <form action={submitRdoAction}>
+                <HiddenIds siteId={id} rdoId={rdoId} />
+                <button type="submit" style={primaryButtonStyle}>
+                  Enviar para revisão
+                </button>
+              </form>
+            )}
+            {canApproveRdo && rdo.status === "review" && (
+              <form action={approveRdoAction}>
+                <HiddenIds siteId={id} rdoId={rdoId} />
+                <button type="submit" style={primaryButtonStyle}>
+                  Aprovar RDO
+                </button>
+              </form>
+            )}
+            {canReopenRdo && rdo.status !== "draft" && (
+              <form action={reopenRdoAction}>
+                <HiddenIds siteId={id} rdoId={rdoId} />
+                <button type="submit" style={secondaryButtonStyle}>
+                  Reabrir como rascunho
+                </button>
+              </form>
+            )}
+            <span style={{ color: "var(--o-text-2)", fontSize: 13 }}>
+              {rdo.status === "approved"
+                ? "RDO aprovado e bloqueado para novos lançamentos."
+                : "Lançamentos ficam disponíveis até a aprovação."}
+            </span>
+          </div>
+        </Block>
+      )}
+
+      {canEditRdo && (
+        <Section title="Lançamentos rápidos">
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: 16 }}>
+            <QuickForm title="Atividade" action={addActivityAction}>
+              <HiddenIds siteId={id} rdoId={rdoId} />
+              <Input name="description" placeholder="Descrição da atividade" required />
+              <div style={{ display: "grid", gridTemplateColumns: "120px 1fr", gap: 8 }}>
+                <Input name="progress_pct" placeholder="%" type="number" min={0} max={100} />
+                <Input name="notes" placeholder="Observação" />
+              </div>
+              <SubmitButton label="Adicionar atividade" />
+            </QuickForm>
+
+            <QuickForm title="Mão de obra" action={addWorkforceAction}>
+              <HiddenIds siteId={id} rdoId={rdoId} />
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 120px", gap: 8 }}>
+                <Input name="role" placeholder="Função" required />
+                <Input name="count" placeholder="Qtd." type="number" min={0} required />
+              </div>
+              <SubmitButton label="Adicionar equipe" />
+            </QuickForm>
+
+            <QuickForm title="Equipamento" action={addEquipmentAction}>
+              <HiddenIds siteId={id} rdoId={rdoId} />
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 120px", gap: 8 }}>
+                <Input name="name" placeholder="Equipamento" required />
+                <Input name="hours" placeholder="Horas" type="number" min={0} step="0.5" />
+              </div>
+              <SubmitButton label="Adicionar equipamento" />
+            </QuickForm>
+
+            <QuickForm title="Comentário ou ocorrência" action={addCommentAction}>
+              <HiddenIds siteId={id} rdoId={rdoId} />
+              <select name="kind" defaultValue="comment" style={inputStyle}>
+                <option value="comment">Comentário</option>
+                <option value="occurrence">Ocorrência</option>
+              </select>
+              <textarea
+                name="body"
+                placeholder="Descreva o registro"
+                required
+                rows={3}
+                style={{ ...inputStyle, resize: "vertical" }}
+              />
+              <SubmitButton label="Registrar" />
+            </QuickForm>
+          </div>
+        </Section>
+      )}
 
       {/* Clima */}
       <div style={{ display: "grid", gap: 20, gridTemplateColumns: "1fr 1fr", marginBottom: 28 }}>
@@ -278,3 +626,82 @@ function KV({ label, value }: { label: string; value: string }) {
     </div>
   );
 }
+
+function HiddenIds({ siteId, rdoId }: { siteId: string; rdoId: string }) {
+  return (
+    <>
+      <input type="hidden" name="siteId" value={siteId} />
+      <input type="hidden" name="rdoId" value={rdoId} />
+    </>
+  );
+}
+
+function QuickForm({
+  title,
+  action,
+  children,
+}: {
+  title: string;
+  action: (formData: FormData) => void | Promise<void>;
+  children: React.ReactNode;
+}) {
+  return (
+    <form
+      action={action}
+      style={{
+        background: "var(--o-paper)",
+        border: "1px solid var(--o-border)",
+        borderRadius: 12,
+        padding: 16,
+      }}
+    >
+      <h4 style={{ margin: "0 0 12px", font: "600 14px var(--font-inter)" }}>
+        {title}
+      </h4>
+      <div style={{ display: "grid", gap: 8 }}>{children}</div>
+    </form>
+  );
+}
+
+function Input(props: React.InputHTMLAttributes<HTMLInputElement>) {
+  return <input {...props} style={{ ...inputStyle, ...props.style }} />;
+}
+
+function SubmitButton({ label }: { label: string }) {
+  return (
+    <button type="submit" style={secondaryButtonStyle}>
+      {label}
+    </button>
+  );
+}
+
+const inputStyle: React.CSSProperties = {
+  width: "100%",
+  background: "var(--o-cream)",
+  border: "1px solid var(--o-border)",
+  borderRadius: 8,
+  padding: "10px 12px",
+  font: "400 14px var(--font-inter)",
+  color: "var(--o-text-1)",
+  outline: "none",
+};
+
+const primaryButtonStyle: React.CSSProperties = {
+  border: 0,
+  background: "var(--o-accent)",
+  color: "white",
+  borderRadius: 8,
+  padding: "10px 14px",
+  font: "600 13px var(--font-inter)",
+  cursor: "pointer",
+};
+
+const secondaryButtonStyle: React.CSSProperties = {
+  border: "1px solid var(--o-border)",
+  background: "var(--o-paper)",
+  color: "var(--o-text-1)",
+  borderRadius: 8,
+  padding: "10px 14px",
+  font: "600 13px var(--font-inter)",
+  cursor: "pointer",
+};

@@ -99,6 +99,11 @@ npx supabase link --project-ref bhhscygbhaqyewejlgug
 npx supabase db push
 ```
 
+## Operação
+
+- Healthcheck público: `GET /api/health`
+- O healthcheck valida app, variáveis públicas, `SUPABASE_SERVICE_ROLE_KEY`, banco e Storage sem retornar segredos.
+
 ## Branches
 
 - `main` → deploy production em `https://www.obralia.com.br`

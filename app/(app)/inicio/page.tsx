@@ -67,6 +67,7 @@ export default async function InicioPage() {
         .from("notifications")
         .select("id, title, body, link, created_at")
         .eq("recipient_id", user.id)
+        .is("read_at", null)
         .is("archived_at", null)
         .order("created_at", { ascending: false })
         .limit(5)
