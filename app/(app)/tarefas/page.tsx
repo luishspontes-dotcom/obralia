@@ -1,8 +1,8 @@
 import Link from "next/link";
-import { canWrite } from "@/lib/authz";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { createOrUpdateTask } from "@/lib/rdo-actions";
 import { TaskRow } from "@/components/TaskRow";
+import { ExportButton } from "@/components/ExportButton";
 
 type WbsItem = {
   id: string;
@@ -13,7 +13,7 @@ type WbsItem = {
   site_id: string;
   parent_id: string | null;
 };
-type SiteWithOrg = { id: string; name: string; organization_id: string };
+type Site = { id: string; name: string };
 
 export default async function TarefasPage({
   searchParams,
@@ -22,7 +22,6 @@ export default async function TarefasPage({
 }) {
   const supabase = await createServerSupabase();
   const { status: filter } = await searchParams;
-  const { data: { user } } = await supabase.auth.getUser();
 
   let query = supabase
     .from("wbs_items")
@@ -39,22 +38,9 @@ export default async function TarefasPage({
   const { data: itemsRaw } = await query.limit(500);
   const items = (itemsRaw ?? []) as WbsItem[];
 
-  const { data: sitesRaw } = await supabase.from("sites").select("id, name, organization_id");
-  const sites = (sitesRaw ?? []) as SiteWithOrg[];
+  const { data: sitesRaw } = await supabase.from("sites").select("id, name");
+  const sites = (sitesRaw ?? []) as Site[];
   const siteMap = new Map(sites.map((s) => [s.id, s.name]));
-  const { data: membershipsRaw } = user
-    ? await supabase
-        .from("organization_members")
-        .select("organization_id, role")
-        .eq("profile_id", user.id)
-    : { data: [] };
-  const writerOrgIds = new Set(
-    ((membershipsRaw ?? []) as Array<{ organization_id: string; role: string }>)
-      .filter((membership) => canWrite(membership.role))
-      .map((membership) => membership.organization_id)
-  );
-  const writableSites = sites.filter((site) => writerOrgIds.has(site.organization_id));
-  const writableSiteIds = new Set(writableSites.map((site) => site.id));
 
   const grouped = new Map<string, WbsItem[]>();
   for (const it of items) {
@@ -79,6 +65,16 @@ export default async function TarefasPage({
             </p>
           </div>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            <ExportButton
+              filename={`tarefas-${new Date().toISOString().slice(0, 10)}`}
+              label="Exportar CSV"
+              rows={items.map((t) => ({
+                obra: siteMap.get(t.site_id) ?? "",
+                atividade: t.name,
+                status: t.status ?? "",
+                prazo: t.due_date ?? "",
+              }))}
+            />
             <Link href="/tarefas" className={`chip ${(!filter || filter === "active") ? "chip-active" : ""}`}>Ativas</Link>
             <Link href="/tarefas?status=in_progress" className={`chip ${filter === "in_progress" ? "chip-active" : ""}`}>
               <span style={{ width: 6, height: 6, borderRadius: 999, background: "var(--st-progress)" }} /> Em andamento
@@ -95,29 +91,28 @@ export default async function TarefasPage({
 
       <div style={{ padding: "0 24px 32px", maxWidth: 1280, margin: "0 auto" }}>
         {/* Quick add task */}
-        {writableSites.length > 0 && (
-          <form action={createOrUpdateTask} className="card" style={{ padding: "16px 20px", marginBottom: 18 }}>
-            <div style={{ fontSize: 12, fontWeight: 600, color: "var(--o-text-2)", marginBottom: 10, letterSpacing: "0.04em", textTransform: "uppercase" }}>
-              + Nova atividade
-            </div>
-            <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr 130px 110px 100px", gap: 10, alignItems: "center" }}>
-              <input name="name" required placeholder="Nome da atividade" style={taskInputStyle} />
-              <select name="site_id" defaultValue={writableSites[0]?.id ?? ""} style={taskInputStyle}>
-                {writableSites.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-              </select>
-              <input name="due_date" type="date" style={taskInputStyle} />
-              <select name="status" defaultValue="waiting" style={taskInputStyle}>
-                <option value="waiting">Aguardando</option>
-                <option value="in_progress">Em andamento</option>
-                <option value="done">Concluída</option>
-                <option value="late">Atrasada</option>
-              </select>
-              <button type="submit" className="btn-brand" style={{ padding: "10px 14px", fontSize: 13, justifyContent: "center" }}>
-                Criar
-              </button>
-            </div>
-          </form>
-        )}
+        <form action={createOrUpdateTask} className="card" style={{ padding: "16px 20px", marginBottom: 18 }}>
+          <div style={{ fontSize: 12, fontWeight: 600, color: "var(--o-text-2)", marginBottom: 10, letterSpacing: "0.04em", textTransform: "uppercase" }}>
+            + Nova atividade
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr 130px 110px 100px", gap: 10, alignItems: "center" }}>
+            <input name="name" required placeholder="Nome da atividade" style={taskInputStyle} />
+            <select name="site_id" defaultValue="" style={taskInputStyle}>
+              <option value="">Sem obra (geral)</option>
+              {sites.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+            </select>
+            <input name="date_due" type="date" style={taskInputStyle} />
+            <select name="status" defaultValue="waiting" style={taskInputStyle}>
+              <option value="waiting">Aguardando</option>
+              <option value="in_progress">Em andamento</option>
+              <option value="done">Concluída</option>
+              <option value="late">Atrasada</option>
+            </select>
+            <button type="submit" className="btn-brand" style={{ padding: "10px 14px", fontSize: 13, justifyContent: "center" }}>
+              Criar
+            </button>
+          </div>
+        </form>
 
         {grouped.size === 0 && (
           <div className="empty">
@@ -153,7 +148,7 @@ export default async function TarefasPage({
                   </span>
                 </div>
                 {list.slice(0, 25).map((t) => (
-                  <TaskRow key={t.id} task={t} siteId={siteId} canEdit={writableSiteIds.has(siteId)} />
+                  <TaskRow key={t.id} task={t} siteId={siteId} />
                 ))}
                 {list.length > 25 && (
                   <div style={{

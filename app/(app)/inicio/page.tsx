@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { createServerSupabase } from "@/lib/supabase/server";
-import { createSignedMediaUrl } from "@/lib/supabase/media-url";
+import { mediaUrl } from "@/lib/storage";
 import { OnboardingBanner } from "@/components/OnboardingBanner";
 
 function greeting(): string {
@@ -47,12 +47,7 @@ export default async function InicioPage() {
     .neq("name", "MEDIÇÕES (operacional)")
     .order("created_at", { ascending: false })
     .limit(6);
-  const recentSites = await Promise.all(
-    ((recentSitesRaw ?? []) as SiteCard[]).map(async (site) => ({
-      ...site,
-      cover_url: await createSignedMediaUrl(supabase, site.cover_url),
-    }))
-  );
+  const recentSites = (recentSitesRaw ?? []) as SiteCard[];
 
   const stats = [
     { label: "Obras", value: String(obrasCount ?? 0), href: "/obras" },
@@ -184,7 +179,7 @@ export default async function InicioPage() {
                   <div
                     className="obra-card-cover"
                     style={{
-                      backgroundImage: s.cover_url ? `url(${s.cover_url})` : undefined,
+                      backgroundImage: s.cover_url ? `url(${mediaUrl(s.cover_url)})` : undefined,
                     }}
                   >
                     <span className="status status-progress status-on-cover obra-card-status">

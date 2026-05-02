@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { mediaUrl } from "@/lib/storage";
 
 type Photo = {
   id: string;
@@ -61,7 +62,7 @@ export function PhotoGrid({ photos }: { photos: Photo[] }) {
           >
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
-              src={p.thumbnail_path ?? p.storage_path ?? ""}
+              src={mediaUrl(p.thumbnail_path ?? p.storage_path)}
               alt={p.caption ?? "Foto"}
               loading="lazy"
               style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
@@ -155,7 +156,7 @@ export function PhotoGrid({ photos }: { photos: Photo[] }) {
           >
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
-              src={current.storage_path ?? current.thumbnail_path ?? ""}
+              src={mediaUrl(current.storage_path ?? current.thumbnail_path)}
               alt={current.caption ?? "Foto"}
               style={{ maxWidth: "94vw", maxHeight: "84vh", objectFit: "contain" }}
             />

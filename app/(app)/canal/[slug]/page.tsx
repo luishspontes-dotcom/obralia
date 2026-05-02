@@ -13,29 +13,20 @@ type Message = {
 async function postMessage(formData: FormData) {
   "use server";
   const channelId = formData.get("channelId") as string;
-  const slug = formData.get("slug") as string;
+  const orgId = formData.get("orgId") as string;
   const body = (formData.get("body") as string)?.trim();
-  if (!channelId || !body || !slug) return;
+  if (!channelId || !body || !orgId) return;
   const supabase = await createServerSupabase();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/login");
-  const { data: channelRaw } = await supabase
-    .from("channels")
-    .select("id, slug, organization_id")
-    .eq("id", channelId)
-    .eq("slug", slug)
-    .maybeSingle();
-  const channel = channelRaw as { id: string; slug: string; organization_id: string } | null;
-  if (!channel) redirect(`/canal/${slug}`);
-
   await supabase.from("comments").insert({
-    organization_id: channel.organization_id,
+    organization_id: orgId,
     author_id: user.id,
     target_table: "channel",
-    target_id: channel.id,
+    target_id: channelId,
     body: body.substring(0, 2000),
   } as never);
-  redirect(`/canal/${channel.slug}`);
+  redirect(`/canal/${formData.get("slug")}`);
 }
 
 function dayLabel(d: Date): string {
@@ -213,6 +204,7 @@ export default async function CanalPage({
         borderTop: "1px solid var(--o-border)",
       }}>
         <input type="hidden" name="channelId" value={channel.id} />
+        <input type="hidden" name="orgId" value={channel.organization_id} />
         <input type="hidden" name="slug" value={channel.slug} />
         <div style={{
           display: "flex", gap: 8, alignItems: "stretch",

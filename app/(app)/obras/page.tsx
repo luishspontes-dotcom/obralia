@@ -1,7 +1,6 @@
 import Link from "next/link";
-import { canWrite } from "@/lib/authz";
 import { createServerSupabase } from "@/lib/supabase/server";
-import { createSignedMediaUrl } from "@/lib/supabase/media-url";
+import { mediaUrl } from "@/lib/storage";
 
 type Site = {
   id: string;
@@ -32,31 +31,17 @@ const STATUS_LABELS: Record<string, { label: string; cls: string }> = {
 export default async function ObrasPage({
   searchParams,
 }: {
-  searchParams: Promise<{ status?: string }>;
+  searchParams: Promise<{ status?: string; q?: string }>;
 }) {
   const supabase = await createServerSupabase();
-  const { status: filterStatus } = await searchParams;
-  const { data: { user } } = await supabase.auth.getUser();
+  const { status: filterStatus, q } = await searchParams;
+  const query = (q ?? "").trim().toLowerCase();
 
   const { data: sitesRaw } = await supabase
     .from("sites")
     .select("id, name, status, client_name, start_date, end_date, cover_url")
     .order("name");
-  const sites = await Promise.all(
-    ((sitesRaw ?? []) as Site[]).map(async (site) => ({
-      ...site,
-      cover_url: await createSignedMediaUrl(supabase, site.cover_url),
-    }))
-  );
-  const { data: membershipsRaw } = user
-    ? await supabase
-        .from("organization_members")
-        .select("role")
-        .eq("profile_id", user.id)
-    : { data: [] };
-  const canCreateSites = ((membershipsRaw ?? []) as Array<{ role: string }>).some((membership) =>
-    canWrite(membership.role)
-  );
+  const sites = (sitesRaw ?? []) as Site[];
 
   const { data: itemsRaw } = await supabase
     .from("wbs_items")
@@ -85,9 +70,14 @@ export default async function ObrasPage({
 
   const visibleSites = sites.filter((s) => {
     const stats = perSite.get(s.id);
-    if (filterStatus === "at-risk") return (stats?.late ?? 0) > 0;
-    if (filterStatus === "done") return s.status === "done";
-    if (filterStatus === "in_progress") return s.status === "in_progress";
+    if (filterStatus === "at-risk" && (stats?.late ?? 0) === 0) return false;
+    if (filterStatus === "done" && s.status !== "done") return false;
+    if (filterStatus === "in_progress" && s.status !== "in_progress") return false;
+    if (filterStatus === "paused" && s.status !== "paused") return false;
+    if (query) {
+      const hay = `${s.name} ${s.client_name ?? ""}`.toLowerCase();
+      if (!hay.includes(query)) return false;
+    }
     return true;
   });
 
@@ -139,26 +129,41 @@ export default async function ObrasPage({
           </div>
 
           <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-            <Link href="/obras" className={`chip ${!filterStatus ? "chip-active" : ""}`}>
+            <form method="get" action="/obras" style={{ display: "flex", gap: 6, alignItems: "center" }}>
+              {filterStatus && <input type="hidden" name="status" value={filterStatus} />}
+              <input
+                type="search" name="q" defaultValue={q ?? ""}
+                placeholder="Buscar obra ou cliente…"
+                style={{
+                  width: 220, padding: "8px 12px",
+                  background: "var(--o-paper)", border: "1px solid var(--o-border)",
+                  borderRadius: 8, font: "400 13px var(--font-inter)",
+                  color: "var(--o-text-1)", outline: "none",
+                }}
+              />
+            </form>
+            <Link href={`/obras${q ? `?q=${encodeURIComponent(q)}` : ""}`} className={`chip ${!filterStatus ? "chip-active" : ""}`}>
               Todas
             </Link>
-            <Link href="/obras?status=in_progress" className={`chip ${filterStatus === "in_progress" ? "chip-active" : ""}`}>
+            <Link href={`/obras?status=in_progress${q ? `&q=${encodeURIComponent(q)}` : ""}`} className={`chip ${filterStatus === "in_progress" ? "chip-active" : ""}`}>
               <span style={{ width: 6, height: 6, borderRadius: 999, background: "var(--st-progress)" }} />
               Em andamento
             </Link>
-            <Link href="/obras?status=at-risk" className={`chip ${filterStatus === "at-risk" ? "chip-active" : ""}`}>
+            <Link href={`/obras?status=at-risk${q ? `&q=${encodeURIComponent(q)}` : ""}`} className={`chip ${filterStatus === "at-risk" ? "chip-active" : ""}`}>
               <span style={{ width: 6, height: 6, borderRadius: 999, background: "var(--st-late)" }} />
               Em risco
             </Link>
-            <Link href="/obras?status=done" className={`chip ${filterStatus === "done" ? "chip-active" : ""}`}>
+            <Link href={`/obras?status=paused${q ? `&q=${encodeURIComponent(q)}` : ""}`} className={`chip ${filterStatus === "paused" ? "chip-active" : ""}`}>
+              <span style={{ width: 6, height: 6, borderRadius: 999, background: "var(--st-paused, #999)" }} />
+              Pausadas
+            </Link>
+            <Link href={`/obras?status=done${q ? `&q=${encodeURIComponent(q)}` : ""}`} className={`chip ${filterStatus === "done" ? "chip-active" : ""}`}>
               <span style={{ width: 6, height: 6, borderRadius: 999, background: "var(--st-done)" }} />
               Concluídas
             </Link>
-            {canCreateSites && (
-              <Link href="/obras/nova" className="btn-primary" style={{ marginLeft: 4 }}>
-                + Nova obra
-              </Link>
-            )}
+            <Link href="/obras/nova" className="btn-primary" style={{ marginLeft: 4 }}>
+              + Nova obra
+            </Link>
           </div>
         </div>
       </div>
@@ -199,7 +204,7 @@ export default async function ObrasPage({
                   <div
                     className="obra-card-cover"
                     style={{
-                      backgroundImage: s.cover_url ? `url(${s.cover_url})` : undefined,
+                      backgroundImage: s.cover_url ? `url(${mediaUrl(s.cover_url)})` : undefined,
                       ...(isOperational
                         ? {
                             background:

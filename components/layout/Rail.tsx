@@ -8,6 +8,8 @@ import {
   CircleCheck,
   Search,
   Settings,
+  Map as MapIcon,
+  Calendar,
 } from "lucide-react";
 import { NotificationBell } from "@/components/NotificationBell";
 
@@ -22,6 +24,8 @@ export function Rail({ userInitials }: RailProps) {
     { href: "/inicio", icon: Home, label: "Início" },
     { href: "/caixa", icon: Inbox, label: "Caixa de entrada", badge: 0 },
     { href: "/tarefas", icon: CircleCheck, label: "Minhas tarefas" },
+    { href: "/cronograma", icon: Calendar, label: "Cronograma" },
+    { href: "/mapa", icon: MapIcon, label: "Mapa das obras" },
     { href: "/buscar", icon: Search, label: "Pesquisar" },
   ];
 

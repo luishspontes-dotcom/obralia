@@ -1,6 +1,5 @@
 import Link from "next/link";
-import { notFound, redirect } from "next/navigation";
-import { canWriteOrganization } from "@/lib/org-access";
+import { notFound } from "next/navigation";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { updateSite, uploadSiteCover } from "@/lib/rdo-actions";
 
@@ -13,23 +12,17 @@ type Site = {
   end_date: string | null;
   contract_number: string | null;
   status: string | null;
-  organization_id: string;
 };
 
 export default async function EditarObraPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const supabase = await createServerSupabase();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) redirect("/login");
   const { data: siteRaw } = await supabase
     .from("sites")
-    .select("id, name, client_name, address, start_date, end_date, contract_number, status, organization_id")
+    .select("id, name, client_name, address, start_date, end_date, contract_number, status")
     .eq("id", id).maybeSingle();
   const site = siteRaw as Site | null;
   if (!site) notFound();
-  if (!(await canWriteOrganization(supabase, user.id, site.organization_id))) {
-    redirect(`/obras/${id}`);
-  }
 
   return (
     <div>
@@ -76,9 +69,10 @@ export default async function EditarObraPage({ params }: { params: Promise<{ id:
           <Field label="Status">
             <select name="status" defaultValue={site.status ?? "in_progress"} style={inputStyle}>
               <option value="in_progress">Em andamento</option>
-              <option value="not_started">Planejada</option>
+              <option value="planned">Planejada</option>
               <option value="paused">Pausada</option>
-              <option value="done">Concluída</option>
+              <option value="completed">Concluída</option>
+              <option value="cancelled">Cancelada</option>
             </select>
           </Field>
 

@@ -1,6 +1,5 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { getActiveWritableOrgId } from "@/lib/org-access";
 import { createServerSupabase } from "@/lib/supabase/server";
 
 async function createObraAction(formData: FormData) {
@@ -9,8 +8,14 @@ async function createObraAction(formData: FormData) {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
-  const orgId = await getActiveWritableOrgId(supabase, user.id);
-  if (!orgId) throw new Error("Sem permissão para criar obras.");
+  const { data: profileR } = await supabase
+    .from("profiles").select("default_org_id").eq("id", user.id).maybeSingle();
+  const orgId = (profileR as { default_org_id?: string } | null)?.default_org_id;
+  if (!orgId) {
+    const { data: orgsR } = await supabase.from("organizations").select("id").limit(1);
+    const fallbackOrgId = (orgsR as { id: string }[] | null)?.[0]?.id;
+    if (!fallbackOrgId) throw new Error("Sem organização ativa.");
+  }
 
   const name = (formData.get("name") as string)?.trim();
   if (!name) throw new Error("Nome é obrigatório");
@@ -20,10 +25,14 @@ async function createObraAction(formData: FormData) {
   const end_date = (formData.get("end_date") as string) || null;
   const contract_number = (formData.get("contract_number") as string)?.trim() || null;
 
+  const orgFallback = await supabase.from("organizations").select("id").limit(1).single();
+  const finalOrgId = orgId ?? (orgFallback.data as { id: string } | null)?.id;
+  if (!finalOrgId) throw new Error("Sem organização.");
+
   const { data: inserted, error } = await supabase
     .from("sites")
     .insert({
-      organization_id: orgId,
+      organization_id: finalOrgId,
       name, address, client_name,
       start_date, end_date, contract_number,
       status: "in_progress",
@@ -36,13 +45,7 @@ async function createObraAction(formData: FormData) {
   redirect(`/obras/${insertedId}`);
 }
 
-export default async function NovaObraPage() {
-  const supabase = await createServerSupabase();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) redirect("/login");
-  const orgId = await getActiveWritableOrgId(supabase, user.id);
-  if (!orgId) redirect("/obras");
-
+export default function NovaObraPage() {
   return (
     <div>
       <div className="page-hero">

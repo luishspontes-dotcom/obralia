@@ -1,6 +1,5 @@
 import Link from "next/link";
-import { notFound, redirect } from "next/navigation";
-import { canWriteOrganization } from "@/lib/org-access";
+import { notFound } from "next/navigation";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { RdoForm } from "@/components/RdoForm";
 
@@ -11,16 +10,11 @@ export default async function EditarRdoPage({
 }) {
   const { id, rdoId } = await params;
   const supabase = await createServerSupabase();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) redirect("/login");
 
   const { data: siteRaw } = await supabase
-    .from("sites").select("id, name, organization_id").eq("id", id).maybeSingle();
-  const site = siteRaw as { id: string; name: string; organization_id: string } | null;
+    .from("sites").select("id, name").eq("id", id).maybeSingle();
+  const site = siteRaw as { id: string; name: string } | null;
   if (!site) notFound();
-  if (!(await canWriteOrganization(supabase, user.id, site.organization_id))) {
-    redirect(`/obras/${id}/rdos/${rdoId}`);
-  }
 
   const { data: rdoRaw } = await supabase
     .from("daily_reports")

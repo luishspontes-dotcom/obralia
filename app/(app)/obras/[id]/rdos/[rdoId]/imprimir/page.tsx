@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import { createServerSupabase } from "@/lib/supabase/server";
-import { withSignedMediaUrls } from "@/lib/supabase/media-url";
+import { mediaUrl } from "@/lib/storage";
 import { PrintButton } from "@/components/PrintButton";
 
 type Site = { id: string; name: string; client_name: string | null; address: string | null; contract_number: string | null };
@@ -9,6 +9,7 @@ type DR = {
   weather_morning: string | null; weather_afternoon: string | null;
   condition_morning: string | null; condition_afternoon: string | null;
   general_notes: string | null;
+  approval_status_label: string | null;
 };
 type Activity = { id: string; description: string; progress_pct: number | null; notes: string | null };
 type Workforce = { id: string; role: string; count: number };
@@ -30,7 +31,7 @@ export default async function ImprimirRdoPage({
 
   const { data: rdoRaw } = await supabase
     .from("daily_reports")
-    .select("id, number, date, status, weather_morning, weather_afternoon, condition_morning, condition_afternoon, general_notes")
+    .select("id, number, date, status, weather_morning, weather_afternoon, condition_morning, condition_afternoon, general_notes, approval_status_label")
     .eq("id", rdoId).eq("site_id", id).maybeSingle();
   const rdo = rdoRaw as DR | null;
   if (!rdo) notFound();
@@ -45,7 +46,7 @@ export default async function ImprimirRdoPage({
   const activities = (actsR.data ?? []) as Activity[];
   const workforce  = (wfR.data ?? []) as Workforce[];
   const equipment  = (eqR.data ?? []) as Equipment[];
-  const photos     = await withSignedMediaUrls(supabase, (photosR.data ?? []) as Photo[]);
+  const photos     = (photosR.data ?? []) as Photo[];
 
   const d = new Date(rdo.date);
   const dateLong = d.toLocaleDateString("pt-BR", { weekday: "long", day: "2-digit", month: "long", year: "numeric" });
@@ -106,7 +107,7 @@ export default async function ImprimirRdoPage({
             <div style={{ fontSize: 24, fontWeight: 800, color: "#1a202c", letterSpacing: "-0.02em" }}>RDO #{rdo.number}</div>
             <div style={{ marginTop: 2 }}>
               <span className={`pr-status ${rdo.status === "draft" ? "draft" : ""}`}>
-                {rdo.status === "approved" ? "Aprovado" : rdo.status === "review" ? "Em revisão" : "Rascunho"}
+                {rdo.approval_status_label ?? (rdo.status === "approved" ? "Aprovado" : rdo.status === "review" ? "Em revisão" : "Rascunho")}
               </span>
             </div>
           </div>
@@ -213,7 +214,7 @@ export default async function ImprimirRdoPage({
             <div className="pr-photos">
               {photos.slice(0, 24).map((p) => (
                 /* eslint-disable-next-line @next/next/no-img-element */
-                <img key={p.id} src={p.thumbnail_path ?? p.storage_path ?? ""} alt={p.caption ?? "Foto"} className="pr-photo" />
+                <img key={p.id} src={mediaUrl(p.thumbnail_path ?? p.storage_path)} alt={p.caption ?? "Foto"} className="pr-photo" />
               ))}
             </div>
             {photos.length > 24 && (

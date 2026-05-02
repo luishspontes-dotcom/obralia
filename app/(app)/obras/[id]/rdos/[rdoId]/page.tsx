@@ -1,13 +1,13 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { canWriteOrganization } from "@/lib/org-access";
 import { createServerSupabase } from "@/lib/supabase/server";
-import { withSignedMediaUrls } from "@/lib/supabase/media-url";
+import { mediaUrl } from "@/lib/storage";
 import { PhotoUploader } from "@/components/PhotoUploader";
 import { PhotoGrid } from "@/components/PhotoLightbox";
 import { setRdoStatus, deleteRdo, postComment } from "@/lib/rdo-actions";
+import { getCurrentRole, canWrite } from "@/lib/permissions";
 
-type Site = { id: string; name: string; client_name: string | null; organization_id: string };
+type Site = { id: string; name: string; client_name: string | null };
 type DR = {
   id: string;
   number: number;
@@ -38,10 +38,9 @@ export default async function RdoDetailPage({
 }) {
   const { id, rdoId } = await params;
   const supabase = await createServerSupabase();
-  const { data: { user } } = await supabase.auth.getUser();
 
   const { data: siteRaw } = await supabase
-    .from("sites").select("id, name, client_name, organization_id").eq("id", id).maybeSingle();
+    .from("sites").select("id, name, client_name").eq("id", id).maybeSingle();
   const site = siteRaw as Site | null;
   if (!site) notFound();
 
@@ -59,22 +58,23 @@ export default async function RdoDetailPage({
     supabase.from("media").select("id, storage_path, thumbnail_path, caption").eq("daily_report_id", rdoId).eq("kind", "photo").limit(60),
     supabase.from("media").select("id, storage_path, thumbnail_path, caption").eq("daily_report_id", rdoId).eq("kind", "video"),
     supabase.from("media").select("id, storage_path, thumbnail_path, caption").eq("daily_report_id", rdoId).eq("kind", "file"),
-    supabase.from("comments").select("id, body, target_table, created_at").eq("target_table", "daily_reports").eq("target_id", rdoId).order("created_at", { ascending: false }),
+    supabase.from("comments").select("id, body, target_table, created_at").eq("target_id", rdoId).order("created_at", { ascending: false }),
   ]);
 
   const activities = (actsR.data ?? []) as Activity[];
   const workforce  = (wfR.data ?? []) as Workforce[];
   const equipment  = (eqR.data ?? []) as Equipment[];
-  const photos     = await withSignedMediaUrls(supabase, (photosR.data ?? []) as Media[]);
-  const videos     = await withSignedMediaUrls(supabase, (videosR.data ?? []) as Media[]);
-  const files      = await withSignedMediaUrls(supabase, (filesR.data ?? []) as Media[]);
+  const photos     = (photosR.data ?? []) as Media[];
+  const videos     = (videosR.data ?? []) as Media[];
+  const files      = (filesR.data ?? []) as Media[];
   const comments   = (commentsR.data ?? []) as Comment[];
 
   const meta = STATUS_META[rdo.status] ?? STATUS_META.draft;
   const d = new Date(rdo.date);
   const dateLong = d.toLocaleDateString("pt-BR", { weekday: "long", day: "2-digit", month: "long", year: "numeric" });
   const totalWorkers = workforce.reduce((s, w) => s + (w.count ?? 0), 0);
-  const canEdit = user ? await canWriteOrganization(supabase, user.id, site.organization_id) : false;
+  const role = await getCurrentRole();
+  const canEdit = canWrite(role);
 
   return (
     <div>
@@ -246,14 +246,12 @@ export default async function RdoDetailPage({
 
         {/* Fotos */}
         <Section title={`Fotos · ${photos.length}`}>
-          {canEdit && (
-            <div className="card" style={{ padding: "16px 20px", marginBottom: photos.length > 0 ? 14 : 0 }}>
-              <div style={{ fontSize: 12, color: "var(--o-text-2)", marginBottom: 10, fontWeight: 500 }}>
-                Adicionar fotos / vídeos
-              </div>
-              <PhotoUploader siteId={id} rdoId={rdoId} />
+          <div className="card" style={{ padding: "16px 20px", marginBottom: photos.length > 0 ? 14 : 0 }}>
+            <div style={{ fontSize: 12, color: "var(--o-text-2)", marginBottom: 10, fontWeight: 500 }}>
+              Adicionar fotos / vídeos
             </div>
-          )}
+            <PhotoUploader siteId={id} rdoId={rdoId} />
+          </div>
           {photos.length > 0 && (
             <>
               <PhotoGrid photos={photos} />
@@ -267,7 +265,7 @@ export default async function RdoDetailPage({
           <Section title={`Vídeos · ${videos.length}`}>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 12 }}>
               {videos.map((v) => (
-                <a key={v.id} href={v.storage_path ?? "#"} target="_blank" rel="noreferrer"
+                <a key={v.id} href={mediaUrl(v.storage_path) || "#"} target="_blank" rel="noreferrer"
                   className="card card-hover"
                   style={{ display: "flex", alignItems: "center", gap: 12, padding: "14px 18px", fontSize: 13.5, color: "var(--o-text-1)", textDecoration: "none" }}>
                   <span style={{
@@ -288,7 +286,7 @@ export default async function RdoDetailPage({
           <Section title={`Anexos · ${files.length}`}>
             <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
               {files.map((f) => (
-                <a key={f.id} href={f.storage_path ?? "#"} target="_blank" rel="noreferrer"
+                <a key={f.id} href={mediaUrl(f.storage_path) || "#"} target="_blank" rel="noreferrer"
                   className="card card-hover"
                   style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 16px", fontSize: 14, color: "var(--o-text-1)", textDecoration: "none" }}>
                   <span style={{ fontSize: 18 }}>📎</span>

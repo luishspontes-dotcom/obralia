@@ -1,0 +1,36 @@
+{
+  "name": "Obralia",
+  "short_name": "Obralia",
+  "description": "Sistema operacional da obra — RDOs, fotos e cronograma para construtoras.",
+  "start_url": "/inicio",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#08789B",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Obras",
+      "short_name": "Obras",
+      "url": "/obras"
+    },
+    {
+      "name": "Mapa",
+      "short_name": "Mapa",
+      "url": "/mapa"
+    }
+  ]
+}
