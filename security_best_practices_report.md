@@ -6,7 +6,7 @@ O projeto e um SaaS multi-tenant de gestao de obras, RDOs, fotos, tarefas/EAP, c
 
 O sistema compila sem ignorar erros de TypeScript, passa lint, contrato de schema, build de producao e `npm audit` com 0 vulnerabilidades conhecidas. As correcoes desta auditoria endureceram controle de escrita, URLs de midia privada, headers de seguranca, healthcheck e respostas de erro.
 
-Nao e correto afirmar, com a evidencia disponivel localmente, que ClickUp e Diario de Obras estao 100% sincronizados de forma continua. Os relatorios historicos afirmam importacao de 26 obras, 1.129 RDOs, 10.968 fotos e 956 itens WBS, mas o Vercel Production nao possui `CLICKUP_API_TOKEN`, `DIARIO_API_TOKEN`, `DIARIO_AUTH_TOKEN`, `DIARIO_EMAIL` ou `DIARIO_PASSWORD`. Isso aponta para importacao pontual no banco, nao para sincronizacao ativa.
+Nao e correto afirmar, com a evidencia disponivel localmente, que Asana, ClickUp e Diario de Obras estao 100% sincronizados de forma continua. Os relatorios historicos afirmam importacao de 26 obras, 1.129 RDOs, 10.968 fotos e 956 itens WBS, mas o Vercel Production nao possui `ASANA_ACCESS_TOKEN`, `CLICKUP_API_TOKEN`, `DIARIO_API_TOKEN`, `DIARIO_AUTH_TOKEN`, `DIARIO_EMAIL` ou `DIARIO_PASSWORD`. Isso aponta para importacao pontual no banco, nao para sincronizacao ativa.
 
 ## Evidencia confirmada
 
@@ -61,7 +61,7 @@ Correcao: respostas da API agora sao genericas, mantendo detalhe apenas no log s
 
 ## Riscos remanescentes
 
-### RISK-001 - Sincronizacao ClickUp/Diario nao esta comprovada como ativa
+### RISK-001 - Sincronizacao Asana/ClickUp/Diario nao esta comprovada como ativa
 
 Severidade: Alta operacional.
 

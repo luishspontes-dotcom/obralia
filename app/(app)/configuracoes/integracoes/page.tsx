@@ -42,7 +42,7 @@ type SyncRun = {
   stats: unknown;
 };
 
-type ProviderKey = "clickup" | "diario_de_obra";
+type ProviderKey = "clickup" | "diario_de_obra" | "asana";
 
 const PROVIDERS: Array<{
   key: ProviderKey;
@@ -61,6 +61,12 @@ const PROVIDERS: Array<{
     label: "Diario de Obras",
     purpose: "Obras, RDOs, atividades do dia, fotos e anexos",
     expected: "DIARIO_API_TOKEN ou DIARIO_EMAIL + DIARIO_PASSWORD",
+  },
+  {
+    key: "asana",
+    label: "Asana",
+    purpose: "Projetos, tarefas e responsaveis quando a operacao estiver no Asana",
+    expected: "ASANA_ACCESS_TOKEN",
   },
 ];
 
@@ -164,6 +170,7 @@ export default async function IntegracoesPage() {
         process.env.DIARIO_AUTH_TOKEN ||
         (process.env.DIARIO_EMAIL && process.env.DIARIO_PASSWORD)
     ),
+    asana: Boolean(process.env.ASANA_ACCESS_TOKEN),
   };
 
   const counts = [

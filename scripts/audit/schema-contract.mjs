@@ -191,6 +191,10 @@ requireMatch(
   "Sync run audit trigger must be attached",
   /create\s+trigger\s+on_sync_runs_audit[\s\S]*on\s+public\.sync_runs/
 );
+requireMatch(
+  "Asana external provider must be accepted by schema",
+  /provider\s+in\s+\('clickup',\s*'diario_de_obra',\s*'asana'\)/
+);
 
 if (failures.length > 0) {
   fail(failures);

@@ -76,6 +76,7 @@ Configure no Vercel (Production + Preview + Development):
 | `SUPABASE_SERVICE_ROLE_KEY` | Supabase API keys (server-only; reserve para rotas administrativas; NUNCA exponha no client) |
 | `NEXT_PUBLIC_APP_URL` | `https://www.obralia.com.br` em Production |
 | `CLICKUP_API_TOKEN` | Token API do ClickUp para backfill/sync de cronogramas e atividades |
+| `ASANA_ACCESS_TOKEN` | Personal Access Token/OAuth token do Asana para auditoria/backfill de projetos e tarefas |
 | `DIARIO_API_TOKEN` / `DIARIO_AUTH_TOKEN` | Token do Diário de Obras, quando disponível |
 | `DIARIO_EMAIL` / `DIARIO_PASSWORD` | Fallback para sessão autenticada do Diário de Obras |
 | `SENTRY_DSN` / `NEXT_PUBLIC_SENTRY_DSN` | Sentry project settings (opcional; ativa captura de erros server/client) |
