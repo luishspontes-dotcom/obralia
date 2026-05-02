@@ -12,6 +12,8 @@ type Site = {
   end_date: string | null;
   contract_number: string | null;
   status: string | null;
+  lat: number | null;
+  lng: number | null;
 };
 
 export default async function EditarObraPage({ params }: { params: Promise<{ id: string }> }) {
@@ -19,7 +21,7 @@ export default async function EditarObraPage({ params }: { params: Promise<{ id:
   const supabase = await createServerSupabase();
   const { data: siteRaw } = await supabase
     .from("sites")
-    .select("id, name, client_name, address, start_date, end_date, contract_number, status")
+    .select("id, name, client_name, address, start_date, end_date, contract_number, status, lat, lng")
     .eq("id", id).maybeSingle();
   const site = siteRaw as Site | null;
   if (!site) notFound();
@@ -75,6 +77,19 @@ export default async function EditarObraPage({ params }: { params: Promise<{ id:
               <option value="cancelled">Cancelada</option>
             </select>
           </Field>
+
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+            <Field label="Latitude" hint="Pra mapa (opcional)">
+              <input name="lat" type="number" step="0.000001"
+                defaultValue={site.lat ?? ""} placeholder="-15.7942"
+                style={inputStyle} />
+            </Field>
+            <Field label="Longitude" hint="Pra mapa (opcional)">
+              <input name="lng" type="number" step="0.000001"
+                defaultValue={site.lng ?? ""} placeholder="-47.8822"
+                style={inputStyle} />
+            </Field>
+          </div>
 
           <button type="submit" className="btn-brand" style={{
             width: "100%", padding: "13px 16px", fontSize: 15,

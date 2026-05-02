@@ -274,6 +274,8 @@ export async function updateSite(formData: FormData) {
     end_date: asString(formData.get("end_date")) || null,
     contract_number: asString(formData.get("contract_number")) || null,
     status: asString(formData.get("status")) || undefined,
+    lat: asNum(formData.get("lat")),
+    lng: asNum(formData.get("lng")),
   };
   Object.keys(patch).forEach(k => {
     if ((patch as Record<string, unknown>)[k] === undefined) delete (patch as Record<string, unknown>)[k];

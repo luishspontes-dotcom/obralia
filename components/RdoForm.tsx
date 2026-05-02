@@ -79,6 +79,7 @@ export function RdoForm(props: RdoFormProps) {
           <Field label="Status">
             <select name="status" value={status} onChange={(e) => setStatus(e.target.value)} style={inputStyle}>
               <option value="draft">Rascunho</option>
+              <option value="submitted">Enviado p/ aprovação</option>
               <option value="review">Em revisão</option>
               <option value="approved">Aprovado</option>
             </select>

@@ -4,7 +4,8 @@ import { createServerSupabase } from "@/lib/supabase/server";
 import { mediaUrl } from "@/lib/storage";
 import { PhotoUploader } from "@/components/PhotoUploader";
 import { PhotoGrid } from "@/components/PhotoLightbox";
-import { setRdoStatus, deleteRdo, postComment } from "@/lib/rdo-actions";
+import { SignaturePad } from "@/components/SignaturePad";
+import { setRdoStatus, deleteRdo, postComment, addMaterial, deleteMaterial } from "@/lib/rdo-actions";
 import { getCurrentRole, canWrite } from "@/lib/permissions";
 
 type Site = { id: string; name: string; client_name: string | null };
@@ -18,7 +19,11 @@ type DR = {
   condition_morning: string | null;
   condition_afternoon: string | null;
   general_notes: string | null;
+  signature_data_url: string | null;
+  signature_signer_name: string | null;
+  signature_signed_at: string | null;
 };
+type Material = { id: string; name: string; unit: string | null; quantity: number | null; notes: string | null };
 type Activity = { id: string; description: string; progress_pct: number | null; notes: string | null };
 type Workforce = { id: string; role: string; count: number };
 type Equipment = { id: string; name: string; hours: number | null };
@@ -26,9 +31,10 @@ type Media = { id: string; storage_path: string | null; thumbnail_path: string |
 type Comment = { id: string; body: string; target_table: string; created_at: string | null };
 
 const STATUS_META: Record<string, { label: string; cls: string }> = {
-  draft:    { label: "Rascunho",   cls: "status-paused" },
-  review:   { label: "Em revisão", cls: "status-progress" },
-  approved: { label: "Aprovado",   cls: "status-done" },
+  draft:     { label: "Rascunho",          cls: "status-paused" },
+  submitted: { label: "Enviado p/ aprovação", cls: "status-progress" },
+  review:    { label: "Em revisão",        cls: "status-progress" },
+  approved:  { label: "Aprovado",          cls: "status-done" },
 };
 
 export default async function RdoDetailPage({
@@ -46,12 +52,12 @@ export default async function RdoDetailPage({
 
   const { data: rdoRaw } = await supabase
     .from("daily_reports")
-    .select("id, number, date, status, weather_morning, weather_afternoon, condition_morning, condition_afternoon, general_notes")
+    .select("id, number, date, status, weather_morning, weather_afternoon, condition_morning, condition_afternoon, general_notes, signature_data_url, signature_signer_name, signature_signed_at")
     .eq("id", rdoId).eq("site_id", id).maybeSingle();
   const rdo = rdoRaw as DR | null;
   if (!rdo) notFound();
 
-  const [actsR, wfR, eqR, photosR, videosR, filesR, commentsR] = await Promise.all([
+  const [actsR, wfR, eqR, photosR, videosR, filesR, commentsR, matsR] = await Promise.all([
     supabase.from("report_activities").select("id, description, progress_pct, notes").eq("daily_report_id", rdoId),
     supabase.from("report_workforce").select("id, role, count").eq("daily_report_id", rdoId),
     supabase.from("report_equipment").select("id, name, hours").eq("daily_report_id", rdoId),
@@ -59,6 +65,7 @@ export default async function RdoDetailPage({
     supabase.from("media").select("id, storage_path, thumbnail_path, caption").eq("daily_report_id", rdoId).eq("kind", "video"),
     supabase.from("media").select("id, storage_path, thumbnail_path, caption").eq("daily_report_id", rdoId).eq("kind", "file"),
     supabase.from("comments").select("id, body, target_table, created_at").eq("target_id", rdoId).order("created_at", { ascending: false }),
+    supabase.from("report_materials").select("id, name, unit, quantity, notes").eq("daily_report_id", rdoId),
   ]);
 
   const activities = (actsR.data ?? []) as Activity[];
@@ -68,6 +75,7 @@ export default async function RdoDetailPage({
   const videos     = (videosR.data ?? []) as Media[];
   const files      = (filesR.data ?? []) as Media[];
   const comments   = (commentsR.data ?? []) as Comment[];
+  const materials  = (matsR.data ?? []) as Material[];
 
   const meta = STATUS_META[rdo.status] ?? STATUS_META.draft;
   const d = new Date(rdo.date);
@@ -118,7 +126,17 @@ export default async function RdoDetailPage({
               <Link href={`/obras/${id}/rdos/${rdoId}/imprimir`} className="chip" style={{ textDecoration: "none" }} target="_blank">
                 ⎙ Imprimir / PDF
               </Link>
-              {canEdit && rdo.status !== "approved" && (
+              {canEdit && rdo.status === "draft" && (
+                <form action={setRdoStatus} style={{ display: "inline" }}>
+                  <input type="hidden" name="rdoId" value={rdoId} />
+                  <input type="hidden" name="siteId" value={id} />
+                  <input type="hidden" name="status" value="submitted" />
+                  <button type="submit" className="chip" style={{ background: "var(--t-brand-soft)", color: "var(--t-brand)", border: "1px solid var(--t-brand)", cursor: "pointer" }}>
+                    📤 Enviar p/ aprovação
+                  </button>
+                </form>
+              )}
+              {canEdit && (rdo.status === "submitted" || rdo.status === "review") && (
                 <form action={setRdoStatus} style={{ display: "inline" }}>
                   <input type="hidden" name="rdoId" value={rdoId} />
                   <input type="hidden" name="siteId" value={id} />
@@ -206,6 +224,50 @@ export default async function RdoDetailPage({
             </div>
           </Section>
         )}
+
+        {/* Materiais */}
+        <Section title={`📦 Materiais · ${materials.length}`}>
+          {canEdit && (
+            <form action={addMaterial} className="card" style={{ padding: "14px 16px", marginBottom: 10 }}>
+              <input type="hidden" name="rdoId" value={rdoId} />
+              <input type="hidden" name="siteId" value={id} />
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 100px 80px auto", gap: 8, alignItems: "center" }}>
+                <input name="name" required placeholder="Material (ex: cimento)" style={inlineInput} />
+                <input name="unit" placeholder="Unid (sc, kg)" style={inlineInput} />
+                <input name="quantity" type="number" step="0.01" placeholder="Qtde" style={inlineInput} className="tnum" />
+                <button type="submit" className="btn-brand" style={{ padding: "8px 14px", fontSize: 12 }}>+ Adicionar</button>
+              </div>
+            </form>
+          )}
+          {materials.length > 0 && (
+            <div className="card" style={{ overflow: "hidden", padding: 0 }}>
+              {materials.map((m, i) => (
+                <div key={m.id} style={{
+                  display: "flex", alignItems: "center", gap: 12,
+                  padding: "10px 18px", fontSize: 14,
+                  borderTop: i === 0 ? "none" : "1px solid var(--o-border)",
+                }}>
+                  <span style={{ flex: 1, color: "var(--o-text-1)" }}>{m.name}</span>
+                  <span className="tnum" style={{ fontSize: 12, color: "var(--o-text-2)" }}>
+                    {m.quantity != null ? `${m.quantity} ${m.unit ?? ""}`.trim() : (m.unit ?? "")}
+                  </span>
+                  {canEdit && (
+                    <form action={deleteMaterial} style={{ display: "inline" }}>
+                      <input type="hidden" name="id" value={m.id} />
+                      <input type="hidden" name="rdoId" value={rdoId} />
+                      <input type="hidden" name="siteId" value={id} />
+                      <button type="submit" title="Remover" style={{
+                        width: 22, height: 22, borderRadius: 5, border: "1px solid var(--o-border)",
+                        background: "transparent", color: "var(--o-text-3)", fontSize: 12,
+                        cursor: "pointer", lineHeight: 1, display: "grid", placeItems: "center",
+                      }}>×</button>
+                    </form>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </Section>
 
         {/* Atividades */}
         {activities.length > 0 && (
@@ -298,6 +360,26 @@ export default async function RdoDetailPage({
           </Section>
         )}
 
+        {/* Assinatura digital */}
+        {(canEdit || rdo.signature_data_url) && (
+          <Section title={`✍ Assinatura digital${rdo.signature_signer_name ? ` · ${rdo.signature_signer_name}` : ""}`}>
+            <div className="card" style={{ padding: "16px 20px" }}>
+              {rdo.signature_data_url ? (
+                <SignaturePad rdoId={rdoId} siteId={id} existing={rdo.signature_data_url} />
+              ) : canEdit ? (
+                <SignaturePad rdoId={rdoId} siteId={id} />
+              ) : (
+                <div style={{ fontSize: 13, color: "var(--o-text-3)" }}>RDO ainda não assinado.</div>
+              )}
+              {rdo.signature_signed_at && (
+                <div style={{ fontSize: 11, color: "var(--o-text-3)", marginTop: 8 }}>
+                  Assinado em {new Date(rdo.signature_signed_at).toLocaleString("pt-BR")}
+                </div>
+              )}
+            </div>
+          </Section>
+        )}
+
         {/* Comentários e ocorrências */}
         <Section title={`Comentários e ocorrências · ${comments.length}`}>
           <form action={postComment} className="card" style={{ padding: "14px 16px", marginBottom: 12 }}>
@@ -366,6 +448,17 @@ function Block({ title, children, style }: { title: string; children: React.Reac
     </div>
   );
 }
+
+const inlineInput: React.CSSProperties = {
+  width: "100%",
+  background: "var(--o-paper)",
+  border: "1px solid var(--o-border)",
+  borderRadius: 8,
+  padding: "8px 12px",
+  font: "400 13px var(--font-inter)",
+  color: "var(--o-text-1)",
+  outline: "none",
+};
 
 function KV({ label, value, last }: { label: string; value: string; last?: boolean }) {
   return (
