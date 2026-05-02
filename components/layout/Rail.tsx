@@ -43,10 +43,11 @@ export function Rail({ userInitials }: RailProps) {
           width: 40,
           height: 40,
           borderRadius: 10,
-          background: "var(--o-accent)",
+          background: "var(--t-brand)",
           display: "grid",
           placeItems: "center",
           marginBottom: 12,
+          boxShadow: "var(--shadow-brand)",
         }}
         title="Obralia"
       >
@@ -132,7 +133,7 @@ export function Rail({ userInitials }: RailProps) {
           width: 36,
           height: 36,
           borderRadius: 999,
-          background: "linear-gradient(135deg, #D97757, #C66946)",
+          background: "linear-gradient(135deg, #08789B, #054F66)",
           display: "grid",
           placeItems: "center",
           font: "600 13px var(--font-inter)",

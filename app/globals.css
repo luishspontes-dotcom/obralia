@@ -3,76 +3,73 @@
 @tailwind utilities;
 
 /* =========================================================
-   OBRALIA · DESIGN TOKENS — Construtech Premium
+   OBRALIA · Paleta MEU VIVER CONSTRUTORA
+   Turquesa + Azul-marinho + Cinza-azulado + Dourado CTA
    ========================================================= */
 :root {
-  /* Surfaces */
-  --o-dark: #141413;
-  --o-dark-2: #1F1E1C;
-  --o-cream: #FAF9F5;
-  --o-paper: #FFFFFF;
-  --o-soft: #F4F2EA;
-  --o-mist: #ECE9DD;
-  --o-border: #E2DFD2;
-  --o-border-2: #C9C5B5;
-  --o-text-1: #141413;
-  --o-text-2: #6F6E68;
-  --o-text-3: #A19F95;
-  --o-text-on-dark: #FAF9F5;
-  --o-text-2-on-dark: #B5B3AA;
+  /* === Surfaces — limpo, profissional === */
+  --o-bg:       #F4F7F8;     /* fundo geral */
+  --o-paper:    #FFFFFF;     /* cards */
+  --o-soft:     #E9EFF1;     /* hover bg */
+  --o-mist:     #DCE4E7;     /* divisores claros */
+  --o-cream:    #F4F7F8;     /* alias compat */
 
-  /* Accent (terracotta) */
-  --o-accent: #D97757;
-  --o-accent-h: #C66946;
-  --o-accent-soft: #FCE9DF;
-  --o-accent-on: #FFFFFF;
+  --o-border:   #D5DDE0;
+  --o-border-2: #B8C2C7;
 
-  /* Status */
-  --st-waiting: #D97757;
-  --st-progress: #6A9BCC;
-  --st-late: #C2410C;
-  --st-paused: #B0AEA5;
-  --st-done: #788C5D;
+  /* === Text === */
+  --o-text-1:   #1B2733;     /* títulos / azul-marinho profundo */
+  --o-text-2:   #5C6B72;     /* corpo */
+  --o-text-3:   #95A0A5;     /* meta / placeholders */
 
-  /* Tenant brand (Meu Viver — turquesa) */
-  --t-brand: #08789B;
-  --t-brand-h: #066785;
-  --t-brand-d: #054F66;
-  --t-brand-soft: #E1EFF4;
-  --t-brand-mist: #F0F7FA;
-  --t-brand-on: #FFFFFF;
+  /* === Dark surfaces (sidebar / rail) === */
+  --o-dark:     #1B2733;     /* azul-marinho profundo */
+  --o-dark-2:   #243340;
+  --o-text-on-dark:   #F4F7F8;
+  --o-text-2-on-dark: #95A0A5;
 
-  /* Shadows refinados */
-  --shadow-xs: 0 1px 2px rgba(20, 20, 19, 0.04);
-  --shadow-sm: 0 2px 4px rgba(20, 20, 19, 0.04), 0 1px 2px rgba(20, 20, 19, 0.03);
-  --shadow:    0 4px 12px rgba(20, 20, 19, 0.06), 0 2px 4px rgba(20, 20, 19, 0.04);
-  --shadow-md: 0 8px 20px rgba(20, 20, 19, 0.08), 0 3px 6px rgba(20, 20, 19, 0.05);
-  --shadow-lg: 0 16px 40px rgba(20, 20, 19, 0.12), 0 6px 12px rgba(20, 20, 19, 0.06);
-  --shadow-brand: 0 8px 24px rgba(8, 120, 155, 0.18);
+  /* === Brand Meu Viver — turquesa do logo === */
+  --t-brand:        #08789B;
+  --t-brand-h:      #066785;
+  --t-brand-d:      #054F66;
+  --t-brand-soft:   #DCEDF3;
+  --t-brand-mist:   #EDF5F8;
+  --t-brand-on:     #FFFFFF;
 
-  /* Motion */
-  --ease: cubic-bezier(0.4, 0.0, 0.2, 1);
-  --ease-out: cubic-bezier(0.0, 0.0, 0.2, 1);
+  /* === Accent CTA — dourado premium (constrói) === */
+  --o-accent:       #C28E3A;
+  --o-accent-h:     #A87827;
+  --o-accent-soft:  #F5EBD4;
+  --o-accent-on:    #FFFFFF;
+
+  /* === Status === */
+  --st-waiting:  #95A0A5;
+  --st-progress: #08789B;     /* turquesa */
+  --st-late:     #B43D3D;     /* vermelho mais sóbrio */
+  --st-paused:   #B8C2C7;
+  --st-done:     #5A8D8C;     /* verde-azulado */
+
+  /* === Shadows === */
+  --shadow-xs: 0 1px 2px rgba(27, 39, 51, 0.04);
+  --shadow-sm: 0 2px 4px rgba(27, 39, 51, 0.05), 0 1px 2px rgba(27, 39, 51, 0.03);
+  --shadow:    0 4px 12px rgba(27, 39, 51, 0.07), 0 2px 4px rgba(27, 39, 51, 0.04);
+  --shadow-md: 0 8px 20px rgba(27, 39, 51, 0.10), 0 3px 6px rgba(27, 39, 51, 0.05);
+  --shadow-lg: 0 16px 40px rgba(27, 39, 51, 0.14), 0 6px 12px rgba(27, 39, 51, 0.07);
+  --shadow-brand: 0 8px 24px rgba(8, 120, 155, 0.22);
+
+  /* === Motion === */
+  --ease:      cubic-bezier(0.4, 0.0, 0.2, 1);
+  --ease-out:  cubic-bezier(0.0, 0.0, 0.2, 1);
   --duration-fast: 120ms;
-  --duration: 200ms;
+  --duration:      200ms;
   --duration-slow: 320ms;
 
-  /* Radii */
+  /* === Radii === */
   --r-sm: 6px;
   --r:    10px;
   --r-md: 14px;
   --r-lg: 20px;
   --r-xl: 28px;
-
-  /* Spacing scale (used inline in pages) */
-  --space-1: 4px;
-  --space-2: 8px;
-  --space-3: 12px;
-  --space-4: 16px;
-  --space-5: 24px;
-  --space-6: 32px;
-  --space-8: 48px;
-  --space-10: 64px;
 }
 
 * { box-sizing: border-box; }
@@ -80,7 +77,7 @@
 html, body {
   margin: 0;
   padding: 0;
-  background: var(--o-cream);
+  background: var(--o-bg);
   color: var(--o-text-1);
   font-family: var(--font-inter), system-ui, -apple-system, sans-serif;
   font-size: 14px;
@@ -95,31 +92,28 @@ html, body {
   grid-template-columns: 64px 280px minmax(0, 1fr);
   min-height: 100vh;
 }
-
 .app-main {
-  background: var(--o-cream);
+  background: var(--o-bg);
   overflow-y: auto;
   max-height: 100vh;
   position: relative;
 }
-
 @media (max-width: 900px) {
   .app-shell { grid-template-columns: 56px minmax(0, 1fr); }
   .app-shell > aside:nth-of-type(2) { display: none; }
   .app-main { max-height: none; min-height: 100vh; }
 }
 
-::selection { background: var(--o-accent-soft); color: var(--o-accent-h); }
+::selection { background: var(--t-brand-soft); color: var(--t-brand-d); }
 
 .tnum { font-feature-settings: 'tnum'; }
 .font-display { font-family: var(--font-inter); letter-spacing: -0.02em; }
 .font-body-lora { font-family: var(--font-lora); }
 
 /* =========================================================
-   COMPONENTES UTILITÁRIOS — design system
+   COMPONENTES UTILITÁRIOS
    ========================================================= */
 
-/* Card base */
 .card {
   background: var(--o-paper);
   border: 1px solid var(--o-border);
@@ -129,16 +123,13 @@ html, body {
               transform var(--duration) var(--ease),
               border-color var(--duration) var(--ease);
 }
-.card-hover {
-  cursor: pointer;
-}
+.card-hover { cursor: pointer; }
 .card-hover:hover {
   box-shadow: var(--shadow-md);
   transform: translateY(-2px);
   border-color: var(--o-border-2);
 }
 
-/* Stat card — número grande com transição */
 .stat-card {
   background: var(--o-paper);
   border: 1px solid var(--o-border);
@@ -167,7 +158,6 @@ html, body {
 }
 .stat-card:hover::before { width: 5px; }
 
-/* Obra cover card — foto da obra como hero do cartão */
 .obra-card {
   background: var(--o-paper);
   border: 1px solid var(--o-border);
@@ -183,11 +173,11 @@ html, body {
 .obra-card:hover {
   transform: translateY(-4px);
   box-shadow: var(--shadow-lg);
-  border-color: var(--o-border-2);
+  border-color: var(--t-brand);
 }
 .obra-card-cover {
   aspect-ratio: 16 / 10;
-  background: linear-gradient(135deg, var(--o-mist), var(--o-soft));
+  background: linear-gradient(135deg, var(--t-brand-mist), var(--o-soft));
   background-size: cover;
   background-position: center;
   position: relative;
@@ -198,35 +188,24 @@ html, body {
   inset: 0;
   background: linear-gradient(
     180deg,
-    rgba(20, 20, 19, 0) 50%,
-    rgba(20, 20, 19, 0.45) 100%
+    rgba(27, 39, 51, 0) 50%,
+    rgba(27, 39, 51, 0.55) 100%
   );
 }
-.obra-card-status {
-  position: absolute;
-  top: 10px;
-  right: 10px;
-  z-index: 1;
-}
-.obra-card-body {
-  padding: 14px 16px 16px;
-}
+.obra-card-status { position: absolute; top: 10px; right: 10px; z-index: 1; }
+.obra-card-body { padding: 14px 16px 16px; }
 
-/* Hero da página — seção de topo com gradient sutil */
+/* Hero da página — gradient turquesa sutil */
 .page-hero {
   position: relative;
-  background:
-    linear-gradient(135deg, var(--t-brand-mist) 0%, var(--o-cream) 65%);
+  background: linear-gradient(135deg, var(--t-brand-mist) 0%, var(--o-bg) 65%);
   border-bottom: 1px solid var(--o-border);
   padding: 32px 24px 24px;
   margin: -24px -24px 24px;
 }
-.page-hero-narrow {
-  padding: 24px 24px 18px;
-  margin: -24px -24px 20px;
-}
+.page-hero-narrow { padding: 24px 24px 18px; margin: -24px -24px 20px; }
 
-/* Status pill (refinada) */
+/* Status pill */
 .status {
   display: inline-flex; align-items: center; gap: 6px;
   padding: 3px 11px;
@@ -243,21 +222,20 @@ html, body {
   border-radius: 999px;
   background: currentColor;
 }
-.status-waiting  { color: var(--st-waiting);  background: rgba(217, 119, 87, 0.10); border-color: rgba(217, 119, 87, 0.35); }
-.status-progress { color: var(--st-progress); background: rgba(106, 155, 204, 0.10); border-color: rgba(106, 155, 204, 0.35); }
-.status-late     { color: var(--st-late);     background: rgba(194, 65, 12, 0.10);   border-color: rgba(194, 65, 12, 0.35); }
-.status-paused   { color: var(--st-paused);   background: rgba(176, 174, 165, 0.16); border-color: rgba(176, 174, 165, 0.45); }
-.status-done     { color: var(--st-done);     background: rgba(120, 140, 93, 0.10);  border-color: rgba(120, 140, 93, 0.35); }
+.status-waiting  { color: var(--st-waiting);  background: rgba(149, 160, 165, 0.10); border-color: rgba(149, 160, 165, 0.40); }
+.status-progress { color: var(--st-progress); background: rgba(8, 120, 155, 0.10);   border-color: rgba(8, 120, 155, 0.35); }
+.status-late     { color: var(--st-late);     background: rgba(180, 61, 61, 0.10);   border-color: rgba(180, 61, 61, 0.35); }
+.status-paused   { color: var(--st-paused);   background: rgba(184, 194, 199, 0.18); border-color: rgba(184, 194, 199, 0.50); }
+.status-done     { color: var(--st-done);     background: rgba(90, 141, 140, 0.10);  border-color: rgba(90, 141, 140, 0.35); }
 
-/* Status pill no hero da obra (sobre foto) */
 .status-on-cover {
-  background: rgba(255, 255, 255, 0.92);
+  background: rgba(255, 255, 255, 0.93);
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
   box-shadow: var(--shadow-sm);
 }
 
-/* Pill de fase / tag genérica */
+/* Chip / filtro */
 .chip {
   display: inline-flex;
   align-items: center;
@@ -274,20 +252,21 @@ html, body {
 }
 .chip:hover {
   background: var(--o-paper);
-  border-color: var(--o-border-2);
-  color: var(--o-text-1);
+  border-color: var(--t-brand);
+  color: var(--t-brand);
 }
 .chip-active {
-  background: var(--o-dark);
-  color: var(--o-cream);
-  border-color: var(--o-dark);
+  background: var(--t-brand);
+  color: var(--t-brand-on);
+  border-color: var(--t-brand);
 }
 .chip-active:hover {
-  background: var(--o-dark-2);
-  color: var(--o-cream);
+  background: var(--t-brand-h);
+  color: var(--t-brand-on);
+  border-color: var(--t-brand-h);
 }
 
-/* Botão primário */
+/* Botões */
 .btn-primary {
   display: inline-flex;
   align-items: center;
@@ -297,11 +276,12 @@ html, body {
   color: var(--o-accent-on);
   border: 0;
   border-radius: var(--r);
-  font: 500 13px var(--font-inter);
+  font: 600 13px var(--font-inter);
   cursor: pointer;
   text-decoration: none;
   transition: all var(--duration) var(--ease);
   box-shadow: var(--shadow-sm);
+  letter-spacing: 0.01em;
 }
 .btn-primary:hover {
   background: var(--o-accent-h);
@@ -318,7 +298,7 @@ html, body {
   color: var(--t-brand-on);
   border: 0;
   border-radius: var(--r);
-  font: 500 13px var(--font-inter);
+  font: 600 13px var(--font-inter);
   cursor: pointer;
   text-decoration: none;
   transition: all var(--duration) var(--ease);
@@ -330,7 +310,6 @@ html, body {
   transform: translateY(-1px);
 }
 
-/* Section heading */
 .section-title {
   font: 600 12px var(--font-inter);
   text-transform: uppercase;
@@ -339,7 +318,6 @@ html, body {
   margin: 0 0 12px;
 }
 
-/* Empty state */
 .empty {
   background: var(--o-paper);
   border: 1px dashed var(--o-border-2);
@@ -354,17 +332,12 @@ html, body {
   opacity: 0.7;
 }
 
-/* Subtle reveal animation pra cards na entrada */
 @keyframes reveal {
   from { opacity: 0; transform: translateY(6px); }
-  to { opacity: 1; transform: translateY(0); }
+  to   { opacity: 1; transform: translateY(0); }
 }
-.reveal {
-  animation: reveal var(--duration-slow) var(--ease-out) both;
-}
-.reveal-stagger > * {
-  animation: reveal var(--duration-slow) var(--ease-out) both;
-}
+.reveal { animation: reveal var(--duration-slow) var(--ease-out) both; }
+.reveal-stagger > * { animation: reveal var(--duration-slow) var(--ease-out) both; }
 .reveal-stagger > *:nth-child(1)  { animation-delay: 0.04s; }
 .reveal-stagger > *:nth-child(2)  { animation-delay: 0.08s; }
 .reveal-stagger > *:nth-child(3)  { animation-delay: 0.12s; }
@@ -374,7 +347,6 @@ html, body {
 .reveal-stagger > *:nth-child(7)  { animation-delay: 0.28s; }
 .reveal-stagger > *:nth-child(8)  { animation-delay: 0.32s; }
 
-/* Scrollbars */
 .dark-scroll::-webkit-scrollbar { width: 6px; height: 6px; }
 .dark-scroll::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.10); border-radius: 999px; }
 .dark-scroll::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.20); }
@@ -382,24 +354,21 @@ html, body {
 .light-scroll::-webkit-scrollbar-thumb { background: var(--o-border); border-radius: 999px; }
 .light-scroll::-webkit-scrollbar-thumb:hover { background: var(--o-border-2); }
 
-/* Focus refinado */
 *:focus-visible {
   outline: 2px solid var(--t-brand);
   outline-offset: 2px;
   border-radius: 4px;
 }
 
-/* Link sutil */
 a { transition: color var(--duration) var(--ease); }
 
-/* Image fade in */
 img { transition: opacity var(--duration) var(--ease); }
 img[loading="lazy"] { opacity: 0; }
 img[loading="lazy"].loaded,
 img[loading="lazy"]:not([src=""]) { opacity: 1; }
 
 /* =========================================================
-   TOPBAR — header sticky com glassmorphism
+   TOPBAR
    ========================================================= */
 .app-topbar {
   position: sticky;
@@ -410,41 +379,28 @@ img[loading="lazy"]:not([src=""]) { opacity: 1; }
   justify-content: space-between;
   gap: 16px;
   padding: 10px 24px;
-  background: rgba(250, 249, 245, 0.85);
+  background: rgba(244, 247, 248, 0.85);
   backdrop-filter: blur(16px) saturate(1.2);
   -webkit-backdrop-filter: blur(16px) saturate(1.2);
   border-bottom: 1px solid var(--o-border);
   min-height: 56px;
 }
-.app-topbar__context {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  min-width: 0;
-}
+.app-topbar__context { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .app-topbar__title {
   font: 600 15px var(--font-inter);
   letter-spacing: -0.01em;
   color: var(--o-text-1);
   line-height: 1.2;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 .app-topbar__meta {
   font-size: 12px;
   color: var(--o-text-2);
   line-height: 1.2;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
-.app-topbar__actions {
-  display: flex;
-  align-items: center;
-  gap: 2px;
-  flex-shrink: 0;
-}
+.app-topbar__actions { display: flex; align-items: center; gap: 2px; flex-shrink: 0; }
+
 .icon-button {
   width: 38px;
   height: 38px;
@@ -459,14 +415,7 @@ img[loading="lazy"]:not([src=""]) { opacity: 1; }
   text-decoration: none;
   padding: 0;
 }
-.icon-button:hover {
-  background: var(--o-soft);
-  color: var(--o-text-1);
-}
-.icon-button:active {
-  background: var(--o-mist);
-  transform: scale(0.96);
-}
-.app-content {
-  /* container do conteúdo da página — cada página define padding interno */
-}
+.icon-button:hover { background: var(--o-soft); color: var(--t-brand); }
+.icon-button:active { background: var(--o-mist); transform: scale(0.96); }
+
+.app-content { /* container do conteúdo da página */ }
