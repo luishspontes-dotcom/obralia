@@ -81,6 +81,11 @@ test("authenticated user can reach the app shell", async ({ page }) => {
   await page.getByRole("button", { name: "Entrar" }).click();
 
   await expect(page).toHaveURL(/\/inicio$/);
-  await expect(page.getByText(/Bem-vindo ao/)).toBeVisible();
-  await expect(page.getByRole("link", { name: "Obras" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: /Boa (noite|dia|tarde),/ })).toBeVisible();
+  await expect(page.getByText("Painel da operação")).toBeVisible();
+  await expect(page.getByRole("link", { name: /Obras\s+\d+/ })).toBeVisible();
+
+  await page.goto("/configuracoes/auditoria");
+  await expect(page).toHaveURL(/\/configuracoes\/auditoria$/);
+  await expect(page.getByRole("heading", { name: "Auditoria operacional" })).toBeVisible();
 });
