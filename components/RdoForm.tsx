@@ -1,15 +1,24 @@
 "use client";
 
 import { useState } from "react";
-import { createOrUpdateRdo } from "@/lib/rdo-actions";
+import { createOrUpdateRdo, saveRdoTemplate, deleteRdoTemplate } from "@/lib/rdo-actions";
 
 type WF = { role: string; count: number };
 type EQ = { name: string; hours: number | null };
 type AC = { description: string; progress_pct: number | null; notes: string | null };
 
+export type RdoTemplate = {
+  id: string;
+  name: string;
+  workforce: WF[];
+  equipment: EQ[];
+  activities: AC[];
+};
+
 export type RdoFormProps = {
   siteId: string;
   rdoId?: string | null;
+  templates?: RdoTemplate[];
   initial?: {
     date?: string;
     status?: string;
@@ -67,6 +76,72 @@ export function RdoForm(props: RdoFormProps) {
     >
       <input type="hidden" name="siteId" value={props.siteId} />
       {props.rdoId && <input type="hidden" name="rdoId" value={props.rdoId} />}
+
+      {/* Templates */}
+      {(props.templates ?? []).length > 0 || true ? (
+        <div className="card" style={{ padding: "16px 20px", display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+          <span style={{ fontSize: 12, fontWeight: 600, color: "var(--o-text-2)", textTransform: "uppercase", letterSpacing: "0.06em" }}>
+            🧰 Templates
+          </span>
+          {(props.templates ?? []).length > 0 && (
+            <select
+              defaultValue=""
+              onChange={(e) => {
+                const t = (props.templates ?? []).find(x => x.id === e.target.value);
+                if (!t) return;
+                setWorkforce(t.workforce ?? []);
+                setEquipment(t.equipment ?? []);
+                setActivities(t.activities ?? []);
+                e.currentTarget.value = "";
+              }}
+              style={{
+                padding: "8px 12px", border: "1px solid var(--o-border)",
+                borderRadius: 8, fontSize: 13, background: "white",
+              }}
+            >
+              <option value="">Carregar template…</option>
+              {(props.templates ?? []).map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+            </select>
+          )}
+          <button
+            type="button"
+            className="chip"
+            onClick={async () => {
+              const name = prompt("Nome do template (ex: Equipe padrão obra grande)");
+              if (!name) return;
+              const fd = new FormData();
+              fd.set("name", name);
+              fd.set("workforce_json", JSON.stringify(workforce));
+              fd.set("equipment_json", JSON.stringify(equipment));
+              fd.set("activities_json", JSON.stringify(activities));
+              try {
+                await saveRdoTemplate(fd);
+                alert("Template salvo. Recarregue a página pra ver na lista.");
+              } catch (err: unknown) {
+                alert("Falha: " + (err instanceof Error ? err.message : String(err)));
+              }
+            }}
+          >
+            + Salvar como template
+          </button>
+          {(props.templates ?? []).map(t => (
+            <form
+              key={t.id}
+              action={async (fd) => { await deleteRdoTemplate(fd); }}
+              style={{ display: "inline" }}
+            >
+              <input type="hidden" name="id" value={t.id} />
+              <button type="submit" title={`Remover "${t.name}"`} style={{
+                fontSize: 11, padding: "4px 8px", border: "1px solid var(--o-border)",
+                borderRadius: 6, background: "transparent", color: "var(--o-text-3)",
+                cursor: "pointer",
+              }}>
+                × {t.name}
+              </button>
+            </form>
+          ))}
+        </div>
+      ) : null}
 
       {/* Data + status */}
       <div className="card" style={{ padding: "22px 24px" }}>

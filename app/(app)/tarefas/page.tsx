@@ -12,6 +12,7 @@ type WbsItem = {
   due_date: string | null;
   site_id: string;
   parent_id: string | null;
+  time_spent_ms: number | null;
 };
 type Site = { id: string; name: string };
 
@@ -25,7 +26,7 @@ export default async function TarefasPage({
 
   let query = supabase
     .from("wbs_items")
-    .select("id, name, code, status, due_date, site_id, parent_id")
+    .select("id, name, code, status, due_date, site_id, parent_id, time_spent_ms")
     .not("parent_id", "is", null)
     .order("due_date", { ascending: true, nullsFirst: false });
 

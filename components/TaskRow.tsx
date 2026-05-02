@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { createOrUpdateTask, deleteTask } from "@/lib/rdo-actions";
+import { createOrUpdateTask, deleteTask, logTaskTime } from "@/lib/rdo-actions";
 
 type Props = {
   task: {
@@ -9,9 +9,19 @@ type Props = {
     name: string;
     status: string | null;
     due_date: string | null;
+    time_spent_ms?: number | null;
   };
   siteId: string;
 };
+
+function fmtMs(ms: number | null | undefined): string {
+  if (!ms || ms <= 0) return "";
+  const m = Math.round(ms / 60_000);
+  if (m < 60) return `${m}min`;
+  const h = Math.floor(m / 60);
+  const rm = m % 60;
+  return rm > 0 ? `${h}h${rm}` : `${h}h`;
+}
 
 const STATUS_LABELS: Record<string, string> = {
   waiting: "Aguardando",
@@ -98,6 +108,33 @@ export function TaskRow({ task, siteId }: Props) {
           {new Date(task.due_date).toLocaleDateString("pt-BR", { day: "2-digit", month: "short" })}
         </span>
       )}
+      {task.time_spent_ms ? (
+        <span className="tnum" title="Tempo registrado" style={{ fontSize: 11, color: "var(--o-text-3)" }}>
+          ⏱ {fmtMs(task.time_spent_ms)}
+        </span>
+      ) : null}
+      <form action={logTaskTime} style={{ display: "inline-flex", gap: 4, alignItems: "center" }}>
+        <input type="hidden" name="id" value={task.id} />
+        <input
+          name="minutes"
+          type="number"
+          min={1}
+          step={5}
+          placeholder="min"
+          style={{
+            width: 60, padding: "5px 8px", fontSize: 12,
+            border: "1px solid var(--o-border)", borderRadius: 6,
+            background: "white",
+          }}
+          className="tnum"
+        />
+        <button type="submit" title="Registrar tempo"
+          style={{
+            padding: "5px 8px", fontSize: 11, border: "1px solid var(--o-border)",
+            borderRadius: 6, background: "transparent", color: "var(--o-text-2)",
+            cursor: "pointer",
+          }}>+ tempo</button>
+      </form>
       <span className={`status ${cls}`} style={{ minWidth: 96, justifyContent: "center" }}>
         {label}
       </span>

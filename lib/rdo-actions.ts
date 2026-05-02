@@ -348,6 +348,19 @@ export async function createOrUpdateTask(formData: FormData) {
   if (siteId) revalidatePath(`/obras/${siteId}`);
 }
 
+export async function logTaskTime(formData: FormData) {
+  const { supabase } = await requireUser();
+  const id = asString(formData.get("id"));
+  const minutes = asNum(formData.get("minutes"));
+  if (!id || !minutes || minutes <= 0) throw new Error("dados obrigatórios");
+  const { data: row } = await supabase.from("wbs_items").select("time_spent_ms").eq("id", id).maybeSingle();
+  const cur = (row as { time_spent_ms?: number } | null)?.time_spent_ms ?? 0;
+  await supabase.from("wbs_items").update({
+    time_spent_ms: cur + minutes * 60_000,
+  } as never).eq("id", id);
+  revalidatePath("/tarefas");
+}
+
 export async function deleteTask(formData: FormData) {
   const { supabase } = await requireUser();
   const admin = supabase;

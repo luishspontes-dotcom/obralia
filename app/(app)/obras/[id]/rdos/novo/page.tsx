@@ -11,6 +11,10 @@ export default async function NovoRdoPage({ params }: { params: Promise<{ id: st
   const site = siteRaw as { id: string; name: string } | null;
   if (!site) redirect("/obras");
 
+  const { data: tplRaw } = await supabase
+    .from("rdo_templates").select("id, name, workforce, equipment, activities");
+  const templates = (tplRaw ?? []) as Array<{ id: string; name: string; workforce: unknown; equipment: unknown; activities: unknown }>;
+
   return (
     <div>
       <div className="page-hero">
@@ -37,7 +41,15 @@ export default async function NovoRdoPage({ params }: { params: Promise<{ id: st
       </div>
 
       <div style={{ padding: "0 24px 32px", maxWidth: 880, margin: "0 auto" }}>
-        <RdoForm siteId={id} />
+        <RdoForm
+          siteId={id}
+          templates={templates.map((t) => ({
+            id: t.id, name: t.name,
+            workforce: Array.isArray(t.workforce) ? (t.workforce as { role: string; count: number }[]) : [],
+            equipment: Array.isArray(t.equipment) ? (t.equipment as { name: string; hours: number | null }[]) : [],
+            activities: Array.isArray(t.activities) ? (t.activities as { description: string; progress_pct: number | null; notes: string | null }[]) : [],
+          }))}
+        />
       </div>
     </div>
   );

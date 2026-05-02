@@ -1,5 +1,6 @@
 import { createServerSupabase } from "@/lib/supabase/server";
 import { InviteForm } from "./InviteForm";
+import { MemberRow } from "@/components/MemberRow";
 
 type Member = {
   profile_id: string;
@@ -8,14 +9,6 @@ type Member = {
 };
 type Profile = { default_org_id: string | null };
 type Organization = { id: string; name: string };
-
-const ROLE_LABELS: Record<string, { label: string; cls: string }> = {
-  owner:  { label: "Owner",  cls: "status-progress" },
-  admin:  { label: "Admin",  cls: "status-progress" },
-  manager:{ label: "Gestor", cls: "status-paused" },
-  member: { label: "Membro", cls: "status-paused" },
-  viewer: { label: "Visualizador", cls: "status-paused" },
-};
 
 export default async function UsuariosPage() {
   const supabase = await createServerSupabase();
@@ -57,37 +50,21 @@ export default async function UsuariosPage() {
       <div style={{ padding: "0 24px 32px", maxWidth: 1280, margin: "0 auto" }}>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 380px", gap: 24, alignItems: "start" }}>
           <div className="card reveal-stagger" style={{ overflow: "hidden", padding: 0 }}>
-            {members.map((m, idx) => {
+            {members.map((m) => {
               const name = m.profiles?.full_name ?? "Sem nome";
               const initials = name.split(" ").map((s: string) => s[0]).slice(0, 2).join("").toUpperCase();
-              const role = ROLE_LABELS[m.role] ?? { label: m.role, cls: "status-paused" };
               const isMe = m.profile_id === user.id;
               return (
-                <div key={m.profile_id} style={{
-                  display: "flex", alignItems: "center", gap: 14,
-                  padding: "14px 20px",
-                  borderTop: idx === 0 ? "none" : "1px solid var(--o-border)",
-                }}>
-                  <div style={{
-                    width: 40, height: 40, borderRadius: 999,
-                    background: "linear-gradient(135deg, var(--t-brand), var(--t-brand-d))",
-                    color: "white",
-                    display: "grid", placeItems: "center",
-                    font: "600 13px var(--font-inter)",
-                    flexShrink: 0,
-                  }}>{initials}</div>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                      <span style={{ fontWeight: 500, fontSize: 14, color: "var(--o-text-1)" }}>{name}</span>
-                      {isMe && (
-                        <span style={{ fontSize: 10, padding: "2px 7px", borderRadius: 999, background: "var(--t-brand-soft)", color: "var(--t-brand)", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.04em" }}>
-                          Você
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                  <span className={`status ${role.cls}`}>{role.label}</span>
-                </div>
+                <MemberRow
+                  key={m.profile_id}
+                  profileId={m.profile_id}
+                  organizationId={activeOrg?.id ?? ""}
+                  name={name}
+                  initials={initials}
+                  role={m.role}
+                  isMe={isMe}
+                  canManage={canInvite}
+                />
               );
             })}
             {members.length === 0 && (
