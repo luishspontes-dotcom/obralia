@@ -33,12 +33,8 @@ async function createObraAction(formData: FormData) {
     .from("sites")
     .insert({
       organization_id: finalOrgId,
-      name,
-      address,
-      client_name,
-      start_date,
-      end_date,
-      contract_number,
+      name, address, client_name,
+      start_date, end_date, contract_number,
       status: "in_progress",
     } as never)
     .select("id")
@@ -50,82 +46,96 @@ async function createObraAction(formData: FormData) {
 }
 
 export default function NovaObraPage() {
-  const inputStyle: React.CSSProperties = {
-    width: "100%",
-    background: "var(--o-cream)",
-    border: "1px solid var(--o-border)",
-    borderRadius: 8,
-    padding: "10px 12px",
-    font: "400 14px var(--font-inter)",
-    color: "var(--o-text-1)",
-    marginBottom: 12,
-    outline: "none",
-  };
-  const labelStyle: React.CSSProperties = {
-    display: "block",
-    fontSize: 12,
-    color: "var(--o-text-2)",
-    marginBottom: 6,
-    fontWeight: 500,
-  };
-
   return (
-    <div style={{ padding: "24px", maxWidth: 720, margin: "0 auto" }}>
-      <div style={{ marginBottom: 16, fontSize: 13 }}>
-        <Link href="/obras" style={{ color: "var(--o-text-2)", textDecoration: "none" }}>← Obras</Link>
-      </div>
-      <h1 style={{ margin: "0 0 4px", font: "700 28px var(--font-inter)", letterSpacing: "-0.02em" }}>
-        Nova obra
-      </h1>
-      <p style={{ margin: "0 0 24px", fontSize: 14, color: "var(--o-text-2)" }}>
-        Cadastre uma nova obra — você poderá adicionar EAP, RDOs e fotos depois.
-      </p>
-
-      <form action={createObraAction}>
-        <div style={{
-          background: "var(--o-paper)",
-          border: "1px solid var(--o-border)",
-          borderRadius: 12,
-          padding: 24,
-        }}>
-          <label style={labelStyle}>Nome da obra *</label>
-          <input name="name" required placeholder="Ex: ALINE E ANDERSON" style={inputStyle} />
-
-          <label style={labelStyle}>Cliente</label>
-          <input name="client_name" placeholder="Ex: Aline e Anderson" style={inputStyle} />
-
-          <label style={labelStyle}>Endereço</label>
-          <input name="address" placeholder="Ex: Cond. Vitality, Lote 36 da Quadra 01" style={inputStyle} />
-
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-            <div>
-              <label style={labelStyle}>Início</label>
-              <input name="start_date" type="date" style={inputStyle} />
-            </div>
-            <div>
-              <label style={labelStyle}>Previsão de término</label>
-              <input name="end_date" type="date" style={inputStyle} />
-            </div>
+    <div>
+      <div className="page-hero">
+        <div style={{ maxWidth: 720, margin: "0 auto" }}>
+          <div style={{ marginBottom: 12, fontSize: 13 }}>
+            <Link href="/obras" style={{ color: "var(--o-text-2)", textDecoration: "none" }}>← Obras</Link>
           </div>
-
-          <label style={labelStyle}>Número do contrato</label>
-          <input name="contract_number" placeholder="Opcional" style={inputStyle} />
-
-          <button type="submit" style={{
-            width: "100%",
-            padding: "12px 16px",
-            background: "var(--o-accent)",
-            color: "white",
-            border: 0,
-            borderRadius: 10,
-            font: "600 15px var(--font-inter)",
-            cursor: "pointer",
-            marginTop: 12,
-          }}>
-            Criar obra
-          </button>
+          <div style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: "0.12em", color: "var(--t-brand)", fontWeight: 600, marginBottom: 8 }}>
+            Cadastro
+          </div>
+          <h1 style={{ margin: "0 0 8px", font: "700 32px var(--font-inter)", letterSpacing: "-0.025em" }}>
+            Nova obra
+          </h1>
+          <p style={{ margin: 0, fontSize: 14, color: "var(--o-text-2)" }}>
+            Cadastre os dados básicos. Você poderá adicionar EAP, RDOs e fotos depois.
+          </p>
         </div>
-      </form>
+      </div>
+
+      <div style={{ padding: "0 24px 32px", maxWidth: 720, margin: "0 auto" }}>
+        <form action={createObraAction}>
+          <div className="card" style={{ padding: "26px 28px" }}>
+            <Field label="Nome da obra" required>
+              <input name="name" required placeholder="Ex: ALINE E ANDERSON" style={inputStyle} />
+            </Field>
+            <Field label="Cliente">
+              <input name="client_name" placeholder="Ex: Aline e Anderson" style={inputStyle} />
+            </Field>
+            <Field label="Endereço">
+              <input name="address" placeholder="Ex: Cond. Vitality, Lote 36 da Quadra 01" style={inputStyle} />
+            </Field>
+
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+              <Field label="Início">
+                <input name="start_date" type="date" style={inputStyle} />
+              </Field>
+              <Field label="Previsão de término">
+                <input name="end_date" type="date" style={inputStyle} />
+              </Field>
+            </div>
+
+            <Field label="Número do contrato" hint="Opcional">
+              <input name="contract_number" placeholder="Ex: DIA-12345" style={inputStyle} />
+            </Field>
+
+            <button type="submit" className="btn-brand" style={{
+              width: "100%",
+              padding: "13px 16px",
+              fontSize: 15,
+              justifyContent: "center",
+              marginTop: 12,
+            }}>
+              Criar obra
+            </button>
+            <p style={{ margin: "12px 0 0", fontSize: 12, color: "var(--o-text-3)", textAlign: "center" }}>
+              A obra é criada com status “Em andamento”. Você pode mudar depois.
+            </p>
+          </div>
+        </form>
+      </div>
     </div>
   );
 }
+
+function Field({ label, required, hint, children }: { label: string; required?: boolean; hint?: string; children: React.ReactNode }) {
+  return (
+    <div style={{ marginBottom: 14 }}>
+      <label style={{
+        display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 8,
+        fontSize: 12, color: "var(--o-text-2)", marginBottom: 6, fontWeight: 500,
+      }}>
+        <span>
+          {label}
+          {required && <span style={{ color: "var(--o-accent)", marginLeft: 4 }}>*</span>}
+        </span>
+        {hint && <span style={{ fontSize: 11, color: "var(--o-text-3)", fontWeight: 400 }}>{hint}</span>}
+      </label>
+      {children}
+    </div>
+  );
+}
+
+const inputStyle: React.CSSProperties = {
+  width: "100%",
+  background: "var(--o-paper)",
+  border: "1px solid var(--o-border)",
+  borderRadius: 10,
+  padding: "11px 14px",
+  font: "400 14px var(--font-inter)",
+  color: "var(--o-text-1)",
+  outline: "none",
+  transition: "all var(--duration) var(--ease)",
+};
