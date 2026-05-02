@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { createServerSupabase } from "@/lib/supabase/server";
-import { mediaUrl } from "@/lib/storage";
+import { createSignedMediaUrl } from "@/lib/supabase/media-url";
 
 type Site = {
   id: string;
@@ -40,7 +40,12 @@ export default async function ObrasPage({
     .from("sites")
     .select("id, name, status, client_name, start_date, end_date, cover_url")
     .order("name");
-  const sites = (sitesRaw ?? []) as Site[];
+  const sites = await Promise.all(
+    ((sitesRaw ?? []) as Site[]).map(async (site) => ({
+      ...site,
+      cover_url: await createSignedMediaUrl(supabase, site.cover_url),
+    }))
+  );
 
   const { data: itemsRaw } = await supabase
     .from("wbs_items")
@@ -181,7 +186,7 @@ export default async function ObrasPage({
                   <div
                     className="obra-card-cover"
                     style={{
-                      backgroundImage: s.cover_url ? `url(${mediaUrl(s.cover_url)})` : undefined,
+                      backgroundImage: s.cover_url ? `url(${s.cover_url})` : undefined,
                       ...(isOperational
                         ? {
                             background:

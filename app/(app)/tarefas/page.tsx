@@ -14,13 +14,6 @@ type WbsItem = {
 };
 type Site = { id: string; name: string };
 
-const STATUS_META: Record<string, { label: string; cls: string }> = {
-  waiting:     { label: "Aguardando",   cls: "status-paused"   },
-  in_progress: { label: "Em andamento", cls: "status-progress" },
-  done:        { label: "Concluído",    cls: "status-done"     },
-  late:        { label: "Atrasado",     cls: "status-late"     },
-};
-
 export default async function TarefasPage({
   searchParams,
 }: {

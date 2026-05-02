@@ -14,3 +14,6 @@ export function createAdminSupabase() {
     { auth: { persistSession: false } }
   );
 }
+
+/** Alias mantido para compatibilidade com /api/health e outros importers antigos. */
+export const getSupabaseAdmin = createAdminSupabase;

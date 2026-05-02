@@ -152,19 +152,14 @@ export function NotificationBell() {
             </div>
           ) : (
             items.map((n) => {
-              const Wrap = n.link ? Link : "div";
-              const wrapProps = n.link ? { href: n.link, onClick: () => setOpen(false) } : {};
-              return (
-                <Wrap
-                  key={n.id}
-                  {...(wrapProps as any)}
-                  style={{
-                    display: "block", padding: "12px 16px",
-                    borderBottom: "1px solid var(--o-mist)",
-                    background: !n.read_at ? "var(--t-brand-mist)" : "transparent",
-                    textDecoration: "none", color: "inherit",
-                  }}
-                >
+              const itemStyle: React.CSSProperties = {
+                display: "block", padding: "12px 16px",
+                borderBottom: "1px solid var(--o-mist)",
+                background: !n.read_at ? "var(--t-brand-mist)" : "transparent",
+                textDecoration: "none", color: "inherit",
+              };
+              const inner = (
+                <>
                   <div style={{ fontSize: 13, fontWeight: 500, color: "var(--o-text-1)", marginBottom: 2 }}>
                     {n.title}
                   </div>
@@ -174,7 +169,14 @@ export function NotificationBell() {
                   <div style={{ fontSize: 11, color: "var(--o-text-3)", marginTop: 4 }}>
                     {timeAgo(n.created_at)}
                   </div>
-                </Wrap>
+                </>
+              );
+              return n.link ? (
+                <Link key={n.id} href={n.link} onClick={() => setOpen(false)} style={itemStyle}>
+                  {inner}
+                </Link>
+              ) : (
+                <div key={n.id} style={itemStyle}>{inner}</div>
               );
             })
           )}
