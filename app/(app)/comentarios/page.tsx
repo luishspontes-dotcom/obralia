@@ -19,76 +19,105 @@ export default async function ComentariosPage() {
     .limit(100);
   const comments = (commentsR ?? []) as Comment[];
 
-  // Map daily_reports → site_id for linking
   const rdoIds = comments.filter((c) => c.target_table === "daily_reports").map((c) => c.target_id);
   const { data: rdosR } = await supabase
-    .from("daily_reports")
-    .select("id, site_id, number")
+    .from("daily_reports").select("id, site_id, number")
     .in("id", rdoIds.length > 0 ? rdoIds : ["00000000-0000-0000-0000-000000000000"]);
   const rdoMap = new Map(((rdosR ?? []) as { id: string; site_id: string; number: number }[]).map((r) => [r.id, r]));
 
   const { data: sitesR } = await supabase.from("sites").select("id, name");
   const siteMap = new Map(((sitesR ?? []) as { id: string; name: string }[]).map((s) => [s.id, s.name]));
 
-  return (
-    <div style={{ padding: "24px", maxWidth: 1280, margin: "0 auto" }}>
-      <h1 style={{ margin: "0 0 4px", font: "700 28px var(--font-inter)", letterSpacing: "-0.02em" }}>
-        Comentários e ocorrências
-      </h1>
-      <p style={{ margin: "0 0 24px", fontSize: 14, color: "var(--o-text-2)" }}>
-        {comments.length} {comments.length === 1 ? "registro" : "registros"} mais recentes
-      </p>
+  const ocorrencias = comments.filter((c) => c.body.startsWith("[OCORRÊNCIA]")).length;
 
-      {comments.length === 0 ? (
-        <div style={{ background: "var(--o-paper)", border: "1px solid var(--o-border)", borderRadius: 12, padding: 48, textAlign: "center", color: "var(--o-text-2)" }}>
-          Nenhum comentário ainda.
+  return (
+    <div>
+      <div className="page-hero">
+        <div style={{ maxWidth: 1280, margin: "0 auto" }}>
+          <div style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: "0.12em", color: "var(--t-brand)", fontWeight: 600, marginBottom: 8 }}>
+            Atividade
+          </div>
+          <h1 style={{ margin: "0 0 8px", font: "700 32px var(--font-inter)", letterSpacing: "-0.025em" }}>
+            Comentários e ocorrências
+          </h1>
+          <p style={{ margin: 0, fontSize: 14, color: "var(--o-text-2)" }}>
+            {comments.length} {comments.length === 1 ? "registro recente" : "registros mais recentes"}
+            {ocorrencias > 0 && (
+              <>
+                {" · "}
+                <span style={{ color: "var(--st-late)", fontWeight: 500 }}>
+                  {ocorrencias} {ocorrencias === 1 ? "ocorrência" : "ocorrências"}
+                </span>
+              </>
+            )}
+          </p>
         </div>
-      ) : (
-        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-          {comments.map((c) => {
-            const isOcorrencia = c.body.startsWith("[OCORRÊNCIA]");
-            const display = isOcorrencia ? c.body.replace("[OCORRÊNCIA] ", "") : c.body;
-            const rdo = rdoMap.get(c.target_id);
-            const siteName = rdo ? siteMap.get(rdo.site_id) : null;
-            const link = rdo ? `/obras/${rdo.site_id}/rdos/${rdo.id}` : "#";
-            return (
-              <Link
-                key={c.id}
-                href={link}
-                style={{
-                  display: "block",
-                  padding: "14px 18px",
-                  background: "var(--o-paper)",
-                  border: "1px solid var(--o-border)",
-                  borderLeft: `3px solid ${isOcorrencia ? "var(--st-late)" : "var(--t-brand)"}`,
-                  borderRadius: 10,
-                  textDecoration: "none",
-                  color: "inherit",
-                }}
-              >
-                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
-                  {isOcorrencia && (
-                    <span style={{ fontSize: 11, color: "var(--st-late)", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em" }}>
-                      ⚠ Ocorrência
-                    </span>
-                  )}
-                  {siteName && (
-                    <span style={{ fontSize: 12, color: "var(--o-text-2)" }}>
-                      {siteName}{rdo && ` · RDO #${rdo.number}`}
-                    </span>
-                  )}
-                </div>
-                <div style={{ fontSize: 14, lineHeight: 1.5 }}>{display}</div>
-                {c.created_at && (
-                  <div style={{ fontSize: 11, color: "var(--o-text-3)", marginTop: 6 }}>
-                    {new Date(c.created_at).toLocaleString("pt-BR")}
+      </div>
+
+      <div style={{ padding: "0 24px 32px", maxWidth: 1280, margin: "0 auto" }}>
+        {comments.length === 0 ? (
+          <div className="empty">
+            <div className="empty-emoji">💬</div>
+            <div style={{ fontSize: 16, color: "var(--o-text-1)", marginBottom: 4, fontWeight: 600 }}>
+              Nada por aqui ainda
+            </div>
+            <div style={{ fontSize: 13 }}>
+              Quando alguém comentar em um RDO ou registrar uma ocorrência, vai aparecer aqui.
+            </div>
+          </div>
+        ) : (
+          <div className="reveal-stagger" style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            {comments.map((c) => {
+              const isOcorrencia = c.body.startsWith("[OCORRÊNCIA]");
+              const display = isOcorrencia ? c.body.replace("[OCORRÊNCIA] ", "") : c.body;
+              const rdo = rdoMap.get(c.target_id);
+              const siteName = rdo ? siteMap.get(rdo.site_id) : null;
+              const link = rdo ? `/obras/${rdo.site_id}/rdos/${rdo.id}` : "#";
+              const accentColor = isOcorrencia ? "var(--st-late)" : "var(--t-brand)";
+              return (
+                <Link
+                  key={c.id} href={link} className="card card-hover"
+                  style={{
+                    display: "block",
+                    padding: "16px 20px",
+                    borderLeft: `3px solid ${accentColor}`,
+                    textDecoration: "none",
+                    color: "inherit",
+                  }}
+                >
+                  <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8, flexWrap: "wrap" }}>
+                    {isOcorrencia && (
+                      <span className="status status-late">
+                        Ocorrência
+                      </span>
+                    )}
+                    {siteName && (
+                      <span style={{ fontSize: 12, color: "var(--o-text-2)", fontWeight: 500 }}>
+                        {siteName}
+                        {rdo && (
+                          <>
+                            <span style={{ color: "var(--o-text-3)", margin: "0 6px" }}>·</span>
+                            <span className="tnum" style={{ color: "var(--t-brand)" }}>RDO #{rdo.number}</span>
+                          </>
+                        )}
+                      </span>
+                    )}
                   </div>
-                )}
-              </Link>
-            );
-          })}
-        </div>
-      )}
+                  <div style={{ fontSize: 14, lineHeight: 1.55, color: "var(--o-text-1)" }}>{display}</div>
+                  {c.created_at && (
+                    <div style={{ fontSize: 11, color: "var(--o-text-3)", marginTop: 8 }}>
+                      {new Date(c.created_at).toLocaleString("pt-BR", {
+                        day: "2-digit", month: "short", year: "numeric",
+                        hour: "2-digit", minute: "2-digit",
+                      })}
+                    </div>
+                  )}
+                </Link>
+              );
+            })}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

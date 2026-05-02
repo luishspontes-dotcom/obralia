@@ -13,10 +13,10 @@ type DailyReport = {
   general_notes: string | null;
 };
 
-const STATUS_META: Record<string, { label: string; color: string; bg: string }> = {
-  draft: { label: "Rascunho", color: "var(--o-text-2)", bg: "rgba(0,0,0,0.04)" },
-  review: { label: "Em revisão", color: "var(--st-progress)", bg: "rgba(8, 120, 155, 0.08)" },
-  approved: { label: "Aprovado", color: "var(--st-done)", bg: "rgba(34, 139, 34, 0.08)" },
+const STATUS_META: Record<string, { label: string; cls: string }> = {
+  draft:    { label: "Rascunho",   cls: "status-paused"   },
+  review:   { label: "Em revisão", cls: "status-progress" },
+  approved: { label: "Aprovado",   cls: "status-done"     },
 };
 
 export default async function ObraRdosPage({
@@ -31,10 +31,7 @@ export default async function ObraRdosPage({
   const supabase = await createServerSupabase();
 
   const { data: siteRaw } = await supabase
-    .from("sites")
-    .select("id, name, client_name")
-    .eq("id", id)
-    .maybeSingle();
+    .from("sites").select("id, name, client_name").eq("id", id).maybeSingle();
   const site = siteRaw as Site | null;
   if (!site) notFound();
 
@@ -52,246 +49,120 @@ export default async function ObraRdosPage({
   const rdos = (rdosRaw ?? []) as DailyReport[];
 
   const totalCounts = await supabase
-    .from("daily_reports")
-    .select("status", { count: "exact" })
-    .eq("site_id", id);
+    .from("daily_reports").select("status", { count: "exact" }).eq("site_id", id);
   const totalAll = totalCounts.count ?? rdos.length;
 
-  // Group by month for nice display
   const grouped = new Map<string, DailyReport[]>();
   for (const r of rdos) {
     const d = new Date(r.date);
-    const key = `${d.toLocaleDateString("pt-BR", { month: "long", year: "numeric" })}`;
+    const key = d.toLocaleDateString("pt-BR", { month: "long", year: "numeric" });
     const arr = grouped.get(key) ?? [];
     arr.push(r);
     grouped.set(key, arr);
   }
 
   return (
-    <div style={{ padding: "24px", maxWidth: 1280, margin: "0 auto" }}>
-      <div style={{ marginBottom: 16, fontSize: 13 }}>
-        <Link href="/obras" style={{ color: "var(--o-text-2)", textDecoration: "none" }}>
-          ← Obras
-        </Link>
-        <span style={{ color: "var(--o-text-3)", margin: "0 8px" }}>/</span>
-        <Link
-          href={`/obras/${id}`}
-          style={{ color: "var(--o-text-2)", textDecoration: "none" }}
-        >
-          {site.name}
-        </Link>
-        <span style={{ color: "var(--o-text-3)", margin: "0 8px" }}>/</span>
-        <span style={{ color: "var(--o-text-1)", fontWeight: 500 }}>RDOs</span>
-      </div>
+    <div>
+      <div className="page-hero">
+        <div style={{ maxWidth: 1280, margin: "0 auto" }}>
+          <div style={{ marginBottom: 12, fontSize: 13 }}>
+            <Link href="/obras" style={{ color: "var(--o-text-2)", textDecoration: "none" }}>← Obras</Link>
+            <span style={{ color: "var(--o-text-3)", margin: "0 8px" }}>/</span>
+            <Link href={`/obras/${id}`} style={{ color: "var(--o-text-2)", textDecoration: "none" }}>{site.name}</Link>
+            <span style={{ color: "var(--o-text-3)", margin: "0 8px" }}>/</span>
+            <span style={{ color: "var(--o-text-1)", fontWeight: 500 }}>RDOs</span>
+          </div>
 
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          marginBottom: 24,
-        }}
-      >
-        <div>
-          <h1
-            style={{
-              margin: "0 0 4px",
-              font: "700 28px var(--font-inter)",
-              letterSpacing: "-0.02em",
-            }}
-          >
-            Relatórios Diários (RDOs)
-          </h1>
-          <p style={{ margin: 0, fontSize: 14, color: "var(--o-text-2)" }}>
-            {totalAll} relatórios · {site.name}
-          </p>
-        </div>
-        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-          <Chip label="Todos" href={`/obras/${id}/rdos`} active={!filter} />
-          <Chip
-            label="Aprovados"
-            href={`/obras/${id}/rdos?status=approved`}
-            active={filter === "approved"}
-            color="var(--st-done)"
-          />
-          <Chip
-            label="Em revisão"
-            href={`/obras/${id}/rdos?status=review`}
-            active={filter === "review"}
-            color="var(--st-progress)"
-          />
-          <Chip
-            label="Rascunhos"
-            href={`/obras/${id}/rdos?status=draft`}
-            active={filter === "draft"}
-          />
-          <Link
-            href={`/obras/${id}/rdos/novo`}
-            style={{
-              padding: "6px 14px",
-              background: "var(--o-accent)",
-              color: "white",
-              borderRadius: 999,
-              fontSize: 12,
-              fontWeight: 500,
-              textDecoration: "none",
-              marginLeft: 8,
-            }}
-          >
-            + Novo RDO
-          </Link>
+          <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", flexWrap: "wrap", gap: 16 }}>
+            <div>
+              <div style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: "0.12em", color: "var(--t-brand)", fontWeight: 600, marginBottom: 8 }}>
+                Relatórios diários
+              </div>
+              <h1 style={{ margin: "0 0 6px", font: "700 32px var(--font-inter)", letterSpacing: "-0.025em" }}>
+                RDOs
+              </h1>
+              <p style={{ margin: 0, fontSize: 14, color: "var(--o-text-2)" }}>
+                {totalAll} relatórios · {site.name}
+              </p>
+            </div>
+
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+              <Link href={`/obras/${id}/rdos`} className={`chip ${!filter ? "chip-active" : ""}`}>Todos</Link>
+              <Link href={`/obras/${id}/rdos?status=approved`} className={`chip ${filter === "approved" ? "chip-active" : ""}`}>
+                <span style={{ width: 6, height: 6, borderRadius: 999, background: "var(--st-done)" }} /> Aprovados
+              </Link>
+              <Link href={`/obras/${id}/rdos?status=review`} className={`chip ${filter === "review" ? "chip-active" : ""}`}>
+                <span style={{ width: 6, height: 6, borderRadius: 999, background: "var(--st-progress)" }} /> Em revisão
+              </Link>
+              <Link href={`/obras/${id}/rdos?status=draft`} className={`chip ${filter === "draft" ? "chip-active" : ""}`}>Rascunhos</Link>
+              <Link href={`/obras/${id}/rdos/novo`} className="btn-primary" style={{ marginLeft: 4 }}>+ Novo RDO</Link>
+            </div>
+          </div>
         </div>
       </div>
 
-      {rdos.length === 0 ? (
-        <div
-          style={{
-            background: "var(--o-paper)",
-            border: "1px solid var(--o-border)",
-            borderRadius: 12,
-            padding: 48,
-            textAlign: "center",
-            color: "var(--o-text-2)",
-          }}
-        >
-          {filter ? "Nenhum RDO neste status." : "Esta obra ainda não tem RDOs."}
-        </div>
-      ) : (
-        <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
-          {Array.from(grouped.entries()).map(([month, list]) => (
-            <div key={month}>
-              <h3
-                style={{
-                  margin: "0 0 12px",
-                  font: "600 12px var(--font-inter)",
-                  textTransform: "uppercase",
-                  letterSpacing: "0.06em",
-                  color: "var(--o-text-3)",
-                }}
-              >
-                {month}
-              </h3>
-              <div
-                style={{
-                  background: "var(--o-paper)",
-                  border: "1px solid var(--o-border)",
-                  borderRadius: 12,
-                  overflow: "hidden",
-                }}
-              >
-                {list.map((r, idx) => {
-                  const meta = STATUS_META[r.status] ?? STATUS_META.draft;
-                  const d = new Date(r.date);
-                  const dayShort = d.toLocaleDateString("pt-BR", {
-                    weekday: "short",
-                    day: "2-digit",
-                    month: "short",
-                  });
-                  return (
-                    <Link
-                      key={r.id}
-                      href={`/obras/${id}/rdos/${r.id}`}
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: 16,
-                        padding: "14px 20px",
-                        borderTop: idx === 0 ? "none" : "1px solid var(--o-border)",
-                        fontSize: 14,
-                        textDecoration: "none",
-                        color: "inherit",
-                      }}
-                    >
-                      <div
+      <div style={{ padding: "0 24px 32px", maxWidth: 1280, margin: "0 auto" }}>
+        {rdos.length === 0 ? (
+          <div className="empty">
+            <div className="empty-emoji">📋</div>
+            <div style={{ fontSize: 16, color: "var(--o-text-1)", marginBottom: 4, fontWeight: 600 }}>
+              {filter ? "Nenhum RDO neste status" : "Sem RDOs"}
+            </div>
+            <div style={{ fontSize: 13 }}>
+              {filter ? "Tente outro filtro acima." : "Esta obra ainda não tem relatórios diários cadastrados."}
+            </div>
+          </div>
+        ) : (
+          <div style={{ display: "flex", flexDirection: "column", gap: 28 }}>
+            {Array.from(grouped.entries()).map(([month, list]) => (
+              <div key={month}>
+                <h3 className="section-title" style={{ textTransform: "capitalize" }}>
+                  {month}
+                </h3>
+                <div className="card reveal-stagger" style={{ overflow: "hidden", padding: 0 }}>
+                  {list.map((r, idx) => {
+                    const meta = STATUS_META[r.status] ?? STATUS_META.draft;
+                    const d = new Date(r.date);
+                    const dayShort = d.toLocaleDateString("pt-BR", {
+                      weekday: "short", day: "2-digit", month: "short",
+                    });
+                    return (
+                      <Link key={r.id} href={`/obras/${id}/rdos/${r.id}`}
                         style={{
+                          display: "flex", alignItems: "center", gap: 18,
+                          padding: "14px 22px",
+                          borderTop: idx === 0 ? "none" : "1px solid var(--o-border)",
+                          fontSize: 14, textDecoration: "none", color: "inherit",
+                        }}
+                      >
+                        <div className="tnum" style={{
                           minWidth: 60,
-                          font: "700 18px var(--font-inter)",
+                          font: "700 20px var(--font-inter)",
                           color: "var(--t-brand)",
                           letterSpacing: "-0.01em",
-                        }}
-                        className="tnum"
-                      >
-                        #{r.number}
-                      </div>
-                      <div style={{ flex: 1 }}>
-                        <div
-                          style={{
-                            fontWeight: 500,
-                            marginBottom: 2,
-                            textTransform: "capitalize",
-                          }}
-                        >
-                          {dayShort}
+                        }}>
+                          #{r.number}
                         </div>
-                        {(r.weather_morning || r.weather_afternoon) && (
-                          <div
-                            style={{
-                              fontSize: 12,
-                              color: "var(--o-text-3)",
-                            }}
-                          >
-                            {r.weather_morning ?? "—"} · {r.weather_afternoon ?? "—"}
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontWeight: 500, marginBottom: 2, textTransform: "capitalize", color: "var(--o-text-1)" }}>
+                            {dayShort}
                           </div>
-                        )}
-                      </div>
-                      <span
-                        style={{
-                          padding: "3px 10px",
-                          background: meta.bg,
-                          color: meta.color,
-                          borderRadius: 999,
-                          fontSize: 11,
-                          fontWeight: 500,
-                        }}
-                      >
-                        {meta.label}
-                      </span>
-                    </Link>
-                  );
-                })}
+                          {(r.weather_morning || r.weather_afternoon) && (
+                            <div style={{ fontSize: 12, color: "var(--o-text-3)" }}>
+                              {r.weather_morning ?? "—"} · {r.weather_afternoon ?? "—"}
+                            </div>
+                          )}
+                        </div>
+                        <span className={`status ${meta.cls}`}>{meta.label}</span>
+                      </Link>
+                    );
+                  })}
+                </div>
               </div>
-            </div>
-          ))}
-        </div>
-      )}
+            ))}
+          </div>
+        )}
+      </div>
     </div>
-  );
-}
-
-function Chip({
-  label,
-  href,
-  active,
-  color,
-}: {
-  label: string;
-  href: string;
-  active: boolean;
-  color?: string;
-}) {
-  return (
-    <Link
-      href={href}
-      style={{
-        padding: "6px 12px",
-        background: active ? "var(--o-dark)" : "var(--o-paper)",
-        color: active ? "var(--o-cream)" : "var(--o-text-2)",
-        border: `1px solid ${active ? "var(--o-dark)" : "var(--o-border)"}`,
-        borderRadius: 999,
-        fontSize: 12,
-        fontWeight: 500,
-        textDecoration: "none",
-        display: "inline-flex",
-        alignItems: "center",
-        gap: 6,
-      }}
-    >
-      {color && (
-        <span
-          style={{ width: 6, height: 6, borderRadius: 999, background: color }}
-        />
-      )}
-      {label}
-    </Link>
   );
 }
