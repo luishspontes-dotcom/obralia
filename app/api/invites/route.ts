@@ -3,6 +3,21 @@ import { createServerSupabase } from "@/lib/supabase/server";
 
 const INVITE_ROLES = new Set(["admin", "engineer", "viewer"]);
 const ADMIN_ROLES = new Set(["owner", "admin"]);
+const RATE_LIMIT_WINDOW_MS = 10 * 60 * 1000;
+const RATE_LIMIT_MAX_ATTEMPTS = 20;
+
+type RateLimitEntry = {
+  count: number;
+  resetAt: number;
+};
+
+const rateLimitGlobal = globalThis as typeof globalThis & {
+  __obraliaInviteRateLimit?: Map<string, RateLimitEntry>;
+};
+const inviteRateLimit =
+  rateLimitGlobal.__obraliaInviteRateLimit ??
+  new Map<string, RateLimitEntry>();
+rateLimitGlobal.__obraliaInviteRateLimit = inviteRateLimit;
 
 type InviteBody = {
   email?: unknown;
@@ -13,6 +28,24 @@ type InviteBody = {
 
 function json(status: number, message: string) {
   return NextResponse.json({ message }, { status });
+}
+
+function getClientKey(request: NextRequest, email: string) {
+  const forwardedFor = request.headers.get("x-forwarded-for");
+  const ip = forwardedFor?.split(",")[0]?.trim() || "unknown";
+  return `${ip}:${email}`;
+}
+
+function isRateLimited(key: string) {
+  const now = Date.now();
+  const current = inviteRateLimit.get(key);
+  if (!current || current.resetAt <= now) {
+    inviteRateLimit.set(key, { count: 1, resetAt: now + RATE_LIMIT_WINDOW_MS });
+    return false;
+  }
+
+  current.count += 1;
+  return current.count > RATE_LIMIT_MAX_ATTEMPTS;
 }
 
 export async function POST(request: NextRequest) {
@@ -41,6 +74,9 @@ export async function POST(request: NextRequest) {
   }
   if (!organizationId) {
     return json(400, "Organização inválida.");
+  }
+  if (isRateLimited(getClientKey(request, email))) {
+    return json(429, "Muitas tentativas. Tente novamente em alguns minutos.");
   }
 
   const supabase = await createServerSupabase();

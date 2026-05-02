@@ -5,6 +5,7 @@ const protectedPaths = [
   "/obras",
   "/caixa",
   "/configuracoes",
+  "/configuracoes/auditoria",
   "/canal/geral",
 ];
 
