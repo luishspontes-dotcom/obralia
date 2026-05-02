@@ -1,15 +1,20 @@
 import Link from "next/link";
 import { createServerSupabase } from "@/lib/supabase/server";
 
-type Site = { id: string; name: string; address: string | null; client_name: string | null; cover_url: string | null };
-type WbsItem = { id: string; name: string; site_id: string; status: string | null };
+type Hit = {
+  kind: "obra" | "tarefa" | "rdo" | "comentario";
+  id: string;
+  title: string;
+  subtitle: string;
+  link: string;
+  match_rank: number;
+};
 
-const STATUS_LABELS: Record<string, string> = {
-  in_progress: "Em andamento",
-  done: "Concluído",
-  late: "Atrasado",
-  paused: "Pausado",
-  waiting: "Aguardando",
+const KIND_META: Record<string, { label: string; emoji: string; color: string }> = {
+  obra:       { label: "Obra",       emoji: "🏗",  color: "var(--t-brand)" },
+  tarefa:     { label: "Atividade",  emoji: "📋",  color: "var(--st-progress)" },
+  rdo:        { label: "RDO",        emoji: "📝",  color: "var(--o-text-2)" },
+  comentario: { label: "Comentário", emoji: "💬",  color: "var(--st-late)" },
 };
 
 export default async function BuscarPage({
@@ -21,22 +26,21 @@ export default async function BuscarPage({
   const query = (q ?? "").trim();
   const supabase = await createServerSupabase();
 
-  let sites: Site[] = [];
-  let tasks: WbsItem[] = [];
+  let hits: Hit[] = [];
 
   if (query.length >= 2) {
-    const { data: sitesR } = await supabase
-      .from("sites")
-      .select("id, name, address, client_name, cover_url")
-      .or(`name.ilike.%${query}%,address.ilike.%${query}%,client_name.ilike.%${query}%`)
-      .limit(30);
-    sites = (sitesR ?? []) as Site[];
-
-    const { data: tasksR } = await supabase
-      .from("wbs_items").select("id, name, site_id, status")
-      .ilike("name", `%${query}%`).limit(30);
-    tasks = (tasksR ?? []) as WbsItem[];
+    const { data } = await supabase.rpc("search_global", { q: query, max_per_kind: 15 });
+    hits = ((data ?? []) as Hit[]).sort((a, b) => b.match_rank - a.match_rank);
   }
+
+  // Group by kind for display
+  const groups = new Map<string, Hit[]>();
+  for (const h of hits) {
+    const arr = groups.get(h.kind) ?? [];
+    arr.push(h);
+    groups.set(h.kind, arr);
+  }
+  const KIND_ORDER = ["obra", "tarefa", "rdo", "comentario"];
 
   return (
     <div>
@@ -81,7 +85,7 @@ export default async function BuscarPage({
           </div>
         )}
 
-        {query && sites.length === 0 && tasks.length === 0 && (
+        {query && hits.length === 0 && (
           <div className="empty">
             <div className="empty-emoji">🤔</div>
             <div style={{ fontSize: 16, color: "var(--o-text-1)", marginBottom: 4, fontWeight: 600 }}>
@@ -93,66 +97,45 @@ export default async function BuscarPage({
           </div>
         )}
 
-        {sites.length > 0 && (
-          <div style={{ marginBottom: 28 }}>
-            <h3 className="section-title">Obras · {sites.length}</h3>
-            <div className="card reveal-stagger" style={{ overflow: "hidden", padding: 0 }}>
-              {sites.map((s, i) => (
-                <Link key={s.id} href={`/obras/${s.id}`}
-                  style={{
-                    display: "flex", padding: "14px 20px",
-                    borderTop: i === 0 ? "none" : "1px solid var(--o-border)",
-                    textDecoration: "none", color: "inherit",
-                    alignItems: "center", gap: 14,
-                  }}>
-                  <div style={{
-                    width: 40, height: 40, borderRadius: 8, flexShrink: 0,
-                    background: "var(--t-brand-mist)",
-                    display: "grid", placeItems: "center",
-                    color: "var(--t-brand)", fontSize: 16, fontWeight: 600,
-                  }}>
-                    {s.name.charAt(0)}
-                  </div>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontWeight: 500, color: "var(--o-text-1)" }}>{s.name}</div>
-                    {(s.client_name || s.address) && (
-                      <div style={{ fontSize: 12, color: "var(--o-text-3)", marginTop: 2 }}>
-                        {s.client_name}
-                        {s.client_name && s.address && " · "}
-                        {s.address}
-                      </div>
-                    )}
-                  </div>
-                  <span style={{ fontSize: 13, color: "var(--t-brand)" }}>→</span>
-                </Link>
-              ))}
+        {KIND_ORDER.map((kind) => {
+          const list = groups.get(kind);
+          if (!list || list.length === 0) return null;
+          const meta = KIND_META[kind];
+          return (
+            <div key={kind} style={{ marginBottom: 28 }}>
+              <h3 className="section-title">{meta.label}s · {list.length}</h3>
+              <div className="card reveal-stagger" style={{ overflow: "hidden", padding: 0 }}>
+                {list.map((h, i) => (
+                  <Link key={h.id} href={h.link}
+                    style={{
+                      display: "flex", padding: "14px 20px",
+                      borderTop: i === 0 ? "none" : "1px solid var(--o-border)",
+                      textDecoration: "none", color: "inherit",
+                      alignItems: "center", gap: 14,
+                    }}>
+                    <div style={{
+                      width: 40, height: 40, borderRadius: 8, flexShrink: 0,
+                      background: "var(--t-brand-mist)",
+                      display: "grid", placeItems: "center",
+                      color: meta.color, fontSize: 18,
+                    }}>
+                      {meta.emoji}
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontWeight: 500, color: "var(--o-text-1)" }}>{h.title}</div>
+                      {h.subtitle && (
+                        <div style={{ fontSize: 12, color: "var(--o-text-3)", marginTop: 2 }}>
+                          {h.subtitle}
+                        </div>
+                      )}
+                    </div>
+                    <span style={{ fontSize: 13, color: "var(--t-brand)" }}>→</span>
+                  </Link>
+                ))}
+              </div>
             </div>
-          </div>
-        )}
-
-        {tasks.length > 0 && (
-          <div>
-            <h3 className="section-title">Atividades · {tasks.length}</h3>
-            <div className="card reveal-stagger" style={{ overflow: "hidden", padding: 0 }}>
-              {tasks.map((t, i) => (
-                <Link key={t.id} href={`/obras/${t.site_id}`}
-                  style={{
-                    display: "flex", padding: "14px 20px",
-                    borderTop: i === 0 ? "none" : "1px solid var(--o-border)",
-                    textDecoration: "none", color: "inherit",
-                    alignItems: "center", gap: 14,
-                  }}>
-                  <span style={{ fontWeight: 500, flex: 1, color: "var(--o-text-1)" }}>{t.name}</span>
-                  {t.status && (
-                    <span className={`status status-${t.status === "in_progress" ? "progress" : t.status === "late" ? "late" : t.status === "done" ? "done" : "paused"}`}>
-                      {STATUS_LABELS[t.status] ?? t.status}
-                    </span>
-                  )}
-                </Link>
-              ))}
-            </div>
-          </div>
-        )}
+          );
+        })}
       </div>
     </div>
   );

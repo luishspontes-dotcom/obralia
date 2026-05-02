@@ -71,7 +71,7 @@ export function RdoForm(props: RdoFormProps) {
       {/* Data + status */}
       <div className="card" style={{ padding: "22px 24px" }}>
         <h3 className="section-title" style={{ marginBottom: 14 }}>Dados gerais</h3>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+        <div className="rdo-form-grid-2" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
           <Field label="Data" required>
             <input name="date" type="date" required value={date}
               onChange={(e) => setDate(e.target.value)} style={inputStyle} />
@@ -89,7 +89,7 @@ export function RdoForm(props: RdoFormProps) {
       {/* Clima */}
       <div className="card" style={{ padding: "22px 24px" }}>
         <h3 className="section-title" style={{ marginBottom: 14 }}>☀ Clima</h3>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+        <div className="rdo-form-grid-2" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
           <Field label="Tempo manhã">
             <select name="weather_morning" value={wm} onChange={(e) => setWm(e.target.value)} style={inputStyle}>
               {CLIMAS.map(c => <option key={c} value={c}>{c || "—"}</option>)}
@@ -124,7 +124,7 @@ export function RdoForm(props: RdoFormProps) {
         {workforce.length === 0 && <Empty text="Nenhuma função adicionada" />}
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
           {workforce.map((w, i) => (
-            <div key={i} style={{ display: "grid", gridTemplateColumns: "1fr 100px 36px", gap: 10, alignItems: "center" }}>
+            <div key={i} className="row-3col" style={{ display: "grid", gridTemplateColumns: "1fr 100px 36px", gap: 10, alignItems: "center" }}>
               <input list="role-options" placeholder="Função (ex: Pedreiro)" value={w.role}
                 onChange={(e) => updateAt(workforce, setWorkforce, i, { ...w, role: e.target.value })}
                 style={inputStyle} />
@@ -150,7 +150,7 @@ export function RdoForm(props: RdoFormProps) {
         {equipment.length === 0 && <Empty text="Nenhum equipamento" />}
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
           {equipment.map((e, i) => (
-            <div key={i} style={{ display: "grid", gridTemplateColumns: "1fr 100px 36px", gap: 10, alignItems: "center" }}>
+            <div key={i} className="row-3col" style={{ display: "grid", gridTemplateColumns: "1fr 100px 36px", gap: 10, alignItems: "center" }}>
               <input placeholder="Equipamento (ex: Betoneira)" value={e.name}
                 onChange={(ev) => updateAt(equipment, setEquipment, i, { ...e, name: ev.target.value })}
                 style={inputStyle} />
@@ -175,7 +175,7 @@ export function RdoForm(props: RdoFormProps) {
         {activities.length === 0 && <Empty text="Nenhuma atividade" />}
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
           {activities.map((a, i) => (
-            <div key={i} style={{ display: "grid", gridTemplateColumns: "1fr 90px 36px", gap: 10, alignItems: "center" }}>
+            <div key={i} className="row-3col" style={{ display: "grid", gridTemplateColumns: "1fr 90px 36px", gap: 10, alignItems: "center" }}>
               <input placeholder="O que foi feito hoje?" value={a.description}
                 onChange={(ev) => updateAt(activities, setActivities, i, { ...a, description: ev.target.value })}
                 style={inputStyle} />

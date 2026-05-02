@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { mediaUrl } from "@/lib/storage";
+import { OnboardingBanner } from "@/components/OnboardingBanner";
 
 function greeting(): string {
   const h = new Date().getHours();
@@ -99,6 +100,8 @@ export default async function InicioPage() {
       </div>
 
       <div style={{ padding: "0 24px 32px", maxWidth: 1280, margin: "0 auto" }}>
+        <OnboardingBanner rdoCount={rdosCount ?? 0} siteCount={obrasCount ?? 0} />
+
         {/* Stats */}
         <div
           className="reveal-stagger"

@@ -419,3 +419,51 @@ img[loading="lazy"]:not([src=""]) { opacity: 1; }
 .icon-button:active { background: var(--o-mist); transform: scale(0.96); }
 
 .app-content { /* container do conteúdo da página */ }
+
+/* ============================================================
+   RESPONSIVE / MOBILE
+   ============================================================ */
+@media (max-width: 768px) {
+  .page-hero { padding: 18px 16px 14px !important; }
+  .page-hero h1 { font-size: 24px !important; }
+  .card { padding: 14px 16px !important; }
+
+  /* Stack 1fr 1fr columns */
+  .rdo-form-grid-2 {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* Workforce / equip / activity rows: stack vertical */
+  .row-3col {
+    grid-template-columns: 1fr 80px 36px !important;
+    gap: 6px !important;
+  }
+
+  /* Sidebar viraria drawer no mobile (hidden por default) */
+  aside[class*="Sidebar"], nav[class*="Rail"] {
+    display: none !important;
+  }
+  main {
+    margin-left: 0 !important;
+    padding-left: 0 !important;
+  }
+
+  /* Topbar mais compacto */
+  .app-topbar { padding: 10px 14px !important; }
+  .app-topbar__title { font-size: 14px !important; }
+
+  /* Stat cards stack */
+  .stat-grid { grid-template-columns: 1fr 1fr !important; }
+
+  /* Photo grid mobile: 2 columns */
+  .photo-grid { grid-template-columns: repeat(2, 1fr) !important; }
+
+  /* Action chips wrap mais cedo */
+  .action-bar { flex-wrap: wrap !important; }
+  .chip, .btn-primary, .btn-brand { font-size: 13px !important; padding: 8px 12px !important; }
+}
+
+/* iOS safe area bottom */
+@supports (padding-bottom: env(safe-area-inset-bottom)) {
+  body { padding-bottom: env(safe-area-inset-bottom); }
+}

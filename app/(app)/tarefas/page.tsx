@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { createServerSupabase } from "@/lib/supabase/server";
-import { createOrUpdateTask, deleteTask } from "@/lib/rdo-actions";
+import { createOrUpdateTask } from "@/lib/rdo-actions";
+import { TaskRow } from "@/components/TaskRow";
 
 type WbsItem = {
   id: string;
@@ -142,39 +143,9 @@ export default async function TarefasPage({
                     {list.length} {list.length === 1 ? "atividade" : "atividades"}
                   </span>
                 </div>
-                {list.slice(0, 25).map((t, i) => {
-                  const meta = STATUS_META[t.status ?? "waiting"] ?? STATUS_META.waiting;
-                  return (
-                    <div key={t.id} style={{
-                      display: "flex", alignItems: "center", gap: 12,
-                      padding: "12px 22px",
-                      borderTop: i === 0 ? "none" : "1px solid var(--o-border)",
-                      fontSize: 14,
-                    }}>
-                      <span style={{ flex: 1, color: "var(--o-text-1)" }}>{t.name}</span>
-                      {t.due_date && (
-                        <span className="tnum" style={{
-                          fontSize: 12,
-                          color: t.status === "late" ? "var(--st-late)" : "var(--o-text-3)",
-                          fontWeight: t.status === "late" ? 500 : 400,
-                        }}>
-                          {new Date(t.due_date).toLocaleDateString("pt-BR", { day: "2-digit", month: "short" })}
-                        </span>
-                      )}
-                      <span className={`status ${meta.cls}`} style={{ minWidth: 96, justifyContent: "center" }}>
-                        {meta.label}
-                      </span>
-                      <form action={deleteTask} style={{ display: "inline" }}>
-                        <input type="hidden" name="id" value={t.id} />
-                        <button type="submit" title="Remover" style={{
-                          width: 26, height: 26, borderRadius: 6, border: "1px solid var(--o-border)",
-                          background: "transparent", color: "var(--o-text-3)", fontSize: 14,
-                          cursor: "pointer", lineHeight: 1, display: "grid", placeItems: "center",
-                        }}>×</button>
-                      </form>
-                    </div>
-                  );
-                })}
+                {list.slice(0, 25).map((t) => (
+                  <TaskRow key={t.id} task={t} siteId={siteId} />
+                ))}
                 {list.length > 25 && (
                   <div style={{
                     padding: "10px 22px",

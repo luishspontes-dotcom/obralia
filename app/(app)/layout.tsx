@@ -2,8 +2,7 @@ import { redirect } from "next/navigation";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { Rail } from "@/components/layout/Rail";
 import { Sidebar } from "@/components/layout/Sidebar";
-import { Topbar } from "@/components/layout/Topbar";
-import { canAdmin, canWrite } from "@/lib/authz";
+import { KeyboardShortcuts } from "@/components/KeyboardShortcuts";
 
 type Profile = {
   full_name: string | null;
@@ -15,11 +14,6 @@ type Organization = {
   name: string;
   slug: string;
   brand_color: string | null;
-};
-
-type Membership = {
-  organization_id: string;
-  role: string;
 };
 
 export default async function AppLayout({
@@ -51,15 +45,6 @@ export default async function AppLayout({
     orgs.find((org) => org.id === profile?.default_org_id) ?? orgs[0] ?? null;
   const fullName = profile?.full_name ?? null;
 
-  const { data: membershipsRaw } = await supabase
-    .from("organization_members")
-    .select("organization_id, role")
-    .eq("profile_id", user.id);
-  const memberships = (membershipsRaw ?? []) as Membership[];
-  const activeMembership = memberships.find(
-    (membership) => membership.organization_id === activeOrg?.id
-  );
-
   return (
     <div className="app-shell">
       <Rail
@@ -72,18 +57,13 @@ export default async function AppLayout({
             .toUpperCase()
         }
       />
-      <Sidebar
-        activeOrg={activeOrg}
-        userName={fullName}
-        canManageSites={canWrite(activeMembership?.role)}
-        canManageUsers={canAdmin(activeMembership?.role)}
-      />
+      <Sidebar activeOrg={activeOrg} userName={fullName} />
       <main
         className="app-main light-scroll"
       >
-        <Topbar activeOrg={activeOrg} userName={fullName} />
-        <div className="app-content">{children}</div>
+        {children}
       </main>
+      <KeyboardShortcuts />
     </div>
   );
 }

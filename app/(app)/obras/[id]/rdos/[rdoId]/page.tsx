@@ -3,7 +3,9 @@ import { notFound } from "next/navigation";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { mediaUrl } from "@/lib/storage";
 import { PhotoUploader } from "@/components/PhotoUploader";
-import { setRdoStatus, deleteRdo, deletePhoto, postComment } from "@/lib/rdo-actions";
+import { PhotoGrid } from "@/components/PhotoLightbox";
+import { setRdoStatus, deleteRdo, postComment } from "@/lib/rdo-actions";
+import { getCurrentRole, canWrite } from "@/lib/permissions";
 
 type Site = { id: string; name: string; client_name: string | null };
 type DR = {
@@ -71,6 +73,8 @@ export default async function RdoDetailPage({
   const d = new Date(rdo.date);
   const dateLong = d.toLocaleDateString("pt-BR", { weekday: "long", day: "2-digit", month: "long", year: "numeric" });
   const totalWorkers = workforce.reduce((s, w) => s + (w.count ?? 0), 0);
+  const role = await getCurrentRole();
+  const canEdit = canWrite(role);
 
   return (
     <div>
@@ -105,11 +109,16 @@ export default async function RdoDetailPage({
             </div>
 
             {/* Action buttons */}
-            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-              <Link href={`/obras/${id}/rdos/${rdoId}/editar`} className="chip" style={{ textDecoration: "none" }}>
-                ✎ Editar
+            <div className="action-bar" style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              {canEdit && (
+                <Link href={`/obras/${id}/rdos/${rdoId}/editar`} className="chip" style={{ textDecoration: "none" }}>
+                  ✎ Editar
+                </Link>
+              )}
+              <Link href={`/obras/${id}/rdos/${rdoId}/imprimir`} className="chip" style={{ textDecoration: "none" }} target="_blank">
+                ⎙ Imprimir / PDF
               </Link>
-              {rdo.status !== "approved" && (
+              {canEdit && rdo.status !== "approved" && (
                 <form action={setRdoStatus} style={{ display: "inline" }}>
                   <input type="hidden" name="rdoId" value={rdoId} />
                   <input type="hidden" name="siteId" value={id} />
@@ -119,7 +128,7 @@ export default async function RdoDetailPage({
                   </button>
                 </form>
               )}
-              {rdo.status === "approved" && (
+              {canEdit && rdo.status === "approved" && (
                 <form action={setRdoStatus} style={{ display: "inline" }}>
                   <input type="hidden" name="rdoId" value={rdoId} />
                   <input type="hidden" name="siteId" value={id} />
@@ -129,17 +138,19 @@ export default async function RdoDetailPage({
                   </button>
                 </form>
               )}
-              <form action={deleteRdo} style={{ display: "inline" }}>
-                <input type="hidden" name="rdoId" value={rdoId} />
-                <input type="hidden" name="siteId" value={id} />
-                <button
-                  type="submit"
-                  className="chip"
-                  style={{ color: "#b3261e", borderColor: "#f5c6c2", cursor: "pointer" }}
-                >
-                  Excluir
-                </button>
-              </form>
+              {canEdit && (
+                <form action={deleteRdo} style={{ display: "inline" }}>
+                  <input type="hidden" name="rdoId" value={rdoId} />
+                  <input type="hidden" name="siteId" value={id} />
+                  <button
+                    type="submit"
+                    className="chip"
+                    style={{ color: "#b3261e", borderColor: "#f5c6c2", cursor: "pointer" }}
+                  >
+                    Excluir
+                  </button>
+                </form>
+              )}
             </div>
           </div>
         </div>
@@ -242,33 +253,10 @@ export default async function RdoDetailPage({
             <PhotoUploader siteId={id} rdoId={rdoId} />
           </div>
           {photos.length > 0 && (
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: 6 }}>
-              {photos.map((p) => (
-                <div key={p.id} style={{ position: "relative" }}>
-                  <a href={mediaUrl(p.storage_path) || "#"} target="_blank" rel="noreferrer"
-                    style={{
-                      display: "block", aspectRatio: "4 / 3",
-                      background: "var(--o-mist)",
-                      borderRadius: 8, overflow: "hidden",
-                      transition: "transform var(--duration) var(--ease)",
-                    }}>
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={mediaUrl(p.thumbnail_path ?? p.storage_path)} alt={p.caption ?? "Foto"} loading="lazy"
-                      style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
-                  </a>
-                  <form action={deletePhoto} style={{ position: "absolute", top: 6, right: 6 }}>
-                    <input type="hidden" name="photoId" value={p.id} />
-                    <input type="hidden" name="rdoId" value={rdoId} />
-                    <input type="hidden" name="siteId" value={id} />
-                    <button type="submit" title="Remover" style={{
-                      width: 26, height: 26, borderRadius: 6, border: "none",
-                      background: "rgba(20,28,42,0.78)", color: "white", fontSize: 14,
-                      cursor: "pointer", lineHeight: 1, display: "grid", placeItems: "center",
-                    }}>×</button>
-                  </form>
-                </div>
-              ))}
-            </div>
+            <>
+              <PhotoGrid photos={photos} />
+              {/* Botões de remover ficam só no edit do RDO; PhotoGrid abre o lightbox */}
+            </>
           )}
         </Section>
 

@@ -9,6 +9,7 @@ import {
   Search,
   Settings,
 } from "lucide-react";
+import { NotificationBell } from "@/components/NotificationBell";
 
 interface RailProps {
   userInitials: string;
@@ -112,6 +113,8 @@ export function Rail({ userInitials }: RailProps) {
       })}
 
       <div style={{ flex: 1 }} />
+
+      <NotificationBell />
 
       <Link
         href="/configuracoes"

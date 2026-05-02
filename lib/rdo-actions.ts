@@ -188,7 +188,18 @@ export async function uploadPhotos(formData: FormData) {
   const files = formData.getAll("photos").filter((f): f is File => f instanceof File && f.size > 0);
   if (files.length === 0) return;
 
-  for (const file of files) {
+  type Meta = { lat?: number; lng?: number; takenAt?: string; w?: number; h?: number };
+  let metas: Meta[] = [];
+  try {
+    const raw = asString(formData.get("photo_meta_json"));
+    if (raw) metas = JSON.parse(raw) as Meta[];
+  } catch {
+    metas = [];
+  }
+
+  for (let i = 0; i < files.length; i++) {
+    const file = files[i];
+    const meta = metas[i] ?? {};
     const ext = (file.name.split(".").pop() || "jpg").toLowerCase();
     const id = crypto.randomUUID();
     const path = `${siteId}/${id}.${ext}`;
@@ -210,8 +221,12 @@ export async function uploadPhotos(formData: FormData) {
       kind: file.type.startsWith("video/") ? "video" : "photo",
       storage_path: path,
       size_bytes: file.size,
-      taken_at: new Date().toISOString(),
+      taken_at: meta.takenAt ?? new Date().toISOString(),
       taken_by: user.id,
+      width: meta.w ?? null,
+      height: meta.h ?? null,
+      gps_lat: meta.lat ?? null,
+      gps_lng: meta.lng ?? null,
       migrated_at: new Date().toISOString(),
       sync_metadata: { uploaded_via: "obralia" },
     } as never);
