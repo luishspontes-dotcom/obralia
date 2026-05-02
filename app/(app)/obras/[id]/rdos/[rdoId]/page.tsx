@@ -2,6 +2,8 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { mediaUrl } from "@/lib/storage";
+import { PhotoUploader } from "@/components/PhotoUploader";
+import { setRdoStatus, deleteRdo, deletePhoto, postComment } from "@/lib/rdo-actions";
 
 type Site = { id: string; name: string; client_name: string | null };
 type DR = {
@@ -101,6 +103,44 @@ export default async function RdoDetailPage({
               </div>
               <div style={{ fontSize: 14, color: "var(--o-text-2)", textTransform: "capitalize" }}>{dateLong}</div>
             </div>
+
+            {/* Action buttons */}
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              <Link href={`/obras/${id}/rdos/${rdoId}/editar`} className="chip" style={{ textDecoration: "none" }}>
+                ✎ Editar
+              </Link>
+              {rdo.status !== "approved" && (
+                <form action={setRdoStatus} style={{ display: "inline" }}>
+                  <input type="hidden" name="rdoId" value={rdoId} />
+                  <input type="hidden" name="siteId" value={id} />
+                  <input type="hidden" name="status" value="approved" />
+                  <button type="submit" className="chip" style={{ background: "var(--st-done-soft, #dcf5e8)", color: "var(--st-done, #137a4d)", border: "1px solid var(--st-done, #137a4d)", cursor: "pointer" }}>
+                    ✓ Aprovar
+                  </button>
+                </form>
+              )}
+              {rdo.status === "approved" && (
+                <form action={setRdoStatus} style={{ display: "inline" }}>
+                  <input type="hidden" name="rdoId" value={rdoId} />
+                  <input type="hidden" name="siteId" value={id} />
+                  <input type="hidden" name="status" value="draft" />
+                  <button type="submit" className="chip" style={{ cursor: "pointer" }}>
+                    ↺ Reabrir
+                  </button>
+                </form>
+              )}
+              <form action={deleteRdo} style={{ display: "inline" }}>
+                <input type="hidden" name="rdoId" value={rdoId} />
+                <input type="hidden" name="siteId" value={id} />
+                <button
+                  type="submit"
+                  className="chip"
+                  style={{ color: "#b3261e", borderColor: "#f5c6c2", cursor: "pointer" }}
+                >
+                  Excluir
+                </button>
+              </form>
+            </div>
           </div>
         </div>
       </div>
@@ -194,25 +234,43 @@ export default async function RdoDetailPage({
         )}
 
         {/* Fotos */}
-        {photos.length > 0 && (
-          <Section title={`Fotos · ${photos.length}`}>
+        <Section title={`Fotos · ${photos.length}`}>
+          <div className="card" style={{ padding: "16px 20px", marginBottom: photos.length > 0 ? 14 : 0 }}>
+            <div style={{ fontSize: 12, color: "var(--o-text-2)", marginBottom: 10, fontWeight: 500 }}>
+              Adicionar fotos / vídeos
+            </div>
+            <PhotoUploader siteId={id} rdoId={rdoId} />
+          </div>
+          {photos.length > 0 && (
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: 6 }}>
               {photos.map((p) => (
-                <a key={p.id} href={mediaUrl(p.storage_path) || "#"} target="_blank" rel="noreferrer"
-                  style={{
-                    display: "block", aspectRatio: "4 / 3",
-                    background: "var(--o-mist)",
-                    borderRadius: 8, overflow: "hidden",
-                    transition: "transform var(--duration) var(--ease)",
-                  }}>
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={mediaUrl(p.thumbnail_path ?? p.storage_path)} alt={p.caption ?? "Foto"} loading="lazy"
-                    style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
-                </a>
+                <div key={p.id} style={{ position: "relative" }}>
+                  <a href={mediaUrl(p.storage_path) || "#"} target="_blank" rel="noreferrer"
+                    style={{
+                      display: "block", aspectRatio: "4 / 3",
+                      background: "var(--o-mist)",
+                      borderRadius: 8, overflow: "hidden",
+                      transition: "transform var(--duration) var(--ease)",
+                    }}>
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={mediaUrl(p.thumbnail_path ?? p.storage_path)} alt={p.caption ?? "Foto"} loading="lazy"
+                      style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
+                  </a>
+                  <form action={deletePhoto} style={{ position: "absolute", top: 6, right: 6 }}>
+                    <input type="hidden" name="photoId" value={p.id} />
+                    <input type="hidden" name="rdoId" value={rdoId} />
+                    <input type="hidden" name="siteId" value={id} />
+                    <button type="submit" title="Remover" style={{
+                      width: 26, height: 26, borderRadius: 6, border: "none",
+                      background: "rgba(20,28,42,0.78)", color: "white", fontSize: 14,
+                      cursor: "pointer", lineHeight: 1, display: "grid", placeItems: "center",
+                    }}>×</button>
+                  </form>
+                </div>
               ))}
             </div>
-          </Section>
-        )}
+          )}
+        </Section>
 
         {/* Vídeos */}
         {videos.length > 0 && (
@@ -253,8 +311,24 @@ export default async function RdoDetailPage({
         )}
 
         {/* Comentários e ocorrências */}
-        {comments.length > 0 && (
-          <Section title={`Comentários e ocorrências · ${comments.length}`}>
+        <Section title={`Comentários e ocorrências · ${comments.length}`}>
+          <form action={postComment} className="card" style={{ padding: "14px 16px", marginBottom: 12 }}>
+            <input type="hidden" name="target_table" value="daily_reports" />
+            <input type="hidden" name="target_id" value={rdoId} />
+            <input type="hidden" name="redirect_to" value={`/obras/${id}/rdos/${rdoId}`} />
+            <textarea name="body" rows={2} required placeholder="Adicione um comentário ou ocorrência…"
+              style={{
+                width: "100%", border: "1px solid var(--o-border)", borderRadius: 8,
+                padding: "10px 12px", font: "400 14px var(--font-inter)", color: "var(--o-text-1)",
+                background: "var(--o-paper)", outline: "none", resize: "vertical",
+              }} />
+            <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 10 }}>
+              <button type="submit" className="btn-brand" style={{ padding: "8px 16px", fontSize: 13 }}>
+                Comentar
+              </button>
+            </div>
+          </form>
+          {comments.length > 0 && (
             <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
               {comments.map((c) => {
                 const isOcorrencia = c.body.startsWith("[OCORRÊNCIA]");
@@ -280,8 +354,8 @@ export default async function RdoDetailPage({
                 );
               })}
             </div>
-          </Section>
-        )}
+          )}
+        </Section>
       </div>
     </div>
   );

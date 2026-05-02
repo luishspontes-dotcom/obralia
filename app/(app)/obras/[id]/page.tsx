@@ -171,8 +171,11 @@ export default async function ObraDetailPage({
       <div style={{ padding: "0 24px 32px", maxWidth: 1280, margin: "0 auto" }}>
         {/* Action bar */}
         <div style={{ display: "flex", gap: 8, marginBottom: 24, flexWrap: "wrap" }}>
+          <Link href={`/obras/${id}/rdos/novo`} className="btn-primary">
+            + Novo RDO
+          </Link>
           {(rdoCount ?? 0) > 0 && (
-            <Link href={`/obras/${id}/rdos`} className="btn-primary">
+            <Link href={`/obras/${id}/rdos`} className="chip">
               📋 {rdoCount} RDOs
             </Link>
           )}
@@ -181,6 +184,9 @@ export default async function ObraDetailPage({
               📸 {photoCount} fotos
             </Link>
           )}
+          <Link href={`/obras/${id}/editar`} className="chip">
+            ✎ Editar obra
+          </Link>
         </div>
 
         {/* PROGRESS + STATS */}

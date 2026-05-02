@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { createServerSupabase } from "@/lib/supabase/server";
+import { createOrUpdateTask, deleteTask } from "@/lib/rdo-actions";
 
 type WbsItem = {
   id: string;
@@ -84,6 +85,30 @@ export default async function TarefasPage({
       </div>
 
       <div style={{ padding: "0 24px 32px", maxWidth: 1280, margin: "0 auto" }}>
+        {/* Quick add task */}
+        <form action={createOrUpdateTask} className="card" style={{ padding: "16px 20px", marginBottom: 18 }}>
+          <div style={{ fontSize: 12, fontWeight: 600, color: "var(--o-text-2)", marginBottom: 10, letterSpacing: "0.04em", textTransform: "uppercase" }}>
+            + Nova atividade
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr 130px 110px 100px", gap: 10, alignItems: "center" }}>
+            <input name="name" required placeholder="Nome da atividade" style={taskInputStyle} />
+            <select name="site_id" defaultValue="" style={taskInputStyle}>
+              <option value="">Sem obra (geral)</option>
+              {sites.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+            </select>
+            <input name="date_due" type="date" style={taskInputStyle} />
+            <select name="status" defaultValue="waiting" style={taskInputStyle}>
+              <option value="waiting">Aguardando</option>
+              <option value="in_progress">Em andamento</option>
+              <option value="done">Concluída</option>
+              <option value="late">Atrasada</option>
+            </select>
+            <button type="submit" className="btn-brand" style={{ padding: "10px 14px", fontSize: 13, justifyContent: "center" }}>
+              Criar
+            </button>
+          </div>
+        </form>
+
         {grouped.size === 0 && (
           <div className="empty">
             <div className="empty-emoji">📋</div>
@@ -139,6 +164,14 @@ export default async function TarefasPage({
                       <span className={`status ${meta.cls}`} style={{ minWidth: 96, justifyContent: "center" }}>
                         {meta.label}
                       </span>
+                      <form action={deleteTask} style={{ display: "inline" }}>
+                        <input type="hidden" name="id" value={t.id} />
+                        <button type="submit" title="Remover" style={{
+                          width: 26, height: 26, borderRadius: 6, border: "1px solid var(--o-border)",
+                          background: "transparent", color: "var(--o-text-3)", fontSize: 14,
+                          cursor: "pointer", lineHeight: 1, display: "grid", placeItems: "center",
+                        }}>×</button>
+                      </form>
                     </div>
                   );
                 })}
@@ -163,3 +196,14 @@ export default async function TarefasPage({
     </div>
   );
 }
+
+const taskInputStyle: React.CSSProperties = {
+  width: "100%",
+  background: "var(--o-paper)",
+  border: "1px solid var(--o-border)",
+  borderRadius: 8,
+  padding: "9px 12px",
+  font: "400 13px var(--font-inter)",
+  color: "var(--o-text-1)",
+  outline: "none",
+};
