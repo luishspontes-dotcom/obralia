@@ -5,22 +5,29 @@ export const dynamic = "force-dynamic";
 
 export async function GET() {
   const startedAt = Date.now();
-  const admin = getSupabaseAdmin();
+  const hasPublicEnv = Boolean(
+    process.env.NEXT_PUBLIC_SUPABASE_URL &&
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+  );
+  const hasServiceRole = Boolean(process.env.SUPABASE_SERVICE_ROLE_KEY);
   const checks = {
     app: true,
-    env: Boolean(
-      process.env.NEXT_PUBLIC_SUPABASE_URL &&
-        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-    ),
-    serviceRole: Boolean(process.env.SUPABASE_SERVICE_ROLE_KEY),
+    env: hasPublicEnv,
+    serviceRole: hasServiceRole,
     database: false,
     storage: false,
   };
 
-  let databaseError: string | null = null;
+  let databaseError: string | null = hasPublicEnv
+    ? null
+    : "Variáveis públicas do Supabase ausentes.";
   let storageError: string | null = null;
 
-  if (admin) {
+  if (!hasServiceRole) {
+    databaseError = "SUPABASE_SERVICE_ROLE_KEY ausente no ambiente.";
+    storageError = "SUPABASE_SERVICE_ROLE_KEY ausente no ambiente.";
+  } else {
+    const admin = getSupabaseAdmin();
     const dbCheck = await admin
       .from("organizations")
       .select("id", { count: "exact", head: true });

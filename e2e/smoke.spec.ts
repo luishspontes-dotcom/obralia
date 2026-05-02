@@ -12,7 +12,7 @@ test("login page renders", async ({ page }) => {
   await page.goto("/login");
 
   await expect(page.getByText("obralia", { exact: true })).toBeVisible();
-  await expect(page.getByRole("heading", { name: "Entrar na sua conta" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Entre na sua conta" })).toBeVisible();
   await expect(page.getByPlaceholder("seu@construtora.com.br")).toBeVisible();
 });
 

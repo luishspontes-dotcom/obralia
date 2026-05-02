@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { ChangePasswordForm } from "./ChangePasswordForm";
 
@@ -77,6 +78,13 @@ export default async function ConfigPage() {
           </Section>
         )}
 
+        <Section title="Operação">
+          <div style={{ display: "grid", gap: 10 }}>
+            <ActionLink href="/configuracoes/integracoes" title="Integrações" description="Conectores, credenciais e últimas execuções" />
+            <ActionLink href="/configuracoes/auditoria" title="Auditoria operacional" description="Contagens, origem dos registros e prontidão 10/10" />
+          </div>
+        </Section>
+
         <Section title="Trocar senha">
           <ChangePasswordForm />
         </Section>
@@ -102,6 +110,25 @@ export default async function ConfigPage() {
         </Section>
       </div>
     </div>
+  );
+}
+
+function ActionLink({ href, title, description }: { href: string; title: string; description: string }) {
+  return (
+    <Link
+      href={href}
+      style={{
+        display: "block",
+        border: "1px solid var(--o-border)",
+        borderRadius: 8,
+        padding: "12px 14px",
+        textDecoration: "none",
+        color: "inherit",
+      }}
+    >
+      <div style={{ fontSize: 14, fontWeight: 700, color: "var(--o-text-1)" }}>{title}</div>
+      <div style={{ marginTop: 3, fontSize: 12, color: "var(--o-text-2)" }}>{description}</div>
+    </Link>
   );
 }
 

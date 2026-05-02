@@ -76,7 +76,12 @@ export async function POST(request: NextRequest) {
     );
 
   if (pendingErr) {
-    return json(500, `Falha ao registrar convite: ${pendingErr.message}`);
+    console.error("Invite persistence failed", {
+      organizationId,
+      email,
+      error: pendingErr.message,
+    });
+    return json(500, "Falha ao registrar convite.");
   }
 
   // Send magic link with shouldCreateUser=true. The handle_new_user trigger consumes
@@ -96,7 +101,12 @@ export async function POST(request: NextRequest) {
   });
 
   if (otpErr) {
-    return json(500, `Falha ao enviar link: ${otpErr.message}`);
+    console.error("Invite email failed", {
+      organizationId,
+      email,
+      error: otpErr.message,
+    });
+    return json(500, "Falha ao enviar link de acesso.");
   }
 
   return NextResponse.json({ ok: true });
