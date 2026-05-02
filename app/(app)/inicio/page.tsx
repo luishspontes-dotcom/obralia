@@ -1,14 +1,6 @@
 import Link from "next/link";
-import { ArrowRight, Inbox } from "lucide-react";
 import { createServerSupabase } from "@/lib/supabase/server";
-
-type InboxItem = {
-  id: string;
-  title: string;
-  body: string | null;
-  link: string | null;
-  created_at: string | null;
-};
+import { mediaUrl } from "@/lib/storage";
 
 function greeting(): string {
   const h = new Date().getHours();
@@ -18,61 +10,43 @@ function greeting(): string {
   return "Boa noite";
 }
 
+type SiteCard = { id: string; name: string; cover_url: string | null; status: string };
+
 export default async function InicioPage() {
   const supabase = await createServerSupabase();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const { data: { user } } = await supabase.auth.getUser();
 
   let fullName: string | null = null;
   if (user) {
     const { data: profile } = await supabase
-      .from("profiles")
-      .select("full_name")
-      .eq("id", user.id)
-      .maybeSingle();
+      .from("profiles").select("full_name").eq("id", user.id).maybeSingle();
     fullName = (profile as { full_name?: string } | null)?.full_name ?? null;
   }
 
-  const firstName =
-    fullName?.split(" ")[0] ??
-    user?.email?.split("@")[0] ??
-    "";
+  const firstName = fullName?.split(" ")[0] ?? user?.email?.split("@")[0] ?? "";
 
-  // Real counts
+  // Counts
   const { count: obrasCount } = await supabase
-    .from("sites")
-    .select("*", { count: "exact", head: true });
-
+    .from("sites").select("*", { count: "exact", head: true });
   const { data: lateRows } = await supabase
-    .from("wbs_items")
-    .select("site_id")
-    .eq("status", "late");
-
-  const lateSiteIds = new Set(
-    ((lateRows ?? []) as { site_id: string }[]).map((r) => r.site_id)
-  );
-
+    .from("wbs_items").select("site_id").eq("status", "late");
+  const lateSiteIds = new Set(((lateRows ?? []) as { site_id: string }[]).map((r) => r.site_id));
   const { count: tasksInProgressCount } = await supabase
-    .from("wbs_items")
-    .select("*", { count: "exact", head: true })
-    .eq("status", "in_progress");
-
+    .from("wbs_items").select("*", { count: "exact", head: true }).eq("status", "in_progress");
   const { count: rdosCount } = await supabase
-    .from("daily_reports")
-    .select("*", { count: "exact", head: true });
+    .from("daily_reports").select("*", { count: "exact", head: true });
 
-  const { data: inboxRows } = user
-    ? await supabase
-        .from("notifications")
-        .select("id, title, body, link, created_at")
-        .eq("recipient_id", user.id)
-        .is("read_at", null)
-        .is("archived_at", null)
-        .order("created_at", { ascending: false })
-        .limit(5)
-    : { data: [] };
-  const inboxItems = (inboxRows ?? []) as InboxItem[];
+  // 3 obras mais recentemente atualizadas pra hero visual
+  const { data: recentSitesRaw } = await supabase
+    .from("sites")
+    .select("id, name, cover_url, status")
+    .not("cover_url", "is", null)
+    .neq("name", "AGENDAS (operacional)")
+    .neq("name", "ATA SEMANAL (operacional)")
+    .neq("name", "MEDIÇÕES (operacional)")
+    .order("created_at", { ascending: false })
+    .limit(6);
+  const recentSites = (recentSitesRaw ?? []) as SiteCard[];
 
   const stats = [
     { label: "Obras", value: String(obrasCount ?? 0), href: "/obras" },
@@ -82,178 +56,149 @@ export default async function InicioPage() {
   ];
 
   return (
-    <div style={{ padding: "24px", maxWidth: 1280, margin: "0 auto" }}>
-      <h1
-        style={{
-          margin: "0 0 8px",
-          font: "700 32px var(--font-inter)",
-          letterSpacing: "-0.02em",
-        }}
-      >
-        {greeting()}, {firstName}.
-      </h1>
-      <p
-        className="font-body-lora"
-        style={{
-          fontSize: 17,
-          color: "var(--o-text-2)",
-          lineHeight: 1.55,
-          maxWidth: 760,
-          margin: "0 0 32px",
-        }}
-      >
-        Bem-vindo ao <strong style={{ color: "var(--o-text-1)" }}>Obralia</strong>.
-        Aqui está o resumo da operação. Use a barra lateral pra navegar pelas
-        obras, RDOs e mensagens.
-      </p>
-
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(4, 1fr)",
-          gap: 16,
-          marginBottom: 24,
-        }}
-      >
-        {stats.map((s) => (
-          <Link
-            key={s.label}
-            href={s.href}
+    <div>
+      {/* HERO */}
+      <div className="page-hero">
+        <div style={{ maxWidth: 1280, margin: "0 auto" }}>
+          <div
             style={{
-              background: "var(--o-paper)",
-              border: "1px solid var(--o-border)",
-              borderLeft: "3px solid var(--t-brand)",
-              borderRadius: 12,
-              padding: "16px 18px",
-              textDecoration: "none",
-              color: "inherit",
-              transition: "150ms",
-              display: "block",
+              fontSize: 11,
+              textTransform: "uppercase",
+              letterSpacing: "0.12em",
+              color: "var(--t-brand)",
+              fontWeight: 600,
+              marginBottom: 8,
             }}
           >
-            <div
-              style={{
-                font: "500 12px var(--font-inter)",
-                color: "var(--o-text-2)",
-                textTransform: "uppercase",
-                letterSpacing: "0.04em",
-                marginBottom: 6,
-              }}
-            >
-              {s.label}
-            </div>
-            <div
-              className="tnum"
-              style={{
-                font: "600 28px var(--font-inter)",
-                letterSpacing: "-0.02em",
-              }}
-            >
-              {s.value}
-            </div>
-          </Link>
-        ))}
+            Painel da operação
+          </div>
+          <h1
+            style={{
+              margin: "0 0 8px",
+              font: "700 36px var(--font-inter)",
+              letterSpacing: "-0.025em",
+              color: "var(--o-text-1)",
+            }}
+          >
+            {greeting()}, {firstName}.
+          </h1>
+          <p
+            className="font-body-lora"
+            style={{
+              fontSize: 17,
+              color: "var(--o-text-2)",
+              lineHeight: 1.55,
+              maxWidth: 640,
+              margin: 0,
+            }}
+          >
+            Resumo da operação. Use a barra lateral pra navegar pelas obras,
+            RDOs e mensagens — ou clique direto numa obra abaixo.
+          </p>
+        </div>
       </div>
 
-      <div
-        style={{
-          background: "var(--o-paper)",
-          border: "1px solid var(--o-border)",
-          borderRadius: 12,
-          overflow: "hidden",
-        }}
-      >
+      <div style={{ padding: "0 24px 32px", maxWidth: 1280, margin: "0 auto" }}>
+        {/* Stats */}
         <div
+          className="reveal-stagger"
           style={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            gap: 16,
-            padding: "18px 20px",
-            borderBottom: "1px solid var(--o-border)",
+            display: "grid",
+            gridTemplateColumns: "repeat(4, 1fr)",
+            gap: 14,
+            marginBottom: 32,
           }}
         >
-          <div>
-            <h2 style={{ margin: 0, font: "600 17px var(--font-inter)" }}>
-              Caixa de entrada
-            </h2>
-            <p style={{ margin: "2px 0 0", color: "var(--o-text-2)", fontSize: 13 }}>
-              {inboxItems.length === 0
-                ? "Nenhuma pendência agora."
-                : `${inboxItems.length} ${inboxItems.length === 1 ? "item" : "itens"} recentes.`}
-            </p>
-          </div>
-          <Link
-            href="/caixa"
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              gap: 6,
-              color: "var(--o-accent)",
-              fontWeight: 600,
-              fontSize: 13,
-              textDecoration: "none",
-            }}
-          >
-            Abrir <ArrowRight size={15} />
-          </Link>
+          {stats.map((s) => (
+            <Link key={s.label} href={s.href} className="stat-card">
+              <div
+                style={{
+                  font: "500 11px var(--font-inter)",
+                  color: "var(--o-text-2)",
+                  textTransform: "uppercase",
+                  letterSpacing: "0.06em",
+                  marginBottom: 8,
+                }}
+              >
+                {s.label}
+              </div>
+              <div
+                className="tnum"
+                style={{
+                  font: "700 32px var(--font-inter)",
+                  letterSpacing: "-0.025em",
+                  color: "var(--o-text-1)",
+                }}
+              >
+                {s.value}
+              </div>
+            </Link>
+          ))}
         </div>
 
-        {inboxItems.length === 0 ? (
-          <div style={{ padding: 36, textAlign: "center" }}>
+        {/* Obras em destaque */}
+        {recentSites.length > 0 && (
+          <>
             <div
               style={{
-                width: 46,
-                height: 46,
-                borderRadius: 12,
+                display: "flex",
+                alignItems: "baseline",
+                justifyContent: "space-between",
+                marginBottom: 14,
+              }}
+            >
+              <h2 className="section-title" style={{ margin: 0 }}>
+                Obras em andamento
+              </h2>
+              <Link
+                href="/obras"
+                style={{
+                  fontSize: 13,
+                  color: "var(--t-brand)",
+                  textDecoration: "none",
+                  fontWeight: 500,
+                }}
+              >
+                Ver todas →
+              </Link>
+            </div>
+
+            <div
+              className="reveal-stagger"
+              style={{
                 display: "grid",
-                placeItems: "center",
-                margin: "0 auto 12px",
-                color: "var(--t-brand)",
-                background: "var(--t-brand-soft)",
+                gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))",
+                gap: 16,
               }}
             >
-              <Inbox size={22} />
+              {recentSites.map((s) => (
+                <Link key={s.id} href={`/obras/${s.id}`} className="obra-card">
+                  <div
+                    className="obra-card-cover"
+                    style={{
+                      backgroundImage: s.cover_url ? `url(${mediaUrl(s.cover_url)})` : undefined,
+                    }}
+                  >
+                    <span className="status status-progress status-on-cover obra-card-status">
+                      Em andamento
+                    </span>
+                  </div>
+                  <div className="obra-card-body">
+                    <div
+                      style={{
+                        font: "600 15px var(--font-inter)",
+                        letterSpacing: "-0.01em",
+                        color: "var(--o-text-1)",
+                        marginBottom: 4,
+                      }}
+                    >
+                      {s.name}
+                    </div>
+                  </div>
+                </Link>
+              ))}
             </div>
-            <div style={{ font: "600 16px var(--font-inter)", marginBottom: 4 }}>
-              Caixa de entrada vazia
-            </div>
-            <div
-              className="font-body-lora"
-              style={{
-                color: "var(--o-text-2)",
-                fontSize: 14,
-                maxWidth: 560,
-                margin: "0 auto",
-              }}
-            >
-              Quando alguém atribuir uma tarefa, criar um RDO ou comentar em uma
-              obra, vai aparecer aqui.
-            </div>
-          </div>
-        ) : (
-          inboxItems.map((item, index) => (
-            <Link
-              key={item.id}
-              href={item.link ?? "/caixa"}
-              style={{
-                display: "block",
-                padding: "14px 20px",
-                borderTop: index === 0 ? "none" : "1px solid var(--o-border)",
-                color: "inherit",
-                textDecoration: "none",
-              }}
-            >
-              <div style={{ font: "600 14px var(--font-inter)" }}>
-                {item.title}
-              </div>
-              {item.body && (
-                <div style={{ color: "var(--o-text-2)", fontSize: 13, marginTop: 2 }}>
-                  {item.body}
-                </div>
-              )}
-            </Link>
-          ))
+          </>
         )}
       </div>
     </div>
