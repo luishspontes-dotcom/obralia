@@ -162,7 +162,7 @@ export function PhotoUploadPanel({
           size_bytes: prepared.file.size,
           width: prepared.width,
           height: prepared.height,
-        });
+        } as never);
 
         if (insert.error) {
           await supabase.storage.from("media").remove([path]);

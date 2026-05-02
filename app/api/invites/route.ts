@@ -76,7 +76,8 @@ export async function POST(request: NextRequest) {
     );
 
   if (pendingErr) {
-    return json(500, `Falha ao registrar convite: ${pendingErr.message}`);
+    console.error("pending invite registration failed", pendingErr);
+    return json(500, "Falha ao registrar convite.");
   }
 
   // Send magic link with shouldCreateUser=true. The handle_new_user trigger consumes
@@ -96,7 +97,8 @@ export async function POST(request: NextRequest) {
   });
 
   if (otpErr) {
-    return json(500, `Falha ao enviar link: ${otpErr.message}`);
+    console.error("invite magic link failed", otpErr);
+    return json(500, "Falha ao enviar link.");
   }
 
   return NextResponse.json({ ok: true });

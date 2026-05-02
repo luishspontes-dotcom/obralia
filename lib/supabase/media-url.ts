@@ -1,17 +1,18 @@
 import "server-only";
 
-import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database } from "./database.types";
+import type { createServerSupabase } from "./server";
 
 type MediaLike = {
   storage_path: string | null;
   thumbnail_path?: string | null;
 };
 
+type ServerSupabase = Awaited<ReturnType<typeof createServerSupabase>>;
+
 const DEFAULT_EXPIRES_IN = 60 * 60;
 
 export async function withSignedMediaUrls<T extends MediaLike>(
-  supabase: SupabaseClient<Database>,
+  supabase: ServerSupabase,
   rows: T[],
   expiresIn = DEFAULT_EXPIRES_IN
 ): Promise<T[]> {
@@ -38,7 +39,7 @@ export async function withSignedMediaUrls<T extends MediaLike>(
 }
 
 export async function createSignedMediaUrl(
-  supabase: SupabaseClient<Database>,
+  supabase: ServerSupabase,
   path: string | null,
   expiresIn = DEFAULT_EXPIRES_IN
 ) {

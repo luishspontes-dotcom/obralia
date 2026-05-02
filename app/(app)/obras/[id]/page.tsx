@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { canWriteOrganization } from "@/lib/org-access";
 import { createServerSupabase } from "@/lib/supabase/server";
-import { mediaUrl } from "@/lib/storage";
+import { createSignedMediaUrl, withSignedMediaUrls } from "@/lib/supabase/media-url";
 
 type Site = {
   id: string;
@@ -13,6 +14,7 @@ type Site = {
   address: string | null;
   cover_url: string | null;
   contract_number: string | null;
+  organization_id: string;
 };
 
 type WbsItem = {
@@ -46,15 +48,18 @@ export default async function ObraDetailPage({
 }) {
   const { id } = await params;
   const supabase = await createServerSupabase();
+  const { data: { user } } = await supabase.auth.getUser();
 
   const { data: siteRaw } = await supabase
     .from("sites")
-    .select("id, name, status, client_name, start_date, end_date, address, cover_url, contract_number")
+    .select("id, name, status, client_name, start_date, end_date, address, cover_url, contract_number, organization_id")
     .eq("id", id)
     .maybeSingle();
 
   const site = siteRaw as Site | null;
   if (!site) notFound();
+  const canEdit = user ? await canWriteOrganization(supabase, user.id, site.organization_id) : false;
+  const coverUrl = await createSignedMediaUrl(supabase, site.cover_url);
 
   const { data: itemsRaw } = await supabase
     .from("wbs_items")
@@ -97,7 +102,10 @@ export default async function ObraDetailPage({
     .select("id, storage_path, caption, size_bytes")
     .eq("site_id", id).eq("kind", "file").is("daily_report_id", null)
     .order("caption");
-  const obraFiles = (filesRaw ?? []) as { id: string; storage_path: string | null; caption: string | null; size_bytes: number | null }[];
+  const obraFiles = await withSignedMediaUrls(
+    supabase,
+    (filesRaw ?? []) as { id: string; storage_path: string | null; caption: string | null; size_bytes: number | null }[]
+  );
 
   const accentColor = stats.late > 0 ? "var(--st-late)" : "var(--t-brand)";
   const isOperational = site.name.includes("(operacional)");
@@ -109,8 +117,8 @@ export default async function ObraDetailPage({
         style={{
           position: "relative",
           height: 320,
-          background: site.cover_url
-            ? `linear-gradient(180deg, rgba(20,20,19,0.0) 35%, rgba(20,20,19,0.75) 100%), url(${mediaUrl(site.cover_url)})`
+          background: coverUrl
+            ? `linear-gradient(180deg, rgba(20,20,19,0.0) 35%, rgba(20,20,19,0.75) 100%), url(${coverUrl})`
             : "linear-gradient(135deg, var(--t-brand-mist) 0%, var(--o-mist) 100%)",
           backgroundSize: "cover",
           backgroundPosition: "center",
@@ -125,7 +133,7 @@ export default async function ObraDetailPage({
             <Link
               href="/obras"
               style={{
-                color: site.cover_url ? "rgba(255,255,255,0.85)" : "var(--o-text-2)",
+                color: coverUrl ? "rgba(255,255,255,0.85)" : "var(--o-text-2)",
                 textDecoration: "none",
                 fontWeight: 500,
               }}
@@ -137,7 +145,7 @@ export default async function ObraDetailPage({
             <div
               style={{
                 fontSize: 11,
-                color: site.cover_url ? "rgba(255,255,255,0.85)" : "var(--t-brand)",
+                color: coverUrl ? "rgba(255,255,255,0.85)" : "var(--t-brand)",
                 textTransform: "uppercase",
                 letterSpacing: "0.08em",
                 marginBottom: 8,
@@ -153,13 +161,13 @@ export default async function ObraDetailPage({
               font: "700 38px var(--font-inter)",
               letterSpacing: "-0.025em",
               lineHeight: 1.1,
-              color: site.cover_url ? "white" : "var(--o-text-1)",
-              textShadow: site.cover_url ? "0 2px 12px rgba(0,0,0,0.3)" : "none",
+              color: coverUrl ? "white" : "var(--o-text-1)",
+              textShadow: coverUrl ? "0 2px 12px rgba(0,0,0,0.3)" : "none",
             }}
           >
             {site.name}
           </h1>
-          <div style={{ display: "flex", gap: 20, fontSize: 13, color: site.cover_url ? "rgba(255,255,255,0.92)" : "var(--o-text-2)", flexWrap: "wrap" }}>
+          <div style={{ display: "flex", gap: 20, fontSize: 13, color: coverUrl ? "rgba(255,255,255,0.92)" : "var(--o-text-2)", flexWrap: "wrap" }}>
             {site.address && <span>📍 {site.address}</span>}
             {site.contract_number && <span>📄 Contrato {site.contract_number}</span>}
             {site.start_date && <span>📅 Início {fmtDate(site.start_date)}</span>}
@@ -171,9 +179,11 @@ export default async function ObraDetailPage({
       <div style={{ padding: "0 24px 32px", maxWidth: 1280, margin: "0 auto" }}>
         {/* Action bar */}
         <div style={{ display: "flex", gap: 8, marginBottom: 24, flexWrap: "wrap" }}>
-          <Link href={`/obras/${id}/rdos/novo`} className="btn-primary">
-            + Novo RDO
-          </Link>
+          {canEdit && (
+            <Link href={`/obras/${id}/rdos/novo`} className="btn-primary">
+              + Novo RDO
+            </Link>
+          )}
           {(rdoCount ?? 0) > 0 && (
             <Link href={`/obras/${id}/rdos`} className="chip">
               📋 {rdoCount} RDOs
@@ -184,9 +194,11 @@ export default async function ObraDetailPage({
               📸 {photoCount} fotos
             </Link>
           )}
-          <Link href={`/obras/${id}/editar`} className="chip">
-            ✎ Editar obra
-          </Link>
+          {canEdit && (
+            <Link href={`/obras/${id}/editar`} className="chip">
+              ✎ Editar obra
+            </Link>
+          )}
         </div>
 
         {/* PROGRESS + STATS */}
@@ -345,7 +357,7 @@ export default async function ObraDetailPage({
               {obraFiles.map((f) => (
                 <a
                   key={f.id}
-                  href={mediaUrl(f.storage_path) || "#"}
+                  href={f.storage_path ?? "#"}
                   target="_blank"
                   rel="noreferrer"
                   className="card"

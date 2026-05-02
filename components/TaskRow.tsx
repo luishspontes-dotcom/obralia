@@ -11,6 +11,7 @@ type Props = {
     due_date: string | null;
   };
   siteId: string;
+  canEdit: boolean;
 };
 
 const STATUS_LABELS: Record<string, string> = {
@@ -27,7 +28,7 @@ const STATUS_CLS: Record<string, string> = {
   late: "status-late",
 };
 
-export function TaskRow({ task, siteId }: Props) {
+export function TaskRow({ task, siteId, canEdit }: Props) {
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
   const status = task.status ?? "waiting";
@@ -81,10 +82,10 @@ export function TaskRow({ task, siteId }: Props) {
     }}>
       <button
         type="button"
-        onClick={() => setEditing(true)}
+        onClick={() => canEdit && setEditing(true)}
         style={{
           flex: 1, textAlign: "left", background: "transparent", border: 0,
-          color: "var(--o-text-1)", cursor: "pointer", padding: 0, font: "inherit",
+          color: "var(--o-text-1)", cursor: canEdit ? "pointer" : "default", padding: 0, font: "inherit",
         }}
       >
         {task.name}
@@ -101,12 +102,16 @@ export function TaskRow({ task, siteId }: Props) {
       <span className={`status ${cls}`} style={{ minWidth: 96, justifyContent: "center" }}>
         {label}
       </span>
-      <button type="button" onClick={() => setEditing(true)} title="Editar"
-        style={inlineActionBtn}>✎</button>
-      <form action={deleteTask} style={{ display: "inline" }}>
-        <input type="hidden" name="id" value={task.id} />
-        <button type="submit" title="Remover" style={inlineActionBtn}>×</button>
-      </form>
+      {canEdit && (
+        <>
+          <button type="button" onClick={() => setEditing(true)} title="Editar"
+            style={inlineActionBtn}>✎</button>
+          <form action={deleteTask} style={{ display: "inline" }}>
+            <input type="hidden" name="id" value={task.id} />
+            <button type="submit" title="Remover" style={inlineActionBtn}>×</button>
+          </form>
+        </>
+      )}
     </div>
   );
 }

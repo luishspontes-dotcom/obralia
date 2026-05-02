@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { canWrite } from "@/lib/authz";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { createSignedMediaUrl } from "@/lib/supabase/media-url";
 
@@ -35,6 +36,7 @@ export default async function ObrasPage({
 }) {
   const supabase = await createServerSupabase();
   const { status: filterStatus } = await searchParams;
+  const { data: { user } } = await supabase.auth.getUser();
 
   const { data: sitesRaw } = await supabase
     .from("sites")
@@ -45,6 +47,15 @@ export default async function ObrasPage({
       ...site,
       cover_url: await createSignedMediaUrl(supabase, site.cover_url),
     }))
+  );
+  const { data: membershipsRaw } = user
+    ? await supabase
+        .from("organization_members")
+        .select("role")
+        .eq("profile_id", user.id)
+    : { data: [] };
+  const canCreateSites = ((membershipsRaw ?? []) as Array<{ role: string }>).some((membership) =>
+    canWrite(membership.role)
   );
 
   const { data: itemsRaw } = await supabase
@@ -143,9 +154,11 @@ export default async function ObrasPage({
               <span style={{ width: 6, height: 6, borderRadius: 999, background: "var(--st-done)" }} />
               Concluídas
             </Link>
-            <Link href="/obras/nova" className="btn-primary" style={{ marginLeft: 4 }}>
-              + Nova obra
-            </Link>
+            {canCreateSites && (
+              <Link href="/obras/nova" className="btn-primary" style={{ marginLeft: 4 }}>
+                + Nova obra
+              </Link>
+            )}
           </div>
         </div>
       </div>

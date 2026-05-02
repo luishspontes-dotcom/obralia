@@ -1,10 +1,9 @@
 import "server-only";
 
-import type { SupabaseClient } from "@supabase/supabase-js";
+import type { createServerSupabase } from "@/lib/supabase/server";
 import { canWrite } from "@/lib/authz";
-import type { Database } from "@/lib/supabase/database.types";
 
-type ServerSupabase = SupabaseClient<Database>;
+type ServerSupabase = Awaited<ReturnType<typeof createServerSupabase>>;
 
 type Membership = {
   organization_id: string;

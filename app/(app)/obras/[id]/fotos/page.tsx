@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createServerSupabase } from "@/lib/supabase/server";
+import { withSignedMediaUrls } from "@/lib/supabase/media-url";
 import { PhotoGrid } from "@/components/PhotoLightbox";
 
 type Site = { id: string; name: string; cover_url: string | null };
@@ -42,7 +43,7 @@ export default async function ObraFotosPage({
     .eq("site_id", id).eq("kind", "photo")
     .order("taken_at", { ascending: false, nullsFirst: false })
     .range(offset, offset + PER_PAGE - 1);
-  const photos = (photosRaw ?? []) as Photo[];
+  const photos = await withSignedMediaUrls(supabase, (photosRaw ?? []) as Photo[]);
 
   const total = totalCount ?? photos.length;
   const totalPages = Math.max(1, Math.ceil(total / PER_PAGE));

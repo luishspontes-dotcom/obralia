@@ -1,8 +1,9 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { canWriteOrganization } from "@/lib/org-access";
 import { createServerSupabase } from "@/lib/supabase/server";
 
-type Site = { id: string; name: string; client_name: string | null };
+type Site = { id: string; name: string; client_name: string | null; organization_id: string };
 type DailyReport = {
   id: string;
   number: number;
@@ -29,11 +30,13 @@ export default async function ObraRdosPage({
   const { id } = await params;
   const { status: filter } = await searchParams;
   const supabase = await createServerSupabase();
+  const { data: { user } } = await supabase.auth.getUser();
 
   const { data: siteRaw } = await supabase
-    .from("sites").select("id, name, client_name").eq("id", id).maybeSingle();
+    .from("sites").select("id, name, client_name, organization_id").eq("id", id).maybeSingle();
   const site = siteRaw as Site | null;
   if (!site) notFound();
+  const canEdit = user ? await canWriteOrganization(supabase, user.id, site.organization_id) : false;
 
   let rdoQuery = supabase
     .from("daily_reports")
@@ -95,7 +98,9 @@ export default async function ObraRdosPage({
                 <span style={{ width: 6, height: 6, borderRadius: 999, background: "var(--st-progress)" }} /> Em revisão
               </Link>
               <Link href={`/obras/${id}/rdos?status=draft`} className={`chip ${filter === "draft" ? "chip-active" : ""}`}>Rascunhos</Link>
-              <Link href={`/obras/${id}/rdos/novo`} className="btn-primary" style={{ marginLeft: 4 }}>+ Novo RDO</Link>
+              {canEdit && (
+                <Link href={`/obras/${id}/rdos/novo`} className="btn-primary" style={{ marginLeft: 4 }}>+ Novo RDO</Link>
+              )}
             </div>
           </div>
         </div>

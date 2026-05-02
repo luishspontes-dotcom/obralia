@@ -1,15 +1,21 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { canWriteOrganization } from "@/lib/org-access";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { RdoForm } from "@/components/RdoForm";
 
 export default async function NovoRdoPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const supabase = await createServerSupabase();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) redirect("/login");
   const { data: siteRaw } = await supabase
-    .from("sites").select("id, name").eq("id", id).maybeSingle();
-  const site = siteRaw as { id: string; name: string } | null;
+    .from("sites").select("id, name, organization_id").eq("id", id).maybeSingle();
+  const site = siteRaw as { id: string; name: string; organization_id: string } | null;
   if (!site) redirect("/obras");
+  if (!(await canWriteOrganization(supabase, user.id, site.organization_id))) {
+    redirect(`/obras/${id}`);
+  }
 
   return (
     <div>

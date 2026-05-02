@@ -27,6 +27,7 @@ export function onRouterTransitionStart(
   navigationType: string
 ) {
   void getSentry().then((Sentry) => {
-    Sentry?.captureRouterTransitionStart(href, navigationType);
+    (Sentry as { captureRouterTransitionStart?: (href: string, navigationType: string) => void } | null)
+      ?.captureRouterTransitionStart?.(href, navigationType);
   });
 }

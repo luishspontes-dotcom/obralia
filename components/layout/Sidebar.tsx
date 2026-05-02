@@ -13,6 +13,7 @@ import {
   PlusCircle,
   Hash,
   ChevronsUpDown,
+  Users,
 } from "lucide-react";
 
 interface SidebarProps {
@@ -23,7 +24,6 @@ interface SidebarProps {
 }
 
 export function Sidebar({ activeOrg, userName, canManageSites = true, canManageUsers = true }: SidebarProps) {
-  void canManageSites; void canManageUsers; // referenced to satisfy strict TS
   const pathname = usePathname();
 
   return (
@@ -118,26 +118,35 @@ export function Sidebar({ activeOrg, userName, canManageSites = true, canManageU
         accent="var(--st-late)"
       />
 
-      <Link
-        href="/obras/nova"
-        style={{
-          display: "flex",
-          alignItems: "center",
-          gap: 10,
-          padding: "8px 12px",
-          marginTop: 12,
-          color: "var(--o-accent)",
-          fontSize: 14,
-          textDecoration: "none",
-          fontWeight: 600,
-        }}
-      >
-        <PlusCircle size={16} /> Nova obra
-      </Link>
+      {canManageSites && (
+        <Link
+          href="/obras/nova"
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 10,
+            padding: "8px 12px",
+            marginTop: 12,
+            color: "var(--o-accent)",
+            fontSize: 14,
+            textDecoration: "none",
+            fontWeight: 600,
+          }}
+        >
+          <PlusCircle size={16} /> Nova obra
+        </Link>
+      )}
 
       <SectionHeading>Canais</SectionHeading>
       <NavItem href="/canal/geral" icon={Hash} label="Geral" pathname={pathname} small />
       <NavItem href="/canal/engenharia" icon={Hash} label="Engenharia" pathname={pathname} small />
+
+      {canManageUsers && (
+        <>
+          <SectionHeading>Admin</SectionHeading>
+          <NavItem href="/usuarios" icon={Users} label="Usuários" pathname={pathname} />
+        </>
+      )}
 
       <div
         style={{
