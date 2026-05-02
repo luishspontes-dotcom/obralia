@@ -18,9 +18,12 @@ import {
 interface SidebarProps {
   activeOrg: { id: string; name: string; slug: string; brand_color: string | null } | null;
   userName: string | null;
+  canManageSites?: boolean;
+  canManageUsers?: boolean;
 }
 
-export function Sidebar({ activeOrg, userName }: SidebarProps) {
+export function Sidebar({ activeOrg, userName, canManageSites = true, canManageUsers = true }: SidebarProps) {
+  void canManageSites; void canManageUsers; // referenced to satisfy strict TS
   const pathname = usePathname();
 
   return (
