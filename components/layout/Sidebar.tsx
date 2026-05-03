@@ -28,7 +28,7 @@ export function Sidebar({ activeOrg, userName, canManageSites = true, canManageU
 
   return (
     <aside
-      className="dark-scroll"
+      className="app-sidebar dark-scroll"
       style={{
         background: "var(--o-dark-2)",
         color: "var(--o-text-on-dark)",

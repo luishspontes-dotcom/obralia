@@ -96,7 +96,7 @@ export default async function TarefasPage({
           <div style={{ fontSize: 12, fontWeight: 600, color: "var(--o-text-2)", marginBottom: 10, letterSpacing: "0.04em", textTransform: "uppercase" }}>
             + Nova atividade
           </div>
-          <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr 130px 110px 100px", gap: 10, alignItems: "center" }}>
+          <div className="task-quick-add-grid" style={{ display: "grid", gridTemplateColumns: "2fr 1fr 130px 110px 100px", gap: 10, alignItems: "center" }}>
             <input name="name" required placeholder="Nome da atividade" style={taskInputStyle} />
             <select name="site_id" defaultValue="" style={taskInputStyle}>
               <option value="">Sem obra (geral)</option>

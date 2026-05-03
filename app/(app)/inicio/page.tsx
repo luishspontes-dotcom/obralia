@@ -104,7 +104,7 @@ export default async function InicioPage() {
 
         {/* Stats */}
         <div
-          className="reveal-stagger"
+          className="stat-grid reveal-stagger"
           style={{
             display: "grid",
             gridTemplateColumns: "repeat(4, 1fr)",

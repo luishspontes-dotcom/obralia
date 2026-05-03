@@ -23,6 +23,14 @@ function fmtMs(ms: number | null | undefined): string {
   return rm > 0 ? `${h}h${rm}` : `${h}h`;
 }
 
+function fmtDateShort(date: string): string {
+  const [, month, day] = date.split("-");
+  const months = ["jan.", "fev.", "mar.", "abr.", "mai.", "jun.", "jul.", "ago.", "set.", "out.", "nov.", "dez."];
+  const monthIndex = Number(month) - 1;
+  if (!day || monthIndex < 0 || monthIndex >= months.length) return date;
+  return `${day.padStart(2, "0")} ${months[monthIndex]}`;
+}
+
 const STATUS_LABELS: Record<string, string> = {
   waiting: "Aguardando",
   in_progress: "Em andamento",
@@ -47,6 +55,7 @@ export function TaskRow({ task, siteId }: Props) {
   if (editing) {
     return (
       <form
+        className="task-row-edit"
         action={async (fd) => {
           setSaving(true);
           try { await createOrUpdateTask(fd); setEditing(false); }
@@ -85,11 +94,12 @@ export function TaskRow({ task, siteId }: Props) {
   }
 
   return (
-    <div style={{
+    <div className="task-row" style={{
       display: "flex", alignItems: "center", gap: 12,
       padding: "12px 22px", borderTop: "1px solid var(--o-border)", fontSize: 14,
     }}>
       <button
+        className="task-row-title"
         type="button"
         onClick={() => setEditing(true)}
         style={{
@@ -100,12 +110,12 @@ export function TaskRow({ task, siteId }: Props) {
         {task.name}
       </button>
       {task.due_date && (
-        <span className="tnum" style={{
+        <span className="task-row-date tnum" style={{
           fontSize: 12,
           color: status === "late" ? "var(--st-late)" : "var(--o-text-3)",
           fontWeight: status === "late" ? 500 : 400,
         }}>
-          {new Date(task.due_date).toLocaleDateString("pt-BR", { day: "2-digit", month: "short" })}
+          {fmtDateShort(task.due_date)}
         </span>
       )}
       {task.time_spent_ms ? (
@@ -113,7 +123,7 @@ export function TaskRow({ task, siteId }: Props) {
           ⏱ {fmtMs(task.time_spent_ms)}
         </span>
       ) : null}
-      <form action={logTaskTime} style={{ display: "inline-flex", gap: 4, alignItems: "center" }}>
+      <form className="task-row-time" action={logTaskTime} style={{ display: "inline-flex", gap: 4, alignItems: "center" }}>
         <input type="hidden" name="id" value={task.id} />
         <input
           name="minutes"
@@ -126,23 +136,23 @@ export function TaskRow({ task, siteId }: Props) {
             border: "1px solid var(--o-border)", borderRadius: 6,
             background: "white",
           }}
-          className="tnum"
+          className="task-row-time-input tnum"
         />
-        <button type="submit" title="Registrar tempo"
+        <button type="submit" title="Registrar tempo" className="task-row-time-button"
           style={{
             padding: "5px 8px", fontSize: 11, border: "1px solid var(--o-border)",
             borderRadius: 6, background: "transparent", color: "var(--o-text-2)",
             cursor: "pointer",
           }}>+ tempo</button>
       </form>
-      <span className={`status ${cls}`} style={{ minWidth: 96, justifyContent: "center" }}>
+      <span className={`task-row-status status ${cls}`} style={{ minWidth: 96, justifyContent: "center" }}>
         {label}
       </span>
-      <button type="button" onClick={() => setEditing(true)} title="Editar"
+      <button className="task-row-action" type="button" onClick={() => setEditing(true)} title="Editar"
         style={inlineActionBtn}>✎</button>
       <form action={deleteTask} style={{ display: "inline" }}>
         <input type="hidden" name="id" value={task.id} />
-        <button type="submit" title="Remover" style={inlineActionBtn}>×</button>
+        <button className="task-row-action" type="submit" title="Remover" style={inlineActionBtn}>×</button>
       </form>
     </div>
   );

@@ -31,6 +31,7 @@ export function Rail({ userInitials }: RailProps) {
 
   return (
     <aside
+      className="app-rail"
       aria-label="Navegação principal"
       style={{
         background: "var(--o-dark)",
