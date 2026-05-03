@@ -43,6 +43,11 @@ type CountResult = {
   error: { message: string } | null;
 };
 
+type IdResult = {
+  data: Array<{ id: string }> | null;
+  error: { message: string } | null;
+};
+
 const PROVIDERS = [null, "clickup", "diario_de_obra", "asana", "manual", "import"] as const;
 
 const HISTORICAL_TARGETS = [
@@ -71,6 +76,23 @@ async function countRowsInChunks(
   }
 
   return { count, error: null };
+}
+
+async function fetchIdsInPages(
+  queryForRange: (from: number, to: number) => PromiseLike<unknown>
+) {
+  const ids: string[] = [];
+
+  for (let from = 0; ; from += 1000) {
+    const result = (await queryForRange(from, from + 999)) as IdResult;
+    if (result.error) return ids;
+
+    const rows = result.data ?? [];
+    ids.push(...rows.map((row) => row.id));
+    if (rows.length < 1000) break;
+  }
+
+  return ids;
 }
 
 function formatNumber(value: number) {
@@ -129,20 +151,24 @@ export default async function AuditoriaPage() {
     redirect("/configuracoes");
   }
 
-  const { data: siteRows } = await supabase
-    .from("sites")
-    .select("id")
-    .eq("organization_id", activeOrg.id)
-    .limit(5000);
-  const siteIds = ((siteRows ?? []) as Array<{ id: string }>).map((site) => site.id);
+  const siteIds = await fetchIdsInPages((from, to) =>
+    supabase
+      .from("sites")
+      .select("id")
+      .eq("organization_id", activeOrg.id)
+      .order("id", { ascending: true })
+      .range(from, to)
+  );
   const siteFilter = siteIds.length > 0 ? siteIds : ["00000000-0000-0000-0000-000000000000"];
 
-  const { data: rdoRows } = await supabase
-    .from("daily_reports")
-    .select("id")
-    .in("site_id", siteFilter)
-    .limit(5000);
-  const rdoIds = ((rdoRows ?? []) as Array<{ id: string }>).map((rdo) => rdo.id);
+  const rdoIds = await fetchIdsInPages((from, to) =>
+    supabase
+      .from("daily_reports")
+      .select("id")
+      .in("site_id", siteFilter)
+      .order("id", { ascending: true })
+      .range(from, to)
+  );
 
   const [
     sitesR,

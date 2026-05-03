@@ -88,6 +88,6 @@ test("authenticated user can reach the app shell", async ({ page }) => {
   await page.goto("/configuracoes/auditoria");
   await expect(page).toHaveURL(/\/configuracoes\/auditoria$/);
   await expect(page.getByRole("heading", { name: "Auditoria operacional" })).toBeVisible();
-  await expect(page.getByText("10/10")).toBeVisible();
+  await expect(page.getByText(/^10\/10$/)).toBeVisible();
   await expect(page.getByText("prontidao auditavel")).toBeVisible();
 });
