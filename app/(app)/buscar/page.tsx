@@ -29,7 +29,11 @@ export default async function BuscarPage({
   let hits: Hit[] = [];
 
   if (query.length >= 2) {
-    const { data } = await supabase.rpc("search_global", { q: query, max_per_kind: 15 });
+    const searchGlobal = supabase.rpc as unknown as (
+      fn: "search_global",
+      args: { q: string; max_per_kind: number }
+    ) => Promise<{ data: Hit[] | null }>;
+    const { data } = await searchGlobal("search_global", { q: query, max_per_kind: 15 });
     hits = ((data ?? []) as Hit[]).sort((a, b) => b.match_rank - a.match_rank);
   }
 

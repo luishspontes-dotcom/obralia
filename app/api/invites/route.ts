@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabase } from "@/lib/supabase/server";
-import type { TablesInsert } from "@/lib/supabase/database.types";
 
 const INVITE_ROLES = new Set(["admin", "engineer", "viewer"]);
 const ADMIN_ROLES = new Set(["owner", "admin"]);
@@ -102,17 +101,19 @@ export async function POST(request: NextRequest) {
   }
 
   // Save pending invite (RLS allows admins of org to insert)
-  const pendingPayload: TablesInsert<"pending_invites"> = {
-    email,
-    organization_id: organizationId,
-    role,
-    full_name: fullName,
-    invited_by: user.id,
-    consumed_at: null,
-  };
   const { error: pendingErr } = await supabase
     .from("pending_invites")
-    .upsert(pendingPayload, { onConflict: "email,organization_id" });
+    .upsert(
+      {
+        email,
+        organization_id: organizationId,
+        role,
+        full_name: fullName,
+        invited_by: user.id,
+        consumed_at: null,
+      } as never,
+      { onConflict: "email,organization_id" }
+    );
 
   if (pendingErr) {
     return json(500, `Falha ao registrar convite: ${pendingErr.message}`);
