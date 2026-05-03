@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Inter, Lora, JetBrains_Mono } from "next/font/google";
+import "leaflet/dist/leaflet.css";
 import "./globals.css";
 import { PWARegister } from "@/components/PWARegister";
 
@@ -25,13 +26,14 @@ const jbMono = JetBrains_Mono({
   weight: ["400", "500"],
 });
 
+const appUrl =
+  process.env.NEXT_PUBLIC_APP_URL?.trim() || "https://www.obralia.com.br";
+
 export const metadata: Metadata = {
   title: "Obralia — sistema operacional da obra",
   description:
     "SaaS multi-tenant para construtoras de alto padrão. RDO, EAP, fotos, cronograma e inbox em um só lugar.",
-  metadataBase: new URL(
-    process.env.NEXT_PUBLIC_APP_URL ?? "https://www.obralia.com.br"
-  ),
+  metadataBase: new URL(appUrl),
   icons: {
     icon: "/favicon.svg",
   },
