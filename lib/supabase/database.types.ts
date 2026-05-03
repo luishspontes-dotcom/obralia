@@ -108,6 +108,7 @@ export type Database = {
           id: string
           mentions: string[] | null
           organization_id: string
+          search_vec: unknown
           target_id: string
           target_table: string
         }
@@ -118,6 +119,7 @@ export type Database = {
           id?: string
           mentions?: string[] | null
           organization_id: string
+          search_vec?: unknown
           target_id: string
           target_table: string
         }
@@ -128,6 +130,7 @@ export type Database = {
           id?: string
           mentions?: string[] | null
           organization_id?: string
+          search_vec?: unknown
           target_id?: string
           target_table?: string
         }
@@ -144,6 +147,121 @@ export type Database = {
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      daily_reports: {
+        Row: {
+          approval_status_id: number | null
+          approval_status_label: string | null
+          approved_at: string | null
+          approved_by: string | null
+          condition_afternoon: string | null
+          condition_morning: string | null
+          created_at: string | null
+          created_by: string | null
+          date: string
+          external_id: string | null
+          external_provider: string | null
+          external_url: string | null
+          general_notes: string | null
+          id: string
+          last_synced_at: string | null
+          number: number
+          pdf_url: string | null
+          search_vec: unknown
+          signature_data_url: string | null
+          signature_electronic_url: string[] | null
+          signature_manual_url: string[] | null
+          signature_signed_at: string | null
+          signature_signer_name: string | null
+          site_id: string
+          status: string | null
+          sync_metadata: Json
+          weather_afternoon: string | null
+          weather_morning: string | null
+        }
+        Insert: {
+          approval_status_id?: number | null
+          approval_status_label?: string | null
+          approved_at?: string | null
+          approved_by?: string | null
+          condition_afternoon?: string | null
+          condition_morning?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          date: string
+          external_id?: string | null
+          external_provider?: string | null
+          external_url?: string | null
+          general_notes?: string | null
+          id?: string
+          last_synced_at?: string | null
+          number: number
+          pdf_url?: string | null
+          search_vec?: unknown
+          signature_data_url?: string | null
+          signature_electronic_url?: string[] | null
+          signature_manual_url?: string[] | null
+          signature_signed_at?: string | null
+          signature_signer_name?: string | null
+          site_id: string
+          status?: string | null
+          sync_metadata?: Json
+          weather_afternoon?: string | null
+          weather_morning?: string | null
+        }
+        Update: {
+          approval_status_id?: number | null
+          approval_status_label?: string | null
+          approved_at?: string | null
+          approved_by?: string | null
+          condition_afternoon?: string | null
+          condition_morning?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          date?: string
+          external_id?: string | null
+          external_provider?: string | null
+          external_url?: string | null
+          general_notes?: string | null
+          id?: string
+          last_synced_at?: string | null
+          number?: number
+          pdf_url?: string | null
+          search_vec?: unknown
+          signature_data_url?: string | null
+          signature_electronic_url?: string[] | null
+          signature_manual_url?: string[] | null
+          signature_signed_at?: string | null
+          signature_signer_name?: string | null
+          site_id?: string
+          status?: string | null
+          sync_metadata?: Json
+          weather_afternoon?: string | null
+          weather_morning?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "daily_reports_approved_by_fkey"
+            columns: ["approved_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "daily_reports_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "daily_reports_site_id_fkey"
+            columns: ["site_id"]
+            isOneToOne: false
+            referencedRelation: "sites"
             referencedColumns: ["id"]
           },
         ]
@@ -211,94 +329,6 @@ export type Database = {
           },
         ]
       }
-      daily_reports: {
-        Row: {
-          approved_at: string | null
-          approved_by: string | null
-          condition_afternoon: string | null
-          condition_morning: string | null
-          created_at: string | null
-          created_by: string | null
-          date: string
-          external_id: string | null
-          external_provider: string | null
-          external_url: string | null
-          general_notes: string | null
-          id: string
-          last_synced_at: string | null
-          number: number
-          site_id: string
-          status: string | null
-          sync_metadata: Json
-          weather_afternoon: string | null
-          weather_morning: string | null
-        }
-        Insert: {
-          approved_at?: string | null
-          approved_by?: string | null
-          condition_afternoon?: string | null
-          condition_morning?: string | null
-          created_at?: string | null
-          created_by?: string | null
-          date: string
-          external_id?: string | null
-          external_provider?: string | null
-          external_url?: string | null
-          general_notes?: string | null
-          id?: string
-          last_synced_at?: string | null
-          number: number
-          site_id: string
-          status?: string | null
-          sync_metadata?: Json
-          weather_afternoon?: string | null
-          weather_morning?: string | null
-        }
-        Update: {
-          approved_at?: string | null
-          approved_by?: string | null
-          condition_afternoon?: string | null
-          condition_morning?: string | null
-          created_at?: string | null
-          created_by?: string | null
-          date?: string
-          external_id?: string | null
-          external_provider?: string | null
-          external_url?: string | null
-          general_notes?: string | null
-          id?: string
-          last_synced_at?: string | null
-          number?: number
-          site_id?: string
-          status?: string | null
-          sync_metadata?: Json
-          weather_afternoon?: string | null
-          weather_morning?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "daily_reports_approved_by_fkey"
-            columns: ["approved_by"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "daily_reports_created_by_fkey"
-            columns: ["created_by"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "daily_reports_site_id_fkey"
-            columns: ["site_id"]
-            isOneToOne: false
-            referencedRelation: "sites"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       media: {
         Row: {
           caption: string | null
@@ -313,6 +343,9 @@ export type Database = {
           id: string
           kind: string
           last_synced_at: string | null
+          migrated_at: string | null
+          migration_error: string | null
+          migration_started_at: string | null
           site_id: string
           size_bytes: number | null
           storage_path: string
@@ -336,6 +369,9 @@ export type Database = {
           id?: string
           kind: string
           last_synced_at?: string | null
+          migrated_at?: string | null
+          migration_error?: string | null
+          migration_started_at?: string | null
           site_id: string
           size_bytes?: number | null
           storage_path: string
@@ -359,6 +395,9 @@ export type Database = {
           id?: string
           kind?: string
           last_synced_at?: string | null
+          migrated_at?: string | null
+          migration_error?: string | null
+          migration_started_at?: string | null
           site_id?: string
           size_bytes?: number | null
           storage_path?: string
@@ -612,6 +651,54 @@ export type Database = {
           },
         ]
       }
+      rdo_templates: {
+        Row: {
+          activities: Json
+          created_at: string | null
+          created_by: string | null
+          equipment: Json
+          id: string
+          name: string
+          organization_id: string
+          workforce: Json
+        }
+        Insert: {
+          activities?: Json
+          created_at?: string | null
+          created_by?: string | null
+          equipment?: Json
+          id?: string
+          name: string
+          organization_id: string
+          workforce?: Json
+        }
+        Update: {
+          activities?: Json
+          created_at?: string | null
+          created_by?: string | null
+          equipment?: Json
+          id?: string
+          name?: string
+          organization_id?: string
+          workforce?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rdo_templates_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rdo_templates_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       report_activities: {
         Row: {
           daily_report_id: string
@@ -683,6 +770,44 @@ export type Database = {
           },
         ]
       }
+      report_materials: {
+        Row: {
+          created_at: string | null
+          daily_report_id: string
+          id: string
+          name: string
+          notes: string | null
+          quantity: number | null
+          unit: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          daily_report_id: string
+          id?: string
+          name: string
+          notes?: string | null
+          quantity?: number | null
+          unit?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          daily_report_id?: string
+          id?: string
+          name?: string
+          notes?: string | null
+          quantity?: number | null
+          unit?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "report_materials_daily_report_id_fkey"
+            columns: ["daily_report_id"]
+            isOneToOne: false
+            referencedRelation: "daily_reports"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       report_workforce: {
         Row: {
           count: number
@@ -726,9 +851,12 @@ export type Database = {
           external_url: string | null
           id: string
           last_synced_at: string | null
+          lat: number | null
+          lng: number | null
           name: string
           organization_id: string
           responsible_id: string | null
+          search_vec: unknown
           start_date: string | null
           status: string
           sync_metadata: Json
@@ -746,9 +874,12 @@ export type Database = {
           external_url?: string | null
           id?: string
           last_synced_at?: string | null
+          lat?: number | null
+          lng?: number | null
           name: string
           organization_id: string
           responsible_id?: string | null
+          search_vec?: unknown
           start_date?: string | null
           status?: string
           sync_metadata?: Json
@@ -766,9 +897,12 @@ export type Database = {
           external_url?: string | null
           id?: string
           last_synced_at?: string | null
+          lat?: number | null
+          lng?: number | null
           name?: string
           organization_id?: string
           responsible_id?: string | null
+          search_vec?: unknown
           start_date?: string | null
           status?: string
           sync_metadata?: Json
@@ -859,9 +993,25 @@ export type Database = {
       }
       wbs_items: {
         Row: {
+          archived: boolean | null
+          asana_external_id: string | null
+          asana_modified_at: string | null
+          asana_url: string | null
           assignee_id: string | null
-          code: string
+          assignees: Json | null
+          attachment_count: number | null
+          blocks_external: string[] | null
+          clickup_url: string | null
+          code: string | null
+          comment_count: number | null
           created_at: string | null
+          custom_fields: Json | null
+          date_closed: string | null
+          date_created: string | null
+          date_done: string | null
+          date_updated: string | null
+          depends_on: string[] | null
+          description: string | null
           due_date: string | null
           external_id: string | null
           external_provider: string | null
@@ -872,16 +1022,38 @@ export type Database = {
           parent_id: string | null
           position: number | null
           progress_pct: number | null
+          search_vec: unknown
           site_id: string
+          source: string[] | null
           start_date: string | null
           status: string | null
+          subtask_external_parent: string | null
           sync_metadata: Json
+          tags: string[] | null
+          time_estimate_ms: number | null
+          time_spent_ms: number | null
           weight: number | null
         }
         Insert: {
+          archived?: boolean | null
+          asana_external_id?: string | null
+          asana_modified_at?: string | null
+          asana_url?: string | null
           assignee_id?: string | null
-          code: string
+          assignees?: Json | null
+          attachment_count?: number | null
+          blocks_external?: string[] | null
+          clickup_url?: string | null
+          code?: string | null
+          comment_count?: number | null
           created_at?: string | null
+          custom_fields?: Json | null
+          date_closed?: string | null
+          date_created?: string | null
+          date_done?: string | null
+          date_updated?: string | null
+          depends_on?: string[] | null
+          description?: string | null
           due_date?: string | null
           external_id?: string | null
           external_provider?: string | null
@@ -892,16 +1064,38 @@ export type Database = {
           parent_id?: string | null
           position?: number | null
           progress_pct?: number | null
+          search_vec?: unknown
           site_id: string
+          source?: string[] | null
           start_date?: string | null
           status?: string | null
+          subtask_external_parent?: string | null
           sync_metadata?: Json
+          tags?: string[] | null
+          time_estimate_ms?: number | null
+          time_spent_ms?: number | null
           weight?: number | null
         }
         Update: {
+          archived?: boolean | null
+          asana_external_id?: string | null
+          asana_modified_at?: string | null
+          asana_url?: string | null
           assignee_id?: string | null
-          code?: string
+          assignees?: Json | null
+          attachment_count?: number | null
+          blocks_external?: string[] | null
+          clickup_url?: string | null
+          code?: string | null
+          comment_count?: number | null
           created_at?: string | null
+          custom_fields?: Json | null
+          date_closed?: string | null
+          date_created?: string | null
+          date_done?: string | null
+          date_updated?: string | null
+          depends_on?: string[] | null
+          description?: string | null
           due_date?: string | null
           external_id?: string | null
           external_provider?: string | null
@@ -912,10 +1106,16 @@ export type Database = {
           parent_id?: string | null
           position?: number | null
           progress_pct?: number | null
+          search_vec?: unknown
           site_id?: string
+          source?: string[] | null
           start_date?: string | null
           status?: string | null
+          subtask_external_parent?: string | null
           sync_metadata?: Json
+          tags?: string[] | null
+          time_estimate_ms?: number | null
+          time_spent_ms?: number | null
           weight?: number | null
         }
         Relationships: [
@@ -973,6 +1173,15 @@ export type Database = {
         Returns: boolean
       }
       can_write_site: { Args: { target_site_id: string }; Returns: boolean }
+      claim_pending_media: {
+        Args: { batch_size: number }
+        Returns: {
+          id: string
+          site_id: string
+          storage_path: string
+          thumbnail_path: string
+        }[]
+      }
       consume_pending_invites: { Args: never; Returns: undefined }
       consume_pending_invites_for_user: {
         Args: { target_email: string; target_user_id: string }
@@ -993,6 +1202,17 @@ export type Database = {
       current_user_admin_orgs: { Args: never; Returns: string[] }
       current_user_orgs: { Args: never; Returns: string[] }
       current_user_writer_orgs: { Args: never; Returns: string[] }
+      search_global: {
+        Args: { max_per_kind?: number; q: string }
+        Returns: {
+          id: string
+          kind: string
+          link: string
+          match_rank: number
+          subtitle: string
+          title: string
+        }[]
+      }
     }
     Enums: {
       [_ in never]: never

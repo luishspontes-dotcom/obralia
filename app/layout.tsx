@@ -30,7 +30,7 @@ export const metadata: Metadata = {
   description:
     "SaaS multi-tenant para construtoras de alto padrão. RDO, EAP, fotos, cronograma e inbox em um só lugar.",
   metadataBase: new URL(
-    process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000"
+    process.env.NEXT_PUBLIC_APP_URL ?? "https://www.obralia.com.br"
   ),
   icons: {
     icon: "/favicon.svg",
@@ -40,6 +40,42 @@ export const metadata: Metadata = {
     capable: true,
     statusBarStyle: "default",
     title: "Obralia",
+  },
+  openGraph: {
+    type: "website",
+    locale: "pt_BR",
+    url: "/",
+    siteName: "Obralia",
+    title: "Obralia — sistema operacional da obra",
+    description:
+      "RDO, EAP, fotos, cronograma e inbox em um só lugar. Pra construtoras que querem operar com a mesma precisão de uma planta.",
+    images: [
+      {
+        url: "/og-image.svg",
+        width: 1200,
+        height: 630,
+        alt: "Obralia",
+      },
+    ],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Obralia — sistema operacional da obra",
+    description:
+      "RDO, EAP, fotos, cronograma e inbox em um só lugar. Pra construtoras que querem operar com a mesma precisão de uma planta.",
+    images: ["/og-image.svg"],
+  },
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      "max-image-preview": "large",
+    },
+  },
+  alternates: {
+    canonical: "/",
   },
 };
 
