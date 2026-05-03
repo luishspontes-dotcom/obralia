@@ -42,7 +42,7 @@ export default async function BuscarPage({
   let hits: Hit[] = [];
 
   if (query.length >= 2) {
-    const searchGlobal = supabase.rpc as unknown as (
+    const searchGlobal = supabase.rpc.bind(supabase) as unknown as (
       fn: "search_global",
       args: { q: string; max_per_kind: number }
     ) => Promise<{ data: Hit[] | null; error: { message: string } | null }>;
