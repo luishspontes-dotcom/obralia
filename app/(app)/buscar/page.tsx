@@ -29,64 +29,8 @@ export default async function BuscarPage({
   let hits: Hit[] = [];
 
   if (query.length >= 2) {
-    const pattern = `%${query}%`;
-    const [sitesR, tasksR, rdosR, commentsR] = await Promise.all([
-      supabase
-        .from("sites")
-        .select("id, name, address, client_name")
-        .or(`name.ilike.${pattern},address.ilike.${pattern},client_name.ilike.${pattern}`)
-        .limit(15),
-      supabase
-        .from("wbs_items")
-        .select("id, name, site_id, status")
-        .ilike("name", pattern)
-        .limit(15),
-      supabase
-        .from("daily_reports")
-        .select("id, number, date, site_id, general_notes")
-        .ilike("general_notes", pattern)
-        .limit(15),
-      supabase
-        .from("comments")
-        .select("id, body, target_table, target_id")
-        .ilike("body", pattern)
-        .limit(15),
-    ]);
-
-    hits = [
-      ...((sitesR.data ?? []) as Array<{ id: string; name: string; address: string | null; client_name: string | null }>).map((site) => ({
-        kind: "obra" as const,
-        id: site.id,
-        title: site.name,
-        subtitle: [site.client_name, site.address].filter(Boolean).join(" · ") || "Obra",
-        link: `/obras/${site.id}`,
-        match_rank: 100,
-      })),
-      ...((tasksR.data ?? []) as Array<{ id: string; name: string; site_id: string; status: string | null }>).map((task) => ({
-        kind: "tarefa" as const,
-        id: task.id,
-        title: task.name,
-        subtitle: task.status ?? "Atividade",
-        link: `/obras/${task.site_id}`,
-        match_rank: 80,
-      })),
-      ...((rdosR.data ?? []) as Array<{ id: string; number: number; date: string; site_id: string; general_notes: string | null }>).map((rdo) => ({
-        kind: "rdo" as const,
-        id: rdo.id,
-        title: `RDO #${rdo.number}`,
-        subtitle: rdo.general_notes ?? rdo.date,
-        link: `/obras/${rdo.site_id}/rdos/${rdo.id}`,
-        match_rank: 60,
-      })),
-      ...((commentsR.data ?? []) as Array<{ id: string; body: string; target_table: string; target_id: string }>).map((comment) => ({
-        kind: "comentario" as const,
-        id: comment.id,
-        title: comment.body.slice(0, 80),
-        subtitle: comment.target_table,
-        link: "/comentarios",
-        match_rank: 40,
-      })),
-    ];
+    const { data } = await supabase.rpc("search_global", { q: query, max_per_kind: 15 });
+    hits = ((data ?? []) as Hit[]).sort((a, b) => b.match_rank - a.match_rank);
   }
 
   // Group by kind for display

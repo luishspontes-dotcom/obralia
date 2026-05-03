@@ -360,6 +360,26 @@ html, body {
   border-radius: 4px;
 }
 
+/* Skip nav link — invisivel ate receber foco via Tab.
+   Permite leitor de tela / teclado pular o Rail/Sidebar e ir direto pro conteudo. */
+.skip-nav {
+  position: absolute;
+  top: -40px;
+  left: 8px;
+  z-index: 9999;
+  padding: 10px 16px;
+  background: var(--t-brand);
+  color: var(--t-brand-on);
+  font: 600 14px var(--font-inter);
+  border-radius: 8px;
+  text-decoration: none;
+  transition: top 200ms;
+}
+.skip-nav:focus,
+.skip-nav:focus-visible {
+  top: 8px;
+}
+
 a { transition: color var(--duration) var(--ease); }
 
 img { transition: opacity var(--duration) var(--ease); }

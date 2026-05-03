@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import type * as Leaflet from "leaflet";
 
 type Pin = {
   id: string;
@@ -14,17 +13,48 @@ type Pin = {
   photoLng: number | null;
 };
 
+declare global {
+  interface Window {
+    L?: typeof import("leaflet");
+  }
+}
+
 export function MapView({ pins }: { pins: Pin[] }) {
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    let map: Leaflet.Map | null = null;
-    let cancelled = false;
+    let map: import("leaflet").Map | null = null;
 
     async function init() {
       if (!ref.current) return;
-      const L = await import("leaflet");
-      if (cancelled || !ref.current) return;
+
+      // Lazy-load Leaflet via CDN se ainda não estiver
+      if (!window.L) {
+        await new Promise<void>((resolve, reject) => {
+          // CSS
+          if (!document.querySelector('link[href*="leaflet.css"]')) {
+            const link = document.createElement("link");
+            link.rel = "stylesheet";
+            link.href = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.css";
+            document.head.appendChild(link);
+          }
+          // JS
+          if (document.querySelector('script[src*="leaflet.js"]')) {
+            // já carregado mas ainda não chegou
+            const check = setInterval(() => {
+              if (window.L) { clearInterval(check); resolve(); }
+            }, 100);
+            return;
+          }
+          const script = document.createElement("script");
+          script.src = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.js";
+          script.onload = () => resolve();
+          script.onerror = () => reject(new Error("Falha ao carregar Leaflet"));
+          document.head.appendChild(script);
+        });
+      }
+
+      const L = window.L!;
       const points = pins.map((p) => ({
         ...p,
         finalLat: p.lat ?? p.photoLat!,
@@ -67,10 +97,7 @@ export function MapView({ pins }: { pins: Pin[] }) {
     }
 
     init();
-    return () => {
-      cancelled = true;
-      if (map) map.remove();
-    };
+    return () => { if (map) map.remove(); };
   }, [pins]);
 
   return (

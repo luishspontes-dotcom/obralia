@@ -31,6 +31,7 @@ export function Rail({ userInitials }: RailProps) {
 
   return (
     <aside
+      aria-label="Navegação principal"
       style={{
         background: "var(--o-dark)",
         color: "var(--o-text-on-dark)",
@@ -77,6 +78,8 @@ export function Rail({ userInitials }: RailProps) {
             key={href}
             href={href}
             title={label}
+            aria-label={label}
+            aria-current={active ? "page" : undefined}
             style={{
               width: 44,
               height: 44,
@@ -123,6 +126,13 @@ export function Rail({ userInitials }: RailProps) {
       <Link
         href="/configuracoes"
         title="Configurações"
+        aria-label="Configurações"
+        aria-current={
+          pathname === "/configuracoes" ||
+          pathname.startsWith("/configuracoes/")
+            ? "page"
+            : undefined
+        }
         style={{
           width: 44,
           height: 44,

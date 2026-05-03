@@ -3,21 +3,6 @@ import { createServerSupabase } from "@/lib/supabase/server";
 
 const INVITE_ROLES = new Set(["admin", "engineer", "viewer"]);
 const ADMIN_ROLES = new Set(["owner", "admin"]);
-const RATE_LIMIT_WINDOW_MS = 10 * 60 * 1000;
-const RATE_LIMIT_MAX_ATTEMPTS = 20;
-
-type RateLimitEntry = {
-  count: number;
-  resetAt: number;
-};
-
-const rateLimitGlobal = globalThis as typeof globalThis & {
-  __obraliaInviteRateLimit?: Map<string, RateLimitEntry>;
-};
-const inviteRateLimit =
-  rateLimitGlobal.__obraliaInviteRateLimit ??
-  new Map<string, RateLimitEntry>();
-rateLimitGlobal.__obraliaInviteRateLimit = inviteRateLimit;
 
 type InviteBody = {
   email?: unknown;
@@ -30,22 +15,30 @@ function json(status: number, message: string) {
   return NextResponse.json({ message }, { status });
 }
 
-function getClientKey(request: NextRequest, email: string) {
-  const forwardedFor = request.headers.get("x-forwarded-for");
-  const ip = forwardedFor?.split(",")[0]?.trim() || "unknown";
-  return `${ip}:${email}`;
-}
+/**
+ * Rate limit em memória: max 10 convites por usuário por hora.
+ * Mata abuso simples (caso credencial vaze) sem custo de Redis externo.
+ * Reseta no cold-start do serverless — aceitável pra esse uso.
+ */
+const RATE_LIMIT_MAX = 10;
+const RATE_LIMIT_WINDOW_MS = 60 * 60 * 1000; // 1h
+const inviteRateLimit = new Map<string, number[]>();
 
-function isRateLimited(key: string) {
+function checkRateLimit(userId: string): { ok: boolean; retryAfterSec?: number } {
   const now = Date.now();
-  const current = inviteRateLimit.get(key);
-  if (!current || current.resetAt <= now) {
-    inviteRateLimit.set(key, { count: 1, resetAt: now + RATE_LIMIT_WINDOW_MS });
-    return false;
+  const recent = (inviteRateLimit.get(userId) ?? []).filter(
+    (t) => now - t < RATE_LIMIT_WINDOW_MS
+  );
+  if (recent.length >= RATE_LIMIT_MAX) {
+    const oldest = recent[0];
+    const retryAfterSec = Math.ceil(
+      (RATE_LIMIT_WINDOW_MS - (now - oldest)) / 1000
+    );
+    return { ok: false, retryAfterSec };
   }
-
-  current.count += 1;
-  return current.count > RATE_LIMIT_MAX_ATTEMPTS;
+  recent.push(now);
+  inviteRateLimit.set(userId, recent);
+  return { ok: true };
 }
 
 export async function POST(request: NextRequest) {
@@ -75,9 +68,6 @@ export async function POST(request: NextRequest) {
   if (!organizationId) {
     return json(400, "Organização inválida.");
   }
-  if (isRateLimited(getClientKey(request, email))) {
-    return json(429, "Muitas tentativas. Tente novamente em alguns minutos.");
-  }
 
   const supabase = await createServerSupabase();
   const {
@@ -96,6 +86,20 @@ export async function POST(request: NextRequest) {
     return json(403, "Sem permissão.");
   }
 
+  const rate = checkRateLimit(user.id);
+  if (!rate.ok) {
+    const min = Math.ceil((rate.retryAfterSec ?? 0) / 60);
+    return NextResponse.json(
+      {
+        message: `Muitos convites em pouco tempo. Tente novamente em ${min} min.`,
+      },
+      {
+        status: 429,
+        headers: { "Retry-After": String(rate.retryAfterSec ?? 60) },
+      }
+    );
+  }
+
   // Save pending invite (RLS allows admins of org to insert)
   const { error: pendingErr } = await supabase
     .from("pending_invites")
@@ -112,12 +116,7 @@ export async function POST(request: NextRequest) {
     );
 
   if (pendingErr) {
-    console.error("Invite persistence failed", {
-      organizationId,
-      email,
-      error: pendingErr.message,
-    });
-    return json(500, "Falha ao registrar convite.");
+    return json(500, `Falha ao registrar convite: ${pendingErr.message}`);
   }
 
   // Send magic link with shouldCreateUser=true. The handle_new_user trigger consumes
@@ -137,12 +136,7 @@ export async function POST(request: NextRequest) {
   });
 
   if (otpErr) {
-    console.error("Invite email failed", {
-      organizationId,
-      email,
-      error: otpErr.message,
-    });
-    return json(500, "Falha ao enviar link de acesso.");
+    return json(500, `Falha ao enviar link: ${otpErr.message}`);
   }
 
   return NextResponse.json({ ok: true });

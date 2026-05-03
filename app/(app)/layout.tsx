@@ -47,6 +47,9 @@ export default async function AppLayout({
 
   return (
     <div className="app-shell">
+      <a href="#main-content" className="skip-nav">
+        Pular para o conteúdo
+      </a>
       <Rail
         userInitials={
           (fullName ?? user.email ?? "??")
@@ -58,9 +61,7 @@ export default async function AppLayout({
         }
       />
       <Sidebar activeOrg={activeOrg} userName={fullName} />
-      <main
-        className="app-main light-scroll"
-      >
+      <main id="main-content" className="app-main light-scroll" tabIndex={-1}>
         {children}
       </main>
       <KeyboardShortcuts />
