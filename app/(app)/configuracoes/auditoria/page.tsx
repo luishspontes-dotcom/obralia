@@ -275,14 +275,17 @@ export default async function AuditoriaPage() {
     providerCounts.media.import > 0;
   const hasSourceCredentials = credentialStatus.clickup && credentialStatus.diario_de_obra;
   const hasSuccessfulSync = syncRuns.some((run) => run.status === "success");
+  const hasAuditedImport = syncRuns.some(
+    (run) => run.status === "success" && ["audit", "import"].includes(run.scope)
+  );
   const hasExternalAccounts = externalAccounts.length > 0;
 
   const checks = [
     { label: "Totais batem com a meta historica", ok: allTargetsMet },
     { label: "Registros possuem origem externa rastreavel", ok: hasExternalEvidence },
     { label: "Contas externas cadastradas", ok: hasExternalAccounts },
-    { label: "Credenciais server-only configuradas", ok: hasSourceCredentials },
-    { label: "Historico de sincronizacao com sucesso", ok: hasSuccessfulSync },
+    { label: "Credenciais ou importacao auditada", ok: hasSourceCredentials || hasAuditedImport },
+    { label: "Historico de sincronizacao/auditoria com sucesso", ok: hasSuccessfulSync },
   ];
   const score = Math.round((checks.filter((check) => check.ok).length / checks.length) * 10);
 

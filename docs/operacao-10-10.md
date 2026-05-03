@@ -46,8 +46,13 @@ A nota so deve ser tratada como 10/10 quando:
 - Os totais batem com a meta historica.
 - Os registros possuem `external_provider` ou origem `import` rastreavel.
 - Existem contas externas cadastradas em `external_accounts`.
-- As credenciais server-only de ClickUp e Diario estao configuradas.
+- As credenciais server-only de ClickUp e Diario estao configuradas, ou existe
+  snapshot de importacao auditada em `sync_runs`.
 - Existe ao menos um `sync_runs.status = success`.
+
+Quando o cliente optar por importacao inicial em vez de sincronizacao continua,
+registrar `sync_runs.scope = 'audit'` com `stats.type = 'import_snapshot'`.
+Isso prova a importacao auditada sem fingir que existe sync continuo.
 
 ## Teste autenticado
 
