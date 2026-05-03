@@ -10,6 +10,19 @@ type Hit = {
   match_rank: number;
 };
 
+type Supabase = Awaited<ReturnType<typeof createServerSupabase>>;
+type SearchSite = { id: string; name: string; client_name: string | null; address: string | null; status: string | null };
+type SearchWbs = { id: string; site_id: string; code: string | null; name: string; status: string | null };
+type SearchRdo = {
+  id: string;
+  site_id: string;
+  number: number;
+  date: string;
+  status: string | null;
+  general_notes: string | null;
+};
+type SearchComment = { id: string; body: string; target_table: string; created_at: string | null };
+
 const KIND_META: Record<string, { label: string; emoji: string; color: string }> = {
   obra:       { label: "Obra",       emoji: "🏗",  color: "var(--t-brand)" },
   tarefa:     { label: "Atividade",  emoji: "📋",  color: "var(--st-progress)" },
@@ -32,9 +45,11 @@ export default async function BuscarPage({
     const searchGlobal = supabase.rpc as unknown as (
       fn: "search_global",
       args: { q: string; max_per_kind: number }
-    ) => Promise<{ data: Hit[] | null }>;
-    const { data } = await searchGlobal("search_global", { q: query, max_per_kind: 15 });
-    hits = ((data ?? []) as Hit[]).sort((a, b) => b.match_rank - a.match_rank);
+    ) => Promise<{ data: Hit[] | null; error: { message: string } | null }>;
+    const { data, error } = await searchGlobal("search_global", { q: query, max_per_kind: 15 });
+    hits = error
+      ? await fallbackSearch(supabase, query)
+      : ((data ?? []) as Hit[]).sort((a, b) => b.match_rank - a.match_rank);
   }
 
   // Group by kind for display
@@ -143,4 +158,93 @@ export default async function BuscarPage({
       </div>
     </div>
   );
+}
+
+async function fallbackSearch(supabase: Supabase, query: string): Promise<Hit[]> {
+  const safeQuery = query.replace(/[%,]/g, " ").trim();
+  if (safeQuery.length < 2) return [];
+  const pattern = `%${safeQuery}%`;
+  const numericQuery = Number.parseInt(safeQuery, 10);
+  const canSearchNumber = Number.isFinite(numericQuery) && String(numericQuery) === safeQuery;
+
+  const rdoQuery = supabase
+    .from("daily_reports")
+    .select("id, site_id, number, date, status, general_notes")
+    .limit(15);
+
+  const [sitesR, wbsR, rdosR, commentsR] = await Promise.all([
+    supabase
+      .from("sites")
+      .select("id, name, client_name, address, status")
+      .or(`name.ilike.${pattern},client_name.ilike.${pattern},address.ilike.${pattern},status.ilike.${pattern}`)
+      .limit(15),
+    supabase
+      .from("wbs_items")
+      .select("id, site_id, code, name, status")
+      .or(`name.ilike.${pattern},code.ilike.${pattern},status.ilike.${pattern}`)
+      .limit(15),
+    canSearchNumber
+      ? rdoQuery.eq("number", numericQuery)
+      : rdoQuery.or(`date.ilike.${pattern},status.ilike.${pattern},general_notes.ilike.${pattern}`),
+    supabase
+      .from("comments")
+      .select("id, body, target_table, created_at")
+      .ilike("body", pattern)
+      .limit(15),
+  ]);
+  const sites = (sitesR.data ?? []) as unknown as SearchSite[];
+  const wbsItems = (wbsR.data ?? []) as unknown as SearchWbs[];
+  const rdos = (rdosR.data ?? []) as unknown as SearchRdo[];
+  const comments = (commentsR.data ?? []) as unknown as SearchComment[];
+
+  const siteIds = new Set<string>();
+  for (const item of wbsItems) siteIds.add(item.site_id);
+  for (const item of rdos) siteIds.add(item.site_id);
+  const siteLookup = new Map<string, string>();
+  if (siteIds.size > 0) {
+    const { data } = await supabase
+      .from("sites")
+      .select("id, name")
+      .in("id", [...siteIds]);
+    for (const site of (data ?? []) as unknown as Array<{ id: string; name: string }>) {
+      siteLookup.set(site.id, site.name);
+    }
+  }
+
+  const hits: Hit[] = [
+    ...(sites.map((site) => ({
+      kind: "obra" as const,
+      id: site.id,
+      title: site.name,
+      subtitle: [site.client_name, site.address, site.status].filter(Boolean).join(" · "),
+      link: `/obras/${site.id}`,
+      match_rank: 70,
+    }))),
+    ...(wbsItems.map((item) => ({
+      kind: "tarefa" as const,
+      id: item.id,
+      title: item.name,
+      subtitle: [siteLookup.get(item.site_id), item.code, item.status].filter(Boolean).join(" · "),
+      link: `/obras/${item.site_id}`,
+      match_rank: 60,
+    }))),
+    ...(rdos.map((rdo) => ({
+      kind: "rdo" as const,
+      id: rdo.id,
+      title: `RDO #${rdo.number} · ${siteLookup.get(rdo.site_id) ?? "Obra"}`,
+      subtitle: [rdo.date, rdo.status, rdo.general_notes].filter(Boolean).join(" · "),
+      link: `/obras/${rdo.site_id}/rdos/${rdo.id}`,
+      match_rank: 50,
+    }))),
+    ...(comments.map((comment) => ({
+      kind: "comentario" as const,
+      id: comment.id,
+      title: comment.body.slice(0, 90),
+      subtitle: [comment.target_table, comment.created_at?.slice(0, 10)].filter(Boolean).join(" · "),
+      link: "/comentarios",
+      match_rank: 40,
+    }))),
+  ];
+
+  return hits.sort((a, b) => b.match_rank - a.match_rank);
 }
