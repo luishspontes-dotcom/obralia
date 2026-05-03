@@ -8,7 +8,7 @@ const cspDirectives = [
   "frame-ancestors 'none'",
   "object-src 'none'",
   "img-src 'self' data: blob: https://*.supabase.co https://www.meuviverconstrutora.com.br https://cdndiariodeobra.azureedge.net https://*.tile.openstreetmap.org",
-  "font-src 'self' data:",
+  "font-src 'self' data: https://cdndiariodeobra.azureedge.net",
   "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://*.ingest.sentry.io https://*.sentry.io",
   "script-src 'self' 'unsafe-inline'",
   "style-src 'self' 'unsafe-inline'",
