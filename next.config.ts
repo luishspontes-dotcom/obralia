@@ -7,7 +7,7 @@ const cspDirectives = [
   "form-action 'self'",
   "frame-ancestors 'none'",
   "object-src 'none'",
-  "img-src 'self' data: blob: https://*.supabase.co https://www.meuviverconstrutora.com.br https://*.tile.openstreetmap.org",
+  "img-src 'self' data: blob: https://*.supabase.co https://www.meuviverconstrutora.com.br https://cdndiariodeobra.azureedge.net https://*.tile.openstreetmap.org",
   "font-src 'self' data:",
   "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://*.ingest.sentry.io https://*.sentry.io",
   "script-src 'self' 'unsafe-inline'",
@@ -49,6 +49,7 @@ const nextConfig: NextConfig = {
     remotePatterns: [
       { protocol: "https", hostname: "*.supabase.co" },
       { protocol: "https", hostname: "www.meuviverconstrutora.com.br" },
+      { protocol: "https", hostname: "cdndiariodeobra.azureedge.net" },
     ],
   },
   webpack(config) {

@@ -57,6 +57,22 @@ function countValue(result: CountResult) {
   return result.error ? 0 : result.count ?? 0;
 }
 
+async function countRowsInChunks(
+  ids: string[],
+  queryForIds: (ids: string[]) => PromiseLike<unknown>
+): Promise<CountResult> {
+  if (ids.length === 0) return { count: 0, error: null };
+
+  let count = 0;
+  for (let index = 0; index < ids.length; index += 200) {
+    const result = (await queryForIds(ids.slice(index, index + 200))) as CountResult;
+    if (result.error) return result;
+    count += result.count ?? 0;
+  }
+
+  return { count, error: null };
+}
+
 function formatNumber(value: number) {
   return new Intl.NumberFormat("pt-BR").format(value);
 }
@@ -127,7 +143,6 @@ export default async function AuditoriaPage() {
     .in("site_id", siteFilter)
     .limit(5000);
   const rdoIds = ((rdoRows ?? []) as Array<{ id: string }>).map((rdo) => rdo.id);
-  const rdoFilter = rdoIds.length > 0 ? rdoIds : ["00000000-0000-0000-0000-000000000000"];
 
   const [
     sitesR,
@@ -159,18 +174,24 @@ export default async function AuditoriaPage() {
       .from("daily_reports")
       .select("id", { count: "exact", head: true })
       .in("site_id", siteFilter),
-    supabase
-      .from("report_activities")
-      .select("id", { count: "exact", head: true })
-      .in("daily_report_id", rdoFilter),
-    supabase
-      .from("report_workforce")
-      .select("id", { count: "exact", head: true })
-      .in("daily_report_id", rdoFilter),
-    supabase
-      .from("report_equipment")
-      .select("id", { count: "exact", head: true })
-      .in("daily_report_id", rdoFilter),
+    countRowsInChunks(rdoIds, (ids) =>
+      supabase
+        .from("report_activities")
+        .select("id", { count: "exact", head: true })
+        .in("daily_report_id", ids)
+    ),
+    countRowsInChunks(rdoIds, (ids) =>
+      supabase
+        .from("report_workforce")
+        .select("id", { count: "exact", head: true })
+        .in("daily_report_id", ids)
+    ),
+    countRowsInChunks(rdoIds, (ids) =>
+      supabase
+        .from("report_equipment")
+        .select("id", { count: "exact", head: true })
+        .in("daily_report_id", ids)
+    ),
     supabase.from("media").select("id", { count: "exact", head: true }).in("site_id", siteFilter),
     supabase.from("comments").select("id", { count: "exact", head: true }).eq("organization_id", activeOrg.id),
     supabase
