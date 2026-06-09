@@ -24,10 +24,28 @@ Configurar apenas no Vercel como variaveis server-only:
 - `ASANA_ACCESS_TOKEN`, se Asana continuar no escopo real
 - `DIARIO_API_TOKEN` ou `DIARIO_AUTH_TOKEN`
 - `DIARIO_EMAIL` e `DIARIO_PASSWORD`, somente se o Diario nao fornecer token estavel
+- `OPENAI_API_KEY`, para leitura visual server-only de plantas no Orcamento IA
+- `OPENAI_MODEL`, opcional; padrao do codigo: `gpt-5.5`
 - `SENTRY_DSN`
 - `NEXT_PUBLIC_SENTRY_DSN`, se monitoramento client-side for habilitado
 
-Nunca usar prefixo `NEXT_PUBLIC_` para tokens de ClickUp, Asana, Diario ou service role.
+Nunca usar prefixo `NEXT_PUBLIC_` para tokens de ClickUp, Asana, Diario, OpenAI
+ou service role.
+
+## Orcamento IA por planta
+
+Para considerar o fluxo de planta 10/10:
+
+- O template default precisa ter 104 itens de `budget_template_items`, derivados
+  da planilha de referencia FER E MACIEL.
+- O envio de novo estudo deve exigir ao menos uma planta em PDF.
+- Com `OPENAI_API_KEY`, o estudo deve registrar `source_summary.plan_analysis.status = analyzed`.
+- Sem `OPENAI_API_KEY`, o estudo deve ficar funcional, mas com status
+  `missing_key` na leitura da planta e confianca reduzida.
+- O total para a referencia FER E MACIEL, usando 424,56 m2 de area construida,
+  24,31 m2 de piscina, 3 pavimentos e subsolo, deve fechar em R$ 1.566.669,68.
+- Itens de verba fixa devem aparecer como premissa/verba de referencia, nao como
+  falha de importacao.
 
 ## Auditoria de dados
 

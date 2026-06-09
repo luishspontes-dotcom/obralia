@@ -26,7 +26,7 @@ export default async function NovoOrcamentoIaPage() {
             Novo estudo de orçamento
           </h1>
           <p style={{ margin: 0, maxWidth: 720, color: "var(--o-text-2)", fontSize: 14 }}>
-            Envie os arquivos e confirme os parâmetros principais. O sistema gera uma primeira base de memorial e orçamento com itens marcados para revisão.
+            Envie a planta como fonte principal. Memorial e planilha são opcionais; quando não existirem, o sistema usa leitura visual e o template detalhado para gerar orçamento e memorial preliminares.
           </p>
         </div>
       </div>

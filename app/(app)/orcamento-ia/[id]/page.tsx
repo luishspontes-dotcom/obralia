@@ -22,6 +22,7 @@ type Estimate = {
   total: number;
   confidence_score: number;
   memorial_text: string | null;
+  source_summary: unknown | null;
   created_at: string | null;
 };
 
@@ -59,6 +60,15 @@ type EstimateFile = {
   created_at: string | null;
 };
 
+type PlanAnalysisSummary = {
+  status?: string;
+  model?: string | null;
+  summary?: string;
+  confidence?: number;
+  risks?: string[];
+  measurements?: Record<string, number>;
+};
+
 const BRL = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
 const NUM = new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 2 });
 
@@ -74,7 +84,7 @@ export default async function OrcamentoIaDetailPage({
   const [estimateR, factsR, itemsR, filesR] = await Promise.all([
     db
       .from("ai_estimates")
-      .select("id, title, client_name, address, built_area_m2, pool_area_m2, terrain_area_m2, floors_count, has_basement, quality_standard, status, subtotal, total, confidence_score, memorial_text, created_at")
+      .select("id, title, client_name, address, built_area_m2, pool_area_m2, terrain_area_m2, floors_count, has_basement, quality_standard, status, subtotal, total, confidence_score, memorial_text, source_summary, created_at")
       .eq("id", id)
       .maybeSingle(),
     db
@@ -103,6 +113,7 @@ export default async function OrcamentoIaDetailPage({
   const files = (filesR.data ?? []) as EstimateFile[];
   const reviewItems = items.filter((item) => item.needs_review).length;
   const grouped = groupItems(items);
+  const planAnalysis = extractPlanAnalysis(estimate.source_summary);
 
   return (
     <div>
@@ -130,7 +141,7 @@ export default async function OrcamentoIaDetailPage({
           <Metric label="Total preliminar" value={BRL.format(Number(estimate.total ?? 0))} />
           <Metric label="Confiança média" value={`${Math.round(Number(estimate.confidence_score ?? 0) * 100)}%`} />
           <Metric label="Itens gerados" value={String(items.length)} />
-          <Metric label="Itens a revisar" value={String(reviewItems)} tone={reviewItems ? "warn" : "ok"} />
+          <Metric label="Itens com premissa" value={String(reviewItems)} tone={reviewItems ? "warn" : "ok"} />
         </div>
 
         <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) 360px", gap: 18, alignItems: "start" }} className="ai-budget-detail-grid">
@@ -170,7 +181,7 @@ export default async function OrcamentoIaDetailPage({
                         <div style={{ minWidth: 0 }}>
                           <div style={{ color: "var(--o-text-1)", fontWeight: 600 }}>{item.description}</div>
                           <div style={{ color: item.needs_review ? "var(--o-accent)" : "var(--o-text-3)", fontSize: 12, marginTop: 2 }}>
-                            {item.needs_review ? "Revisar quantitativo" : "Base parametrica"} · confiança {Math.round(item.confidence * 100)}%
+                            {sourceLabel(item.source)} · {itemReviewLabel(item)} · confiança {Math.round(item.confidence * 100)}%
                           </div>
                         </div>
                         <span className="tnum" style={{ color: "var(--o-text-2)", fontSize: 12 }}>
@@ -192,6 +203,10 @@ export default async function OrcamentoIaDetailPage({
           </div>
 
           <aside style={{ display: "grid", gap: 18 }}>
+            <Section title="Leitura da planta">
+              <PlanAnalysisPanel analysis={planAnalysis} />
+            </Section>
+
             <Section title="Ações">
               <div style={{ display: "grid", gap: 10 }}>
                 <form action={reprocessAiEstimate}>
@@ -279,6 +294,55 @@ function Metric({ label, value, tone }: { label: string; value: string; tone?: "
   );
 }
 
+function PlanAnalysisPanel({ analysis }: { analysis: PlanAnalysisSummary | null }) {
+  if (!analysis) {
+    return (
+      <p style={{ margin: 0, color: "var(--o-text-2)", fontSize: 13 }}>
+        Sem metadados de leitura visual neste estudo. Reprocesse após anexar uma planta.
+      </p>
+    );
+  }
+
+  const status = analysis.status ?? "unknown";
+  const isAnalyzed = status === "analyzed";
+  const risks = Array.isArray(analysis.risks) ? analysis.risks.slice(0, 5) : [];
+  const measurementCount = analysis.measurements ? Object.keys(analysis.measurements).length : 0;
+
+  return (
+    <div style={{ display: "grid", gap: 10 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "center" }}>
+        <span style={{
+          color: isAnalyzed ? "var(--st-done)" : "var(--o-accent)",
+          background: isAnalyzed ? "rgba(90,141,140,.12)" : "var(--o-accent-soft)",
+          borderRadius: 999,
+          padding: "6px 10px",
+          font: "700 11px var(--font-inter)",
+        }}>
+          {planStatusLabel(status)}
+        </span>
+        <span className="tnum" style={{ color: "var(--o-text-2)", fontSize: 12 }}>
+          {Math.round(Number(analysis.confidence ?? 0) * 100)}%
+        </span>
+      </div>
+      <p style={{ margin: 0, color: "var(--o-text-1)", fontSize: 13, lineHeight: 1.55 }}>
+        {analysis.summary ?? "Resumo da leitura indisponivel."}
+      </p>
+      <div style={{ color: "var(--o-text-3)", fontSize: 12 }}>
+        {analysis.model ? `Modelo: ${analysis.model}` : "Modelo: nao executado"} · medições: {measurementCount}
+      </div>
+      {risks.length > 0 && (
+        <div style={{ display: "grid", gap: 6 }}>
+          {risks.map((risk, index) => (
+            <div key={`${risk}-${index}`} style={{ color: "var(--o-text-2)", fontSize: 12, borderTop: "1px solid var(--o-mist)", paddingTop: 6 }}>
+              {risk}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function StatusPill({ status }: { status: string }) {
   const meta: Record<string, { label: string; color: string; bg: string }> = {
     draft: { label: "Rascunho", color: "var(--o-text-2)", bg: "var(--o-soft)" },
@@ -293,6 +357,43 @@ function StatusPill({ status }: { status: string }) {
       {current.label}
     </span>
   );
+}
+
+function extractPlanAnalysis(value: unknown): PlanAnalysisSummary | null {
+  if (!value || typeof value !== "object") return null;
+  const planAnalysis = (value as { plan_analysis?: unknown }).plan_analysis;
+  if (!planAnalysis || typeof planAnalysis !== "object") return null;
+  return planAnalysis as PlanAnalysisSummary;
+}
+
+function planStatusLabel(status: string): string {
+  const labels: Record<string, string> = {
+    analyzed: "IA visual ativa",
+    missing_key: "Chave IA ausente",
+    no_plan_file: "Sem planta",
+    failed: "Leitura falhou",
+  };
+  return labels[status] ?? status;
+}
+
+function sourceLabel(source: string): string {
+  const labels: Record<string, string> = {
+    usuario: "Campo manual",
+    parametros_usuario: "Campo manual",
+    planta_ia: "Leitura da planta",
+    planta_ia_parametrica: "Derivado da planta",
+    template_parametrico: "Template parametrico",
+  };
+  return labels[source] ?? source;
+}
+
+function itemReviewLabel(item: Item): string {
+  if (!item.needs_review) return "base validada";
+  if (item.source === "template_parametrico" && item.unit.toUpperCase() === "VB") {
+    return "verba de referencia";
+  }
+  if (item.source === "template_parametrico") return "premissa do template";
+  return "revisar quantitativo";
 }
 
 function kindLabel(kind: string): string {

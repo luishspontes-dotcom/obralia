@@ -42,6 +42,12 @@ export function NewEstimateForm({ sites }: { sites: Site[] }) {
       setStatus("creating");
       setMessage("Criando estudo...");
       const source = new FormData(form);
+      const planFiles = source
+        .getAll("plan_files")
+        .filter((file): file is File => file instanceof File && file.size > 0);
+      if (planFiles.length === 0) {
+        throw new Error("Envie ao menos uma planta em PDF para gerar o estudo.");
+      }
       const prepared = await prepareAiEstimate(scalarFormData(source));
       estimateId = prepared.estimateId;
 
@@ -115,7 +121,7 @@ export function NewEstimateForm({ sites }: { sites: Site[] }) {
     <form onSubmit={handleSubmit} className="card" style={{ padding: 22 }}>
       <div className="ai-budget-form-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
         <Field label="Nome do estudo" required>
-          <input name="title" required defaultValue="FER E MACIEL - Estudo preliminar" style={inputStyle} />
+          <input name="title" required defaultValue="Estudo preliminar" style={inputStyle} />
         </Field>
         <Field label="Obra vinculada">
           <select name="site_id" defaultValue="" style={inputStyle}>
@@ -126,22 +132,22 @@ export function NewEstimateForm({ sites }: { sites: Site[] }) {
           </select>
         </Field>
         <Field label="Cliente">
-          <input name="client_name" placeholder="Nome do cliente" defaultValue="Fernando e Maciel" style={inputStyle} />
+          <input name="client_name" placeholder="A IA tenta extrair da planta quando existir" style={inputStyle} />
         </Field>
         <Field label="Endereço">
-          <input name="address" placeholder="Condomínio, lote, cidade..." defaultValue="Cond. Terras Alpha, lote 16, quadra Y1" style={inputStyle} />
+          <input name="address" placeholder="Condomínio, lote, cidade..." style={inputStyle} />
         </Field>
-        <Field label="Área construída (m²)" required>
-          <input name="built_area_m2" required inputMode="decimal" defaultValue="424,56" style={inputStyle} />
+        <Field label="Área construída (m²)">
+          <input name="built_area_m2" inputMode="decimal" placeholder="Opcional; a IA tenta ler da planta" style={inputStyle} />
         </Field>
         <Field label="Área da piscina (m²)">
-          <input name="pool_area_m2" inputMode="decimal" defaultValue="24,31" style={inputStyle} />
+          <input name="pool_area_m2" inputMode="decimal" placeholder="Opcional" style={inputStyle} />
         </Field>
         <Field label="Área do terreno (m²)">
           <input name="terrain_area_m2" inputMode="decimal" placeholder="Ex.: 418,18" style={inputStyle} />
         </Field>
         <Field label="Pavimentos">
-          <input name="floors_count" inputMode="numeric" defaultValue="3" style={inputStyle} />
+          <input name="floors_count" inputMode="numeric" placeholder="Opcional" style={inputStyle} />
         </Field>
         <Field label="Padrão">
           <select name="quality_standard" defaultValue="alto_padrao" style={inputStyle}>
@@ -151,7 +157,7 @@ export function NewEstimateForm({ sites }: { sites: Site[] }) {
           </select>
         </Field>
         <label style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 24, color: "var(--o-text-1)", fontWeight: 600 }}>
-          <input name="has_basement" type="checkbox" defaultChecked />
+          <input name="has_basement" type="checkbox" />
           Possui subsolo/corte relevante
         </label>
       </div>
@@ -159,10 +165,10 @@ export function NewEstimateForm({ sites }: { sites: Site[] }) {
       <div style={{ marginTop: 24, borderTop: "1px solid var(--o-border)", paddingTop: 20 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
           <UploadCloud size={18} color="var(--t-brand)" />
-          <h2 style={{ margin: 0, font: "700 18px var(--font-inter)" }}>Arquivos de referência</h2>
+          <h2 style={{ margin: 0, font: "700 18px var(--font-inter)" }}>Arquivos da análise</h2>
         </div>
         <div className="ai-budget-form-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 14 }}>
-          <FileField label="Planta PDF" name="plan_files" accept=".pdf,application/pdf" />
+          <FileField label="Planta PDF" name="plan_files" accept=".pdf,application/pdf" required />
           <FileField label="Memorial/proposta PDF" name="proposal_files" accept=".pdf,application/pdf" />
           <FileField label="Planilha XLSX" name="spreadsheet_files" accept=".xlsx,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" />
         </div>
@@ -170,7 +176,7 @@ export function NewEstimateForm({ sites }: { sites: Site[] }) {
 
       <div style={{ marginTop: 22, display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
         <p style={{ margin: 0, color: status === "error" ? "var(--st-late)" : "var(--o-text-2)", fontSize: 12, maxWidth: 620 }}>
-          {message || "O resultado nasce como revisão técnica, não como proposta final. Itens estimados por verba ou regra paramétrica serão sinalizados."}
+          {message || "A planta é a fonte principal. Campos manuais só corrigem ou complementam o que a leitura visual não conseguir defender."}
         </p>
         <button type="submit" className="btn-brand" disabled={isBusy} style={{ display: "inline-flex", alignItems: "center", gap: 8, opacity: isBusy ? 0.72 : 1 }}>
           {isBusy ? "Gerando..." : "Gerar estudo preliminar"}
@@ -214,12 +220,14 @@ function Field({ label, required, children }: { label: string; required?: boolea
   );
 }
 
-function FileField({ label, name, accept }: { label: string; name: string; accept: string }) {
+function FileField({ label, name, accept, required }: { label: string; name: string; accept: string; required?: boolean }) {
   return (
     <label style={{ display: "grid", gap: 8, border: "1px dashed var(--o-border-2)", borderRadius: 10, padding: 14, background: "var(--o-soft)" }}>
-      <span style={{ fontWeight: 700, color: "var(--o-text-1)" }}>{label}</span>
-      <input name={name} type="file" accept={accept} multiple style={{ fontSize: 12 }} />
-      <span style={{ color: "var(--o-text-2)", fontSize: 12 }}>Pode enviar mais de um arquivo.</span>
+      <span style={{ fontWeight: 700, color: "var(--o-text-1)" }}>{label}{required ? " *" : ""}</span>
+      <input name={name} type="file" accept={accept} multiple required={required} style={{ fontSize: 12 }} />
+      <span style={{ color: "var(--o-text-2)", fontSize: 12 }}>
+        {required ? "Arquivo principal para orçamento e memorial." : "Opcional; melhora a comparação quando existir."}
+      </span>
     </label>
   );
 }

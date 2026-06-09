@@ -10,6 +10,7 @@ export async function GET() {
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
   );
   const hasServiceRole = Boolean(process.env.SUPABASE_SERVICE_ROLE_KEY);
+  const hasOpenAi = Boolean(process.env.OPENAI_API_KEY);
   const checks = {
     app: true,
     env: hasPublicEnv,
@@ -49,6 +50,10 @@ export async function GET() {
       errors: {
         database: databaseError,
         storage: storageError,
+      },
+      features: {
+        aiPlanReading: hasOpenAi,
+        aiPlanModel: process.env.OPENAI_MODEL || "gpt-5.5",
       },
       latencyMs: Date.now() - startedAt,
       timestamp: new Date().toISOString(),

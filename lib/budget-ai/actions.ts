@@ -8,6 +8,10 @@ import {
   type EstimateInput,
   generateEstimateFromTemplate,
 } from "@/lib/budget-ai/estimate-engine";
+import {
+  analyzePlanFilesFromStorage,
+  type PlanAnalysis,
+} from "@/lib/budget-ai/plan-analysis";
 import { type UntypedSupabase, untypedDb } from "@/lib/supabase/untyped";
 
 type Profile = {
@@ -67,7 +71,7 @@ async function requireContext() {
   const activeOrg = orgs.find((org) => org.id === profile?.default_org_id) ?? orgs[0] ?? null;
   if (!activeOrg) throw new Error("Nenhuma organizacao ativa encontrada.");
 
-  return { db, user, activeOrg };
+  return { supabase, db, user, activeOrg };
 }
 
 export async function prepareAiEstimate(formData: FormData) {
@@ -118,7 +122,7 @@ export async function prepareAiEstimate(formData: FormData) {
 }
 
 export async function finalizeAiEstimateUpload(formData: FormData) {
-  const { db, user, activeOrg } = await requireContext();
+  const { supabase, db, user, activeOrg } = await requireContext();
   const estimateId = asString(formData.get("estimate_id"));
   if (!estimateId) throw new Error("estimate_id obrigatorio.");
 
@@ -141,18 +145,15 @@ export async function finalizeAiEstimateUpload(formData: FormData) {
   }
 
   const templateId = estimate.template_id ?? (await resolveTemplateId(db));
-  await regenerateEstimateRows(db, estimateId, activeOrg.id, templateId, {
-    title: estimate.title,
-    clientName: estimate.client_name,
-    address: estimate.address,
-    builtAreaM2: toNullableNumber(estimate.built_area_m2),
-    poolAreaM2: toNullableNumber(estimate.pool_area_m2),
-    terrainAreaM2: toNullableNumber(estimate.terrain_area_m2),
-    floorsCount: toNullableInteger(estimate.floors_count),
-    hasBasement: estimate.has_basement,
-    qualityStandard: estimate.quality_standard,
-    fileNames: files.map((file) => file.file_name),
-  });
+  const planAnalysis = await analyzePlanFilesFromStorage(supabase, files);
+  await updateEstimateFromPlanAnalysis(db, estimate, planAnalysis);
+  await regenerateEstimateRows(
+    db,
+    estimateId,
+    activeOrg.id,
+    templateId,
+    buildEstimateInput(estimate, files.map((file) => file.file_name), planAnalysis)
+  );
 
   revalidatePath("/orcamento-ia");
   revalidatePath(`/orcamento-ia/${estimateId}`);
@@ -181,7 +182,7 @@ export async function failAiEstimate(formData: FormData) {
 }
 
 export async function reprocessAiEstimate(formData: FormData) {
-  const { db, activeOrg } = await requireContext();
+  const { supabase, db, activeOrg } = await requireContext();
   const estimateId = asString(formData.get("estimate_id"));
   if (!estimateId) throw new Error("estimate_id obrigatorio.");
 
@@ -193,24 +194,22 @@ export async function reprocessAiEstimate(formData: FormData) {
   const templateId = estimate.template_id ?? (await resolveTemplateId(db));
   const { data: filesRaw } = await db
     .from("ai_estimate_files")
-    .select("file_name")
+    .select("kind, file_name, storage_bucket, storage_path, content_type, size_bytes")
     .eq("estimate_id", estimateId)
     .order("created_at", { ascending: true });
+  const files = (filesRaw ?? []) as UploadedEstimateFile[];
 
   await db.from("ai_estimates").update({ status: "processing" }).eq("id", estimateId);
+  const planAnalysis = await analyzePlanFilesFromStorage(supabase, files);
+  await updateEstimateFromPlanAnalysis(db, estimate, planAnalysis);
 
-  await regenerateEstimateRows(db, estimateId, activeOrg.id, templateId, {
-    title: estimate.title,
-    clientName: estimate.client_name,
-    address: estimate.address,
-    builtAreaM2: toNullableNumber(estimate.built_area_m2),
-    poolAreaM2: toNullableNumber(estimate.pool_area_m2),
-    terrainAreaM2: toNullableNumber(estimate.terrain_area_m2),
-    floorsCount: toNullableInteger(estimate.floors_count),
-    hasBasement: estimate.has_basement,
-    qualityStandard: estimate.quality_standard,
-    fileNames: ((filesRaw ?? []) as Array<{ file_name: string }>).map((file) => file.file_name),
-  });
+  await regenerateEstimateRows(
+    db,
+    estimateId,
+    activeOrg.id,
+    templateId,
+    buildEstimateInput(estimate, files.map((file) => file.file_name), planAnalysis)
+  );
 
   revalidatePath(`/orcamento-ia/${estimateId}`);
 }
@@ -229,6 +228,69 @@ export async function approveAiEstimate(formData: FormData) {
 
   revalidatePath("/orcamento-ia");
   revalidatePath(`/orcamento-ia/${estimateId}`);
+}
+
+function buildEstimateInput(
+  estimate: EstimateRow,
+  fileNames: string[],
+  planAnalysis: PlanAnalysis | null
+): EstimateInput {
+  const genericTitle = new Set(["Estudo preliminar", "Novo estudo preliminar"]);
+  return {
+    title: genericTitle.has(estimate.title) && planAnalysis?.projectTitle
+      ? planAnalysis.projectTitle
+      : estimate.title,
+    clientName: estimate.client_name ?? planAnalysis?.clientName ?? null,
+    address: estimate.address ?? planAnalysis?.address ?? null,
+    builtAreaM2: toNullableNumber(estimate.built_area_m2) ?? planAnalysis?.builtAreaM2 ?? null,
+    poolAreaM2: toNullableNumber(estimate.pool_area_m2) ?? planAnalysis?.poolAreaM2 ?? null,
+    terrainAreaM2: toNullableNumber(estimate.terrain_area_m2) ?? planAnalysis?.terrainAreaM2 ?? null,
+    floorsCount: toNullableInteger(estimate.floors_count) ?? planAnalysis?.floorsCount ?? null,
+    hasBasement: estimate.has_basement || planAnalysis?.hasBasement === true,
+    qualityStandard: estimate.quality_standard || planAnalysis?.qualityStandard || "alto_padrao",
+    fileNames,
+    planAnalysis,
+  };
+}
+
+async function updateEstimateFromPlanAnalysis(
+  db: UntypedSupabase,
+  estimate: EstimateRow,
+  planAnalysis: PlanAnalysis | null
+) {
+  if (planAnalysis?.status !== "analyzed") return;
+
+  const patch: Record<string, unknown> = {};
+  const genericTitle = new Set(["Estudo preliminar", "Novo estudo preliminar"]);
+
+  if (genericTitle.has(estimate.title) && planAnalysis.projectTitle) {
+    patch.title = planAnalysis.projectTitle;
+  }
+  if (!estimate.client_name && planAnalysis.clientName) patch.client_name = planAnalysis.clientName;
+  if (!estimate.address && planAnalysis.address) patch.address = planAnalysis.address;
+  if (toNullableNumber(estimate.built_area_m2) === null && planAnalysis.builtAreaM2 !== null) {
+    patch.built_area_m2 = planAnalysis.builtAreaM2;
+  }
+  if (toNullableNumber(estimate.pool_area_m2) === null && planAnalysis.poolAreaM2 !== null) {
+    patch.pool_area_m2 = planAnalysis.poolAreaM2;
+  }
+  if (toNullableNumber(estimate.terrain_area_m2) === null && planAnalysis.terrainAreaM2 !== null) {
+    patch.terrain_area_m2 = planAnalysis.terrainAreaM2;
+  }
+  if (toNullableInteger(estimate.floors_count) === null && planAnalysis.floorsCount !== null) {
+    patch.floors_count = planAnalysis.floorsCount;
+  }
+  if (!estimate.has_basement && typeof planAnalysis.hasBasement === "boolean") {
+    patch.has_basement = planAnalysis.hasBasement;
+  }
+
+  if (Object.keys(patch).length === 0) return;
+  const { error } = await db
+    .from("ai_estimates")
+    .update(patch)
+    .eq("id", estimate.id)
+    .eq("organization_id", estimate.organization_id);
+  if (error) throw new Error(error.message);
 }
 
 async function regenerateEstimateRows(
@@ -342,11 +404,17 @@ function asInteger(value: FormDataEntryValue | null): number | null {
 }
 
 function toNullableNumber(value: unknown): number | null {
-  return typeof value === "number" && Number.isFinite(value) ? value : null;
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string") {
+    const parsed = Number(value.replace(/\./g, "").replace(",", "."));
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+  return null;
 }
 
 function toNullableInteger(value: unknown): number | null {
-  return typeof value === "number" && Number.isFinite(value) ? Math.round(value) : null;
+  const parsed = toNullableNumber(value);
+  return parsed === null ? null : Math.round(parsed);
 }
 
 function parseUploadedFiles(
