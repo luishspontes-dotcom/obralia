@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { OBRALIA_SOURCE_PROVIDER, VISIBLE_SOURCE_PROVIDERS } from "@/lib/rdo-source-scope";
 import { createServerSupabase } from "@/lib/supabase/server";
 
 /* ───────── helpers ───────── */
@@ -77,6 +78,7 @@ export async function createOrUpdateRdo(formData: FormData) {
     const { data: maxR } = await admin
       .from("daily_reports").select("number")
       .eq("site_id", siteId)
+      .in("external_provider", VISIBLE_SOURCE_PROVIDERS)
       .order("number", { ascending: false }).limit(1).maybeSingle();
     const nextNumber = (((maxR as { number?: number } | null)?.number) ?? 0) + 1;
 
@@ -93,6 +95,7 @@ export async function createOrUpdateRdo(formData: FormData) {
         condition_afternoon: ca,
         general_notes: notes,
         created_by: user.id,
+        external_provider: OBRALIA_SOURCE_PROVIDER,
       } as never)
       .select("id").single();
     if (insErr || !inserted) throw new Error(insErr?.message ?? "insert falhou");
@@ -228,6 +231,7 @@ export async function uploadPhotos(formData: FormData) {
       gps_lat: meta.lat ?? null,
       gps_lng: meta.lng ?? null,
       migrated_at: new Date().toISOString(),
+      external_provider: OBRALIA_SOURCE_PROVIDER,
       sync_metadata: { uploaded_via: "obralia" },
     } as never);
   }
@@ -340,6 +344,7 @@ export async function createOrUpdateTask(formData: FormData) {
       ...patch,
       organization_id: orgId,
       created_by: user.id,
+      external_provider: OBRALIA_SOURCE_PROVIDER,
     } as never);
     if (error) throw new Error(error.message);
   }

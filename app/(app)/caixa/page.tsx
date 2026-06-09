@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { createServerSupabase } from "@/lib/supabase/server";
+import { VISIBLE_SOURCE_PROVIDERS } from "@/lib/rdo-source-scope";
 
 type RDOReview = { id: string; number: number; date: string; site_id: string; status: string };
 type LateTask = { id: string; name: string; site_id: string; due_date: string | null };
@@ -11,6 +12,7 @@ export default async function CaixaPage() {
   const { data: pendingR } = await supabase
     .from("daily_reports")
     .select("id, number, date, site_id, status")
+    .in("external_provider", VISIBLE_SOURCE_PROVIDERS)
     .in("status", ["draft", "review"])
     .order("date", { ascending: false }).limit(50);
   const pendingRDOs = (pendingR ?? []) as RDOReview[];
@@ -18,12 +20,17 @@ export default async function CaixaPage() {
   const { data: lateR } = await supabase
     .from("wbs_items")
     .select("id, name, site_id, due_date")
+    .in("external_provider", VISIBLE_SOURCE_PROVIDERS)
     .eq("status", "late").not("parent_id", "is", null)
     .order("due_date", { ascending: true }).limit(50);
   const lateTasks = (lateR ?? []) as LateTask[];
 
   const siteIds = new Set<string>([...pendingRDOs.map((r) => r.site_id), ...lateTasks.map((t) => t.site_id)]);
-  const { data: sitesR } = await supabase.from("sites").select("id, name").in("id", Array.from(siteIds));
+  const { data: sitesR } = await supabase
+    .from("sites")
+    .select("id, name")
+    .in("external_provider", VISIBLE_SOURCE_PROVIDERS)
+    .in("id", Array.from(siteIds));
   const sites = new Map(((sitesR ?? []) as SiteRow[]).map((s) => [s.id, s.name]));
 
   const totalPending = pendingRDOs.length + lateTasks.length;

@@ -8,6 +8,11 @@
     "start": "next start",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
+    "diario:auth-check": "node scripts/import/diario-sync.mjs auth-check",
+    "diario:export": "node scripts/import/diario-sync.mjs export",
+    "diario:import": "node scripts/import/diario-sync.mjs import",
+    "diario:sync": "node scripts/import/diario-sync.mjs sync",
+    "diario:summary": "node scripts/import/diario-sync.mjs summary",
     "schema:check": "node scripts/audit/schema-contract.mjs",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui"

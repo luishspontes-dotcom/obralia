@@ -27,7 +27,15 @@ const uploadFields: Array<{ name: string; kind: UploadedFilePayload["kind"] }> =
   { name: "spreadsheet_files", kind: "spreadsheet" },
 ];
 
-export function NewEstimateForm({ sites }: { sites: Site[] }) {
+export function NewEstimateForm({
+  sites,
+  initialSiteId = "",
+  lockSite = false,
+}: {
+  sites: Site[];
+  initialSiteId?: string;
+  lockSite?: boolean;
+}) {
   const router = useRouter();
   const supabase = useMemo(() => createBrowserSupabase(), []);
   const [status, setStatus] = useState<"idle" | "creating" | "uploading" | "processing" | "error">("idle");
@@ -61,7 +69,12 @@ export function NewEstimateForm({ sites }: { sites: Site[] }) {
       finalizeData.set("files_json", JSON.stringify(uploaded));
       await finalizeAiEstimateUpload(finalizeData);
 
-      router.push(`/orcamento-ia/${prepared.estimateId}`);
+      const linkedSiteId = typeof source.get("site_id") === "string" ? String(source.get("site_id")).trim() : "";
+      router.push(
+        linkedSiteId
+          ? `/obras/${linkedSiteId}/orcamento-ia/${prepared.estimateId}`
+          : `/orcamento-ia/${prepared.estimateId}`
+      );
       router.refresh();
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : "Nao foi possivel gerar o estudo.";
@@ -124,12 +137,21 @@ export function NewEstimateForm({ sites }: { sites: Site[] }) {
           <input name="title" required defaultValue="Estudo preliminar" style={inputStyle} />
         </Field>
         <Field label="Obra vinculada">
-          <select name="site_id" defaultValue="" style={inputStyle}>
-            <option value="">Sem vinculo por enquanto</option>
-            {sites.map((site) => (
-              <option key={site.id} value={site.id}>{site.name}</option>
-            ))}
-          </select>
+          {lockSite ? (
+            <>
+              <input type="hidden" name="site_id" value={initialSiteId} />
+              <div style={{ ...inputStyle, background: "var(--o-soft)", fontWeight: 700 }}>
+                {sites.find((site) => site.id === initialSiteId)?.name ?? "Obra selecionada"}
+              </div>
+            </>
+          ) : (
+            <select name="site_id" defaultValue={initialSiteId} style={inputStyle}>
+              <option value="">Sem vinculo por enquanto</option>
+              {sites.map((site) => (
+                <option key={site.id} value={site.id}>{site.name}</option>
+              ))}
+            </select>
+          )}
         </Field>
         <Field label="Cliente">
           <input name="client_name" placeholder="A IA tenta extrair da planta quando existir" style={inputStyle} />

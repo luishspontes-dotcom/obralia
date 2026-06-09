@@ -1,0 +1,7 @@
+export const DIARIO_SOURCE_PROVIDER = "diario_de_obra";
+export const OBRALIA_SOURCE_PROVIDER = "obralia";
+
+export const VISIBLE_SOURCE_PROVIDERS = [
+  DIARIO_SOURCE_PROVIDER,
+  OBRALIA_SOURCE_PROVIDER,
+];

@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { CheckCircle2, CircleAlert, Clock3, KeyRound, RotateCcw } from "lucide-react";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { canAdmin } from "@/lib/authz";
+import { VISIBLE_SOURCE_PROVIDERS } from "@/lib/rdo-source-scope";
 
 type Profile = {
   id: string;
@@ -118,6 +119,7 @@ export default async function IntegracoesPage() {
     .from("sites")
     .select("id")
     .eq("organization_id", activeOrg.id)
+    .in("external_provider", VISIBLE_SOURCE_PROVIDERS)
     .limit(5000);
   const siteIds = ((siteRows ?? []) as Array<{ id: string }>).map((site) => site.id);
   const siteFilter = siteIds.length > 0 ? siteIds : ["00000000-0000-0000-0000-000000000000"];
@@ -144,20 +146,24 @@ export default async function IntegracoesPage() {
     supabase
       .from("wbs_items")
       .select("id", { count: "exact", head: true })
+      .in("external_provider", VISIBLE_SOURCE_PROVIDERS)
       .in("site_id", siteFilter)
       .is("parent_id", null),
     supabase
       .from("wbs_items")
       .select("id", { count: "exact", head: true })
+      .in("external_provider", VISIBLE_SOURCE_PROVIDERS)
       .in("site_id", siteFilter)
       .not("parent_id", "is", null),
     supabase
       .from("daily_reports")
       .select("id", { count: "exact", head: true })
+      .in("external_provider", VISIBLE_SOURCE_PROVIDERS)
       .in("site_id", siteFilter),
     supabase
       .from("media")
       .select("id", { count: "exact", head: true })
+      .in("external_provider", VISIBLE_SOURCE_PROVIDERS)
       .in("site_id", siteFilter),
   ]);
 

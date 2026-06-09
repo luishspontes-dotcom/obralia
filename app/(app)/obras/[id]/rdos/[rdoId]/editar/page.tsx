@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { RdoForm } from "@/components/RdoForm";
+import { VISIBLE_SOURCE_PROVIDERS } from "@/lib/rdo-source-scope";
 
 export default async function EditarRdoPage({
   params,
@@ -12,14 +13,21 @@ export default async function EditarRdoPage({
   const supabase = await createServerSupabase();
 
   const { data: siteRaw } = await supabase
-    .from("sites").select("id, name").eq("id", id).maybeSingle();
+    .from("sites")
+    .select("id, name")
+    .eq("id", id)
+    .in("external_provider", VISIBLE_SOURCE_PROVIDERS)
+    .maybeSingle();
   const site = siteRaw as { id: string; name: string } | null;
   if (!site) notFound();
 
   const { data: rdoRaw } = await supabase
     .from("daily_reports")
     .select("id, number, date, status, weather_morning, weather_afternoon, condition_morning, condition_afternoon, general_notes")
-    .eq("id", rdoId).eq("site_id", id).maybeSingle();
+    .eq("id", rdoId)
+    .eq("site_id", id)
+    .in("external_provider", VISIBLE_SOURCE_PROVIDERS)
+    .maybeSingle();
   const rdo = rdoRaw as {
     id: string; number: number; date: string; status: string;
     weather_morning: string | null; weather_afternoon: string | null;

@@ -1,5 +1,8 @@
 import Link from "next/link";
+import { Camera, ClipboardList, FileText, Search } from "lucide-react";
 import { createServerSupabase } from "@/lib/supabase/server";
+import { fetchAllPages } from "@/lib/supabase/fetch-all";
+import { VISIBLE_SOURCE_PROVIDERS } from "@/lib/rdo-source-scope";
 import { mediaUrl } from "@/lib/storage";
 
 type Site = {
@@ -7,8 +10,6 @@ type Site = {
   name: string;
   status: string;
   client_name: string | null;
-  start_date: string | null;
-  end_date: string | null;
   cover_url: string | null;
 };
 
@@ -20,12 +21,15 @@ type WbsItem = {
   progress_pct: number | null;
 };
 
-const STATUS_LABELS: Record<string, { label: string; cls: string }> = {
-  in_progress: { label: "Em andamento", cls: "status-progress" },
-  done: { label: "Concluída", cls: "status-done" },
-  paused: { label: "Pausada", cls: "status-paused" },
-  late: { label: "Em risco", cls: "status-late" },
-  not_started: { label: "Não iniciada", cls: "status-paused" },
+const STATUS_META: Record<string, { label: string; cls: string }> = {
+  in_progress: { label: "Em andamento", cls: "" },
+  done: { label: "Concluída", cls: "is-done" },
+  completed: { label: "Concluída", cls: "is-done" },
+  paused: { label: "Pausada", cls: "is-paused" },
+  late: { label: "Em risco", cls: "is-late" },
+  not_started: { label: "Não iniciada", cls: "is-planned" },
+  planned: { label: "Não iniciada", cls: "is-planned" },
+  cancelled: { label: "Cancelada", cls: "is-paused" },
 };
 
 export default async function ObrasPage({
@@ -39,19 +43,39 @@ export default async function ObrasPage({
 
   const { data: sitesRaw } = await supabase
     .from("sites")
-    .select("id, name, status, client_name, start_date, end_date, cover_url")
+    .select("id, name, status, client_name, cover_url")
+    .in("external_provider", VISIBLE_SOURCE_PROVIDERS)
     .order("name");
   const sites = (sitesRaw ?? []) as Site[];
 
   const { data: itemsRaw } = await supabase
     .from("wbs_items")
-    .select("id, site_id, status, parent_id, progress_pct");
+    .select("id, site_id, status, parent_id, progress_pct")
+    .in("external_provider", VISIBLE_SOURCE_PROVIDERS);
   const items = (itemsRaw ?? []) as WbsItem[];
 
-  const { data: rdoRowsRaw } = await supabase.from("daily_reports").select("site_id");
-  const rdoRows = (rdoRowsRaw ?? []) as { site_id: string }[];
+  const rdoRows = await fetchAllPages<{ site_id: string }>(() =>
+    supabase
+      .from("daily_reports")
+      .select("site_id")
+      .in("external_provider", VISIBLE_SOURCE_PROVIDERS)
+  );
   const rdoCount = new Map<string, number>();
   for (const r of rdoRows) rdoCount.set(r.site_id, (rdoCount.get(r.site_id) ?? 0) + 1);
+
+  const mediaRows = await fetchAllPages<{ site_id: string; kind: string | null }>(() =>
+    supabase
+      .from("media")
+      .select("site_id, kind")
+      .in("external_provider", VISIBLE_SOURCE_PROVIDERS)
+      .in("kind", ["photo", "video"])
+  );
+  const photoCount = new Map<string, number>();
+  const videoCount = new Map<string, number>();
+  for (const row of mediaRows) {
+    if (row.kind === "video") videoCount.set(row.site_id, (videoCount.get(row.site_id) ?? 0) + 1);
+    else photoCount.set(row.site_id, (photoCount.get(row.site_id) ?? 0) + 1);
+  }
 
   const perSite = new Map<string, { total: number; done: number; late: number; in_progress: number; progressAvg: number }>();
   for (const it of items) {
@@ -64,261 +88,91 @@ export default async function ObrasPage({
     cur.progressAvg += it.progress_pct ?? 0;
     perSite.set(it.site_id, cur);
   }
-  for (const s of perSite.values()) {
-    s.progressAvg = s.total > 0 ? Math.round(s.progressAvg / s.total) : 0;
+  for (const stats of perSite.values()) {
+    stats.progressAvg = stats.total > 0 ? Math.round(stats.progressAvg / stats.total) : 0;
   }
 
-  const visibleSites = sites.filter((s) => {
-    const stats = perSite.get(s.id);
+  const visibleSites = sites.filter((site) => {
+    const stats = perSite.get(site.id);
     if (filterStatus === "at-risk" && (stats?.late ?? 0) === 0) return false;
-    if (filterStatus === "done" && s.status !== "done") return false;
-    if (filterStatus === "in_progress" && s.status !== "in_progress") return false;
-    if (filterStatus === "paused" && s.status !== "paused") return false;
+    if (filterStatus === "done" && !["done", "completed"].includes(site.status)) return false;
+    if (filterStatus === "in_progress" && site.status !== "in_progress") return false;
+    if (filterStatus === "not_started" && !["planned", "not_started"].includes(site.status)) return false;
+    if (filterStatus === "paused" && site.status !== "paused") return false;
     if (query) {
-      const hay = `${s.name} ${s.client_name ?? ""}`.toLowerCase();
-      if (!hay.includes(query)) return false;
+      const haystack = `${site.name} ${site.client_name ?? ""}`.toLowerCase();
+      if (!haystack.includes(query)) return false;
     }
     return true;
   });
 
-  const totals = {
-    obras: sites.length,
-    atRisk: sites.filter((s) => (perSite.get(s.id)?.late ?? 0) > 0).length,
-    inProgress: sites.filter((s) => s.status === "in_progress").length,
-    done: sites.filter((s) => s.status === "done").length,
-  };
-
   return (
-    <div>
-      {/* HERO */}
-      <div className="page-hero">
-        <div style={{ maxWidth: 1280, margin: "0 auto", display: "flex", alignItems: "flex-end", justifyContent: "space-between", flexWrap: "wrap", gap: 16 }}>
+    <div className="diario-page">
+      <div className="diario-container">
+        <div className="diario-page-header">
           <div>
-            <div
-              style={{
-                fontSize: 11,
-                textTransform: "uppercase",
-                letterSpacing: "0.12em",
-                color: "var(--t-brand)",
-                fontWeight: 600,
-                marginBottom: 8,
-              }}
-            >
-              Portfolio
-            </div>
-            <h1
-              style={{
-                margin: "0 0 8px",
-                font: "700 32px var(--font-inter)",
-                letterSpacing: "-0.025em",
-              }}
-            >
-              Obras
-            </h1>
-            <p style={{ margin: 0, fontSize: 14, color: "var(--o-text-2)" }}>
-              {totals.obras} obras · {totals.inProgress} em andamento
-              {totals.atRisk > 0 && (
-                <>
-                  {" · "}
-                  <span style={{ color: "var(--st-late)", fontWeight: 500 }}>
-                    {totals.atRisk} em risco
-                  </span>
-                </>
-              )}
-            </p>
+            <h1>Obras ({sites.length})</h1>
+            {visibleSites.length !== sites.length ? <p>{visibleSites.length} obras neste filtro</p> : null}
           </div>
 
-          <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-            <form method="get" action="/obras" style={{ display: "flex", gap: 6, alignItems: "center" }}>
-              {filterStatus && <input type="hidden" name="status" value={filterStatus} />}
-              <input
-                type="search" name="q" defaultValue={q ?? ""}
-                placeholder="Buscar obra ou cliente…"
-                style={{
-                  width: 220, padding: "8px 12px",
-                  background: "var(--o-paper)", border: "1px solid var(--o-border)",
-                  borderRadius: 8, font: "400 13px var(--font-inter)",
-                  color: "var(--o-text-1)", outline: "none",
-                }}
-              />
-            </form>
-            <Link href={`/obras${q ? `?q=${encodeURIComponent(q)}` : ""}`} className={`chip ${!filterStatus ? "chip-active" : ""}`}>
-              Todas
-            </Link>
-            <Link href={`/obras?status=in_progress${q ? `&q=${encodeURIComponent(q)}` : ""}`} className={`chip ${filterStatus === "in_progress" ? "chip-active" : ""}`}>
-              <span style={{ width: 6, height: 6, borderRadius: 999, background: "var(--st-progress)" }} />
-              Em andamento
-            </Link>
-            <Link href={`/obras?status=at-risk${q ? `&q=${encodeURIComponent(q)}` : ""}`} className={`chip ${filterStatus === "at-risk" ? "chip-active" : ""}`}>
-              <span style={{ width: 6, height: 6, borderRadius: 999, background: "var(--st-late)" }} />
-              Em risco
-            </Link>
-            <Link href={`/obras?status=paused${q ? `&q=${encodeURIComponent(q)}` : ""}`} className={`chip ${filterStatus === "paused" ? "chip-active" : ""}`}>
-              <span style={{ width: 6, height: 6, borderRadius: 999, background: "var(--st-paused, #999)" }} />
-              Pausadas
-            </Link>
-            <Link href={`/obras?status=done${q ? `&q=${encodeURIComponent(q)}` : ""}`} className={`chip ${filterStatus === "done" ? "chip-active" : ""}`}>
-              <span style={{ width: 6, height: 6, borderRadius: 999, background: "var(--st-done)" }} />
-              Concluídas
-            </Link>
-            <Link href="/obras/nova" className="btn-primary" style={{ marginLeft: 4 }}>
-              + Nova obra
-            </Link>
-          </div>
+          <form method="get" action="/obras" className="diario-toolbar">
+            <input
+              className="diario-input"
+              type="search"
+              name="q"
+              defaultValue={q ?? ""}
+              placeholder="Pesquisa"
+            />
+            <select className="diario-select" name="status" defaultValue={filterStatus ?? ""}>
+              <option value="">Todas as obras</option>
+              <option value="in_progress">Em andamento</option>
+              <option value="not_started">Não iniciadas</option>
+              <option value="paused">Pausadas</option>
+              <option value="done">Concluídas</option>
+              <option value="at-risk">Em risco</option>
+            </select>
+            <button className="diario-blue-button" type="submit" title="Pesquisar">
+              <Search size={16} />
+            </button>
+          </form>
         </div>
-      </div>
 
-      {/* GRID DE CARDS */}
-      <div style={{ padding: "0 24px 32px", maxWidth: 1280, margin: "0 auto" }}>
         {visibleSites.length === 0 ? (
-          <div className="empty">
-            <div className="empty-emoji">🏗️</div>
-            <div style={{ fontSize: 15, color: "var(--o-text-1)", marginBottom: 4 }}>
-              Nenhuma obra encontrada com este filtro.
-            </div>
-            <div style={{ fontSize: 13 }}>
-              Tente outro filtro acima ou cadastre uma nova obra.
-            </div>
+          <div className="do-panel" style={{ padding: 24, color: "#666" }}>
+            Nenhuma obra encontrada com este filtro.
           </div>
         ) : (
-          <div
-            className="reveal-stagger"
-            style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))",
-              gap: 18,
-            }}
-          >
-            {visibleSites.map((s) => {
-              const stats = perSite.get(s.id) ?? { total: 0, done: 0, late: 0, in_progress: 0, progressAvg: 0 };
-              const accentColor =
-                stats.late > 0
-                  ? "var(--st-late)"
-                  : s.status === "done"
-                  ? "var(--st-done)"
-                  : "var(--t-brand)";
-              const statusInfo = STATUS_LABELS[s.status] ?? STATUS_LABELS.in_progress;
-              const isOperational = s.name.includes("(operacional)");
+          <div className="diario-obra-grid">
+            {visibleSites.map((site) => {
+              const status = STATUS_META[site.status] ?? STATUS_META.in_progress;
+              const stats = perSite.get(site.id) ?? { total: 0, done: 0, late: 0, in_progress: 0, progressAvg: 0 };
               return (
-                <Link key={s.id} href={`/obras/${s.id}`} className="obra-card">
+                <Link key={site.id} href={`/obras/${site.id}`} className="diario-obra-card">
                   <div
-                    className="obra-card-cover"
-                    style={{
-                      backgroundImage: s.cover_url ? `url(${mediaUrl(s.cover_url)})` : undefined,
-                      ...(isOperational
-                        ? {
-                            background:
-                              "linear-gradient(135deg, var(--t-brand-mist) 0%, var(--o-mist) 100%)",
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "center",
-                            color: "var(--t-brand)",
-                            fontSize: 36,
-                          }
-                        : {}),
-                    }}
+                    className="diario-obra-card__cover"
+                    style={{ backgroundImage: site.cover_url ? `url(${mediaUrl(site.cover_url)})` : undefined }}
                   >
-                    {isOperational && <span style={{ position: "relative", zIndex: 1 }}>📋</span>}
-                    {!isOperational && (
-                      <span className={`status ${statusInfo.cls} status-on-cover obra-card-status`}>
-                        {statusInfo.label}
-                      </span>
-                    )}
+                    <span className={`diario-status-badge ${status.cls}`}>{status.label}</span>
                   </div>
-                  <div className="obra-card-body">
-                    {s.client_name && (
-                      <div
-                        style={{
-                          fontSize: 11,
-                          color: "var(--o-text-3)",
-                          textTransform: "uppercase",
-                          letterSpacing: "0.06em",
-                          marginBottom: 4,
-                          fontWeight: 500,
-                        }}
-                      >
-                        {s.client_name}
-                      </div>
-                    )}
-                    <div
-                      style={{
-                        font: "600 16px var(--font-inter)",
-                        letterSpacing: "-0.01em",
-                        color: "var(--o-text-1)",
-                        marginBottom: 14,
-                        lineHeight: 1.3,
-                      }}
-                    >
-                      {s.name}
+                  <div className="diario-obra-card__body">
+                    <div className="diario-card-counts">
+                      <span title="Relatórios">
+                        <FileText size={13} />
+                        {rdoCount.get(site.id) ?? 0}
+                      </span>
+                      <span title="Fotos">
+                        <Camera size={13} />
+                        {photoCount.get(site.id) ?? 0}
+                      </span>
+                      <span title="Atividades">
+                        <ClipboardList size={13} />
+                        {stats.total}
+                      </span>
+                      {(videoCount.get(site.id) ?? 0) > 0 ? (
+                        <span title="Vídeos">{videoCount.get(site.id)}</span>
+                      ) : null}
                     </div>
-
-                    {/* Progresso */}
-                    {stats.total > 0 && (
-                      <>
-                        <div
-                          style={{
-                            height: 5,
-                            background: "var(--o-mist)",
-                            borderRadius: 999,
-                            overflow: "hidden",
-                            marginBottom: 8,
-                          }}
-                        >
-                          <div
-                            style={{
-                              width: `${stats.progressAvg}%`,
-                              height: "100%",
-                              background: accentColor,
-                              transition: "width 600ms var(--ease-out)",
-                              borderRadius: 999,
-                            }}
-                          />
-                        </div>
-                        <div
-                          style={{
-                            display: "flex",
-                            justifyContent: "space-between",
-                            fontSize: 12,
-                            color: "var(--o-text-2)",
-                            marginBottom: 12,
-                          }}
-                          className="tnum"
-                        >
-                          <span style={{ fontWeight: 500 }}>{stats.progressAvg}% concluído</span>
-                          <span>
-                            {stats.done}/{stats.total} atividades
-                          </span>
-                        </div>
-                      </>
-                    )}
-
-                    {/* Métricas secundárias */}
-                    <div style={{ display: "flex", gap: 12, fontSize: 11.5, color: "var(--o-text-3)", flexWrap: "wrap" }}>
-                      {(rdoCount.get(s.id) ?? 0) > 0 && (
-                        <span>
-                          <span className="tnum" style={{ fontWeight: 600, color: "var(--o-text-2)" }}>
-                            {rdoCount.get(s.id)}
-                          </span>{" "}
-                          RDOs
-                        </span>
-                      )}
-                      {stats.in_progress > 0 && (
-                        <span>
-                          <span className="tnum" style={{ fontWeight: 600, color: "var(--st-progress)" }}>
-                            {stats.in_progress}
-                          </span>{" "}
-                          ativas
-                        </span>
-                      )}
-                      {stats.late > 0 && (
-                        <span>
-                          <span className="tnum" style={{ fontWeight: 600, color: "var(--st-late)" }}>
-                            {stats.late}
-                          </span>{" "}
-                          atrasadas
-                        </span>
-                      )}
-                    </div>
+                    <div className="diario-obra-card__title">{site.name}</div>
                   </div>
                 </Link>
               );

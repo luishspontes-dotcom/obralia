@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { mediaUrl } from "@/lib/storage";
 import { PrintButton } from "@/components/PrintButton";
+import { VISIBLE_SOURCE_PROVIDERS } from "@/lib/rdo-source-scope";
 
 type Site = { id: string; name: string; client_name: string | null; address: string | null; contract_number: string | null };
 type DR = {
@@ -25,14 +26,21 @@ export default async function ImprimirRdoPage({
   const supabase = await createServerSupabase();
 
   const { data: siteRaw } = await supabase
-    .from("sites").select("id, name, client_name, address, contract_number").eq("id", id).maybeSingle();
+    .from("sites")
+    .select("id, name, client_name, address, contract_number")
+    .eq("id", id)
+    .in("external_provider", VISIBLE_SOURCE_PROVIDERS)
+    .maybeSingle();
   const site = siteRaw as Site | null;
   if (!site) notFound();
 
   const { data: rdoRaw } = await supabase
     .from("daily_reports")
     .select("id, number, date, status, weather_morning, weather_afternoon, condition_morning, condition_afternoon, general_notes, approval_status_label")
-    .eq("id", rdoId).eq("site_id", id).maybeSingle();
+    .eq("id", rdoId)
+    .eq("site_id", id)
+    .in("external_provider", VISIBLE_SOURCE_PROVIDERS)
+    .maybeSingle();
   const rdo = rdoRaw as DR | null;
   if (!rdo) notFound();
 
@@ -40,7 +48,7 @@ export default async function ImprimirRdoPage({
     supabase.from("report_activities").select("id, description, progress_pct, notes").eq("daily_report_id", rdoId),
     supabase.from("report_workforce").select("id, role, count").eq("daily_report_id", rdoId),
     supabase.from("report_equipment").select("id, name, hours").eq("daily_report_id", rdoId),
-    supabase.from("media").select("id, storage_path, thumbnail_path, caption").eq("daily_report_id", rdoId).eq("kind", "photo").limit(60),
+    supabase.from("media").select("id, storage_path, thumbnail_path, caption").eq("daily_report_id", rdoId).in("external_provider", VISIBLE_SOURCE_PROVIDERS).eq("kind", "photo").limit(60),
   ]);
 
   const activities = (actsR.data ?? []) as Activity[];

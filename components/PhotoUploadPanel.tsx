@@ -12,6 +12,7 @@ import {
   X,
 } from "lucide-react";
 import { createBrowserSupabase } from "@/lib/supabase/client";
+import { OBRALIA_SOURCE_PROVIDER } from "@/lib/rdo-source-scope";
 
 type DailyReportOption = {
   id: string;
@@ -162,6 +163,7 @@ export function PhotoUploadPanel({
           size_bytes: prepared.file.size,
           width: prepared.width,
           height: prepared.height,
+          external_provider: OBRALIA_SOURCE_PROVIDER,
         } as never);
 
         if (insert.error) {

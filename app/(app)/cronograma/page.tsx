@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { createServerSupabase } from "@/lib/supabase/server";
+import { VISIBLE_SOURCE_PROVIDERS } from "@/lib/rdo-source-scope";
 
 type Site = { id: string; name: string; start_date: string | null; end_date: string | null; status: string };
 
@@ -8,6 +9,7 @@ export default async function CronogramaPage() {
   const { data: sitesRaw } = await supabase
     .from("sites")
     .select("id, name, start_date, end_date, status")
+    .in("external_provider", VISIBLE_SOURCE_PROVIDERS)
     .not("start_date", "is", null)
     .order("start_date");
   const sites = (sitesRaw ?? []) as Site[];

@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { createServerSupabase } from "@/lib/supabase/server";
+import { VISIBLE_SOURCE_PROVIDERS } from "@/lib/rdo-source-scope";
 import { MapView } from "@/components/MapView";
 
 type SitePin = {
@@ -16,13 +17,16 @@ type SitePin = {
 export default async function MapaPage() {
   const supabase = await createServerSupabase();
   const { data: sitesRaw } = await supabase
-    .from("sites").select("id, name, client_name, status, lat, lng");
+    .from("sites")
+    .select("id, name, client_name, status, lat, lng")
+    .in("external_provider", VISIBLE_SOURCE_PROVIDERS);
   const sites = (sitesRaw ?? []) as Array<Omit<SitePin, "photoLat" | "photoLng">>;
 
   // Pra obras sem lat/lng cadastrados, tenta inferir da foto mais recente com GPS
   const { data: gpsRaw } = await supabase
     .from("media")
     .select("site_id, gps_lat, gps_lng")
+    .in("external_provider", VISIBLE_SOURCE_PROVIDERS)
     .not("gps_lat", "is", null)
     .not("gps_lng", "is", null);
   const gpsMap = new Map<string, { lat: number; lng: number }>();

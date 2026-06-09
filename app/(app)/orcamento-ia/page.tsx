@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Calculator, FileText, Plus, Sparkles } from "lucide-react";
+import { DeleteEstimateButton } from "@/components/budget-ai/DeleteEstimateButton";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { untypedDb } from "@/lib/supabase/untyped";
 
@@ -15,6 +16,8 @@ type Estimate = {
   total: number;
   confidence_score: number;
   created_at: string | null;
+  site_id: string | null;
+  sites: { name: string } | null;
 };
 
 const BRL = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
@@ -41,16 +44,16 @@ export default async function OrcamentoIaPage() {
   const { data: estimatesRaw } = activeOrg
     ? await db
         .from("ai_estimates")
-        .select("id, title, client_name, built_area_m2, pool_area_m2, status, total, confidence_score, created_at")
+        .select("id, title, client_name, built_area_m2, pool_area_m2, status, total, confidence_score, created_at, site_id, sites(name)")
         .eq("organization_id", activeOrg.id)
         .order("created_at", { ascending: false })
         .limit(20)
     : { data: [] };
   const estimates = (estimatesRaw ?? []) as Estimate[];
 
-  const reviewCount = estimates.filter((estimate) => estimate.status === "review").length;
-  const approvedCount = estimates.filter((estimate) => estimate.status === "approved").length;
-  const totalPipeline = estimates.reduce((sum, estimate) => sum + Number(estimate.total ?? 0), 0);
+  const reviewCount = estimates.filter((estimate) => estimate.status !== "approved").length;
+  const verifiedEstimates = estimates.filter((estimate) => estimate.status === "approved" && Number(estimate.confidence_score ?? 0) >= 1);
+  const totalVerifiedPipeline = verifiedEstimates.reduce((sum, estimate) => sum + Number(estimate.total ?? 0), 0);
 
   return (
     <div>
@@ -58,17 +61,17 @@ export default async function OrcamentoIaPage() {
         <div style={{ maxWidth: 1280, margin: "0 auto", display: "flex", justifyContent: "space-between", gap: 18, alignItems: "flex-end", flexWrap: "wrap" }}>
           <div>
             <div style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: "0.12em", color: "var(--t-brand)", fontWeight: 600, marginBottom: 8 }}>
-              IA de orcamento
+              Central de limpeza
             </div>
             <h1 style={{ margin: "0 0 8px", font: "700 32px var(--font-inter)", letterSpacing: "-0.025em" }}>
               Orçamento IA
             </h1>
             <p style={{ margin: 0, maxWidth: 680, fontSize: 14, color: "var(--o-text-2)" }}>
-              Transforme planta, memorial e planilha base em um estudo preliminar revisavel.
+              Use esta visão para revisar ou apagar estudos soltos. O orçamento principal fica dentro de cada obra.
             </p>
           </div>
-          <Link href="/orcamento-ia/novo" className="btn-brand" style={{ textDecoration: "none", display: "inline-flex", gap: 8, alignItems: "center" }}>
-            <Plus size={16} /> Novo estudo
+          <Link href="/obras" className="btn-brand" style={{ textDecoration: "none", display: "inline-flex", gap: 8, alignItems: "center" }}>
+            <Plus size={16} /> Escolher obra
           </Link>
         </div>
       </div>
@@ -77,8 +80,8 @@ export default async function OrcamentoIaPage() {
         <div className="stat-grid ai-budget-metrics-grid" style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: 12, marginBottom: 18 }}>
           <Metric icon={<FileText size={18} />} label="Estudos" value={String(estimates.length)} />
           <Metric icon={<Sparkles size={18} />} label="Para revisar" value={String(reviewCount)} />
-          <Metric icon={<Calculator size={18} />} label="Aprovados" value={String(approvedCount)} />
-          <Metric icon={<Calculator size={18} />} label="Pipeline" value={BRL.format(totalPipeline)} />
+          <Metric icon={<Calculator size={18} />} label="Verificados" value={String(verifiedEstimates.length)} />
+          <Metric icon={<Calculator size={18} />} label="Pipeline verificado" value={BRL.format(totalVerifiedPipeline)} />
         </div>
 
         {estimates.length === 0 ? (
@@ -97,32 +100,34 @@ export default async function OrcamentoIaPage() {
         ) : (
           <div className="card" style={{ padding: 0, overflow: "hidden" }}>
             {estimates.map((estimate, index) => (
-              <Link
+              <div
                 key={estimate.id}
-                href={`/orcamento-ia/${estimate.id}`}
                 style={{
                   display: "grid",
-                  gridTemplateColumns: "minmax(0, 1.5fr) 140px 140px 130px",
+                  gridTemplateColumns: "minmax(0, 1.5fr) 140px 140px 130px 46px",
                   gap: 14,
                   alignItems: "center",
                   padding: "16px 18px",
                   borderTop: index === 0 ? "none" : "1px solid var(--o-border)",
-                  textDecoration: "none",
                   color: "inherit",
                 }}
               >
-                <div style={{ minWidth: 0 }}>
+                <Link
+                  href={estimate.site_id ? `/obras/${estimate.site_id}/orcamento-ia/${estimate.id}` : `/orcamento-ia/${estimate.id}`}
+                  style={{ minWidth: 0, textDecoration: "none", color: "inherit" }}
+                >
                   <div style={{ fontWeight: 700, color: "var(--o-text-1)", letterSpacing: "-0.01em" }}>{estimate.title}</div>
                   <div style={{ fontSize: 12, color: "var(--o-text-2)", marginTop: 3 }}>
-                    {[estimate.client_name, areaLabel(estimate)].filter(Boolean).join(" · ")}
+                    {[estimate.sites?.name, estimate.client_name, areaLabel(estimate)].filter(Boolean).join(" · ")}
                   </div>
-                </div>
+                </Link>
                 <StatusPill status={estimate.status} />
                 <div className="tnum" style={{ fontWeight: 700 }}>{BRL.format(Number(estimate.total ?? 0))}</div>
                 <div style={{ color: "var(--o-text-2)", fontSize: 12 }}>
                   Confiança {Math.round(Number(estimate.confidence_score ?? 0) * 100)}%
                 </div>
-              </Link>
+                <DeleteEstimateButton estimateId={estimate.id} redirectTo="/orcamento-ia" compact />
+              </div>
             ))}
           </div>
         )}

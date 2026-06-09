@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { OBRALIA_SOURCE_PROVIDER } from "@/lib/rdo-source-scope";
 import { createServerSupabase } from "@/lib/supabase/server";
 
 async function createObraAction(formData: FormData) {
@@ -36,6 +37,7 @@ async function createObraAction(formData: FormData) {
       name, address, client_name,
       start_date, end_date, contract_number,
       status: "in_progress",
+      external_provider: OBRALIA_SOURCE_PROVIDER,
     } as never)
     .select("id")
     .single();

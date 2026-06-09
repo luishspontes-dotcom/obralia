@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { NewEstimateForm } from "./NewEstimateForm";
 import { createServerSupabase } from "@/lib/supabase/server";
+import { VISIBLE_SOURCE_PROVIDERS } from "@/lib/rdo-source-scope";
 import { untypedDb } from "@/lib/supabase/untyped";
 
 type Site = { id: string; name: string };
@@ -11,6 +12,7 @@ export default async function NovoOrcamentoIaPage() {
   const { data: sitesRaw } = await db
     .from("sites")
     .select("id, name")
+    .in("external_provider", VISIBLE_SOURCE_PROVIDERS)
     .order("created_at", { ascending: false })
     .limit(200);
   const sites = (sitesRaw ?? []) as Site[];

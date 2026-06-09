@@ -10,8 +10,15 @@ type Photo = {
   caption: string | null;
 };
 
-export function PhotoGrid({ photos }: { photos: Photo[] }) {
+export function PhotoGrid({
+  photos,
+  variant = "grid",
+}: {
+  photos: Photo[];
+  variant?: "grid" | "strip";
+}) {
   const [openIdx, setOpenIdx] = useState<number | null>(null);
+  const strip = variant === "strip";
 
   const close = useCallback(() => setOpenIdx(null), []);
   const next = useCallback(() => {
@@ -41,10 +48,14 @@ export function PhotoGrid({ photos }: { photos: Photo[] }) {
   return (
     <>
       <div style={{
-        display: "grid",
-        gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))",
-        gap: 6,
-      }}>
+        ...(strip
+          ? {}
+          : {
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))",
+              gap: 6,
+            }),
+      }} className={strip ? "diario-photo-strip" : "photo-grid"}>
         {photos.map((p, i) => (
           <button
             key={p.id}
@@ -54,9 +65,9 @@ export function PhotoGrid({ photos }: { photos: Photo[] }) {
               padding: 0,
               border: 0,
               cursor: "pointer",
-              aspectRatio: "1 / 1",
+              aspectRatio: strip ? undefined : "1 / 1",
               background: "var(--o-border)",
-              borderRadius: 6,
+              borderRadius: strip ? 0 : 6,
               overflow: "hidden",
             }}
           >

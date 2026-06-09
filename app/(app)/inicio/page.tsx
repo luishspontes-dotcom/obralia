@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { createServerSupabase } from "@/lib/supabase/server";
+import { VISIBLE_SOURCE_PROVIDERS } from "@/lib/rdo-source-scope";
 import { mediaUrl } from "@/lib/storage";
 import { OnboardingBanner } from "@/components/OnboardingBanner";
 
@@ -28,19 +29,20 @@ export default async function InicioPage() {
 
   // Counts
   const { count: obrasCount } = await supabase
-    .from("sites").select("*", { count: "exact", head: true });
+    .from("sites").select("*", { count: "exact", head: true }).in("external_provider", VISIBLE_SOURCE_PROVIDERS);
   const { data: lateRows } = await supabase
-    .from("wbs_items").select("site_id").eq("status", "late");
+    .from("wbs_items").select("site_id").in("external_provider", VISIBLE_SOURCE_PROVIDERS).eq("status", "late");
   const lateSiteIds = new Set(((lateRows ?? []) as { site_id: string }[]).map((r) => r.site_id));
   const { count: tasksInProgressCount } = await supabase
-    .from("wbs_items").select("*", { count: "exact", head: true }).eq("status", "in_progress");
+    .from("wbs_items").select("*", { count: "exact", head: true }).in("external_provider", VISIBLE_SOURCE_PROVIDERS).eq("status", "in_progress");
   const { count: rdosCount } = await supabase
-    .from("daily_reports").select("*", { count: "exact", head: true });
+    .from("daily_reports").select("*", { count: "exact", head: true }).in("external_provider", VISIBLE_SOURCE_PROVIDERS);
 
   // 3 obras mais recentemente atualizadas pra hero visual
   const { data: recentSitesRaw } = await supabase
     .from("sites")
     .select("id, name, cover_url, status")
+    .in("external_provider", VISIBLE_SOURCE_PROVIDERS)
     .not("cover_url", "is", null)
     .neq("name", "AGENDAS (operacional)")
     .neq("name", "ATA SEMANAL (operacional)")

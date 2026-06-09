@@ -2,12 +2,17 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { RdoForm } from "@/components/RdoForm";
+import { VISIBLE_SOURCE_PROVIDERS } from "@/lib/rdo-source-scope";
 
 export default async function NovoRdoPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const supabase = await createServerSupabase();
   const { data: siteRaw } = await supabase
-    .from("sites").select("id, name").eq("id", id).maybeSingle();
+    .from("sites")
+    .select("id, name")
+    .eq("id", id)
+    .in("external_provider", VISIBLE_SOURCE_PROVIDERS)
+    .maybeSingle();
   const site = siteRaw as { id: string; name: string } | null;
   if (!site) redirect("/obras");
 

@@ -1,7 +1,6 @@
 import { redirect } from "next/navigation";
 import { createServerSupabase } from "@/lib/supabase/server";
-import { Rail } from "@/components/layout/Rail";
-import { Sidebar } from "@/components/layout/Sidebar";
+import { Topbar } from "@/components/layout/Topbar";
 import { KeyboardShortcuts } from "@/components/KeyboardShortcuts";
 
 type Profile = {
@@ -50,17 +49,7 @@ export default async function AppLayout({
       <a href="#main-content" className="skip-nav">
         Pular para o conteúdo
       </a>
-      <Rail
-        userInitials={
-          (fullName ?? user.email ?? "??")
-            .split(" ")
-            .map((s: string) => s[0])
-            .slice(0, 2)
-            .join("")
-            .toUpperCase()
-        }
-      />
-      <Sidebar activeOrg={activeOrg} userName={fullName} />
+      <Topbar activeOrg={activeOrg} userName={fullName ?? user.email ?? null} />
       <main id="main-content" className="app-main light-scroll" tabIndex={-1}>
         {children}
       </main>

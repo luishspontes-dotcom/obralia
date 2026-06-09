@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { createServerSupabase } from "@/lib/supabase/server";
+import { VISIBLE_SOURCE_PROVIDERS } from "@/lib/rdo-source-scope";
 
 type Hit = {
   kind: "obra" | "tarefa" | "rdo" | "comentario";
@@ -21,7 +22,7 @@ type SearchRdo = {
   status: string | null;
   general_notes: string | null;
 };
-type SearchComment = { id: string; body: string; target_table: string; created_at: string | null };
+type SearchComment = { id: string; body: string; target_table: string; target_id: string; created_at: string | null };
 
 const KIND_META: Record<string, { label: string; emoji: string; color: string }> = {
   obra:       { label: "Obra",       emoji: "🏗",  color: "var(--t-brand)" },
@@ -42,14 +43,7 @@ export default async function BuscarPage({
   let hits: Hit[] = [];
 
   if (query.length >= 2) {
-    const searchGlobal = supabase.rpc.bind(supabase) as unknown as (
-      fn: "search_global",
-      args: { q: string; max_per_kind: number }
-    ) => Promise<{ data: Hit[] | null; error: { message: string } | null }>;
-    const { data, error } = await searchGlobal("search_global", { q: query, max_per_kind: 15 });
-    hits = error
-      ? await fallbackSearch(supabase, query)
-      : ((data ?? []) as Hit[]).sort((a, b) => b.match_rank - a.match_rank);
+    hits = await fallbackSearch(supabase, query);
   }
 
   // Group by kind for display
@@ -170,17 +164,20 @@ async function fallbackSearch(supabase: Supabase, query: string): Promise<Hit[]>
   const rdoQuery = supabase
     .from("daily_reports")
     .select("id, site_id, number, date, status, general_notes")
+    .in("external_provider", VISIBLE_SOURCE_PROVIDERS)
     .limit(15);
 
   const [sitesR, wbsR, rdosR, commentsR] = await Promise.all([
     supabase
       .from("sites")
       .select("id, name, client_name, address, status")
+      .in("external_provider", VISIBLE_SOURCE_PROVIDERS)
       .or(`name.ilike.${pattern},client_name.ilike.${pattern},address.ilike.${pattern},status.ilike.${pattern}`)
       .limit(15),
     supabase
       .from("wbs_items")
       .select("id, site_id, code, name, status")
+      .in("external_provider", VISIBLE_SOURCE_PROVIDERS)
       .or(`name.ilike.${pattern},code.ilike.${pattern},status.ilike.${pattern}`)
       .limit(15),
     canSearchNumber
@@ -188,7 +185,7 @@ async function fallbackSearch(supabase: Supabase, query: string): Promise<Hit[]>
       : rdoQuery.or(`date.ilike.${pattern},status.ilike.${pattern},general_notes.ilike.${pattern}`),
     supabase
       .from("comments")
-      .select("id, body, target_table, created_at")
+      .select("id, body, target_table, target_id, created_at")
       .ilike("body", pattern)
       .limit(15),
   ]);
@@ -205,11 +202,30 @@ async function fallbackSearch(supabase: Supabase, query: string): Promise<Hit[]>
     const { data } = await supabase
       .from("sites")
       .select("id, name")
+      .in("external_provider", VISIBLE_SOURCE_PROVIDERS)
       .in("id", [...siteIds]);
     for (const site of (data ?? []) as unknown as Array<{ id: string; name: string }>) {
       siteLookup.set(site.id, site.name);
     }
   }
+
+  const commentRdoIds = comments.filter((comment) => comment.target_table === "daily_reports").map((comment) => comment.target_id);
+  const visibleCommentRdoIds = new Set<string>();
+  if (commentRdoIds.length > 0) {
+    const { data } = await supabase
+      .from("daily_reports")
+      .select("id")
+      .in("external_provider", VISIBLE_SOURCE_PROVIDERS)
+      .in("id", commentRdoIds);
+    for (const rdo of (data ?? []) as unknown as Array<{ id: string }>) {
+      visibleCommentRdoIds.add(rdo.id);
+    }
+  }
+  const visibleComments = comments.filter((comment) => (
+    comment.target_table === "daily_reports"
+      ? visibleCommentRdoIds.has(comment.target_id)
+      : true
+  ));
 
   const hits: Hit[] = [
     ...(sites.map((site) => ({
@@ -236,7 +252,7 @@ async function fallbackSearch(supabase: Supabase, query: string): Promise<Hit[]>
       link: `/obras/${rdo.site_id}/rdos/${rdo.id}`,
       match_rank: 50,
     }))),
-    ...(comments.map((comment) => ({
+    ...(visibleComments.map((comment) => ({
       kind: "comentario" as const,
       id: comment.id,
       title: comment.body.slice(0, 90),

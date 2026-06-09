@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { createServerSupabase } from "@/lib/supabase/server";
+import { VISIBLE_SOURCE_PROVIDERS } from "@/lib/rdo-source-scope";
 
 type Comment = {
   id: string;
@@ -21,14 +22,22 @@ export default async function ComentariosPage() {
 
   const rdoIds = comments.filter((c) => c.target_table === "daily_reports").map((c) => c.target_id);
   const { data: rdosR } = await supabase
-    .from("daily_reports").select("id, site_id, number")
+    .from("daily_reports")
+    .select("id, site_id, number")
+    .in("external_provider", VISIBLE_SOURCE_PROVIDERS)
     .in("id", rdoIds.length > 0 ? rdoIds : ["00000000-0000-0000-0000-000000000000"]);
   const rdoMap = new Map(((rdosR ?? []) as { id: string; site_id: string; number: number }[]).map((r) => [r.id, r]));
 
-  const { data: sitesR } = await supabase.from("sites").select("id, name");
+  const { data: sitesR } = await supabase
+    .from("sites")
+    .select("id, name")
+    .in("external_provider", VISIBLE_SOURCE_PROVIDERS);
   const siteMap = new Map(((sitesR ?? []) as { id: string; name: string }[]).map((s) => [s.id, s.name]));
 
-  const ocorrencias = comments.filter((c) => c.body.startsWith("[OCORRÊNCIA]")).length;
+  const visibleComments = comments.filter((comment) => (
+    comment.target_table === "daily_reports" ? rdoMap.has(comment.target_id) : true
+  ));
+  const ocorrencias = visibleComments.filter((c) => c.body.startsWith("[OCORRÊNCIA]")).length;
 
   return (
     <div>
@@ -41,7 +50,7 @@ export default async function ComentariosPage() {
             Comentários e ocorrências
           </h1>
           <p style={{ margin: 0, fontSize: 14, color: "var(--o-text-2)" }}>
-            {comments.length} {comments.length === 1 ? "registro recente" : "registros mais recentes"}
+            {visibleComments.length} {visibleComments.length === 1 ? "registro recente" : "registros mais recentes"}
             {ocorrencias > 0 && (
               <>
                 {" · "}
@@ -55,7 +64,7 @@ export default async function ComentariosPage() {
       </div>
 
       <div style={{ padding: "0 24px 32px", maxWidth: 1280, margin: "0 auto" }}>
-        {comments.length === 0 ? (
+        {visibleComments.length === 0 ? (
           <div className="empty">
             <div className="empty-emoji">💬</div>
             <div style={{ fontSize: 16, color: "var(--o-text-1)", marginBottom: 4, fontWeight: 600 }}>
@@ -67,7 +76,7 @@ export default async function ComentariosPage() {
           </div>
         ) : (
           <div className="reveal-stagger" style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-            {comments.map((c) => {
+            {visibleComments.map((c) => {
               const isOcorrencia = c.body.startsWith("[OCORRÊNCIA]");
               const display = isOcorrencia ? c.body.replace("[OCORRÊNCIA] ", "") : c.body;
               const rdo = rdoMap.get(c.target_id);

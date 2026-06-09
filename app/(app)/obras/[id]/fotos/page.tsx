@@ -1,9 +1,25 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { createServerSupabase } from "@/lib/supabase/server";
+import { PlayCircle, Printer, Search } from "lucide-react";
+import { ObraSidebar } from "@/components/layout/ObraSidebar";
 import { PhotoGrid } from "@/components/PhotoLightbox";
+import { createServerSupabase } from "@/lib/supabase/server";
+import { fetchAllPages } from "@/lib/supabase/fetch-all";
+import { VISIBLE_SOURCE_PROVIDERS } from "@/lib/rdo-source-scope";
+import { mediaUrl } from "@/lib/storage";
 
-type Site = { id: string; name: string; cover_url: string | null };
+type Site = {
+  id: string;
+  name: string;
+  cover_url: string | null;
+};
+
+type DailyReport = {
+  id: string;
+  number: number;
+  date: string;
+};
+
 type Photo = {
   id: string;
   storage_path: string | null;
@@ -13,135 +29,177 @@ type Photo = {
   daily_report_id: string | null;
 };
 
+function fmtDate(value: string): string {
+  return new Date(`${value}T00:00:00`).toLocaleDateString("pt-BR");
+}
+
 export default async function ObraFotosPage({
   params,
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ page?: string }>;
+  searchParams: Promise<{ relatorio?: string; q?: string; order?: string; tipo?: string }>;
 }) {
   const { id } = await params;
-  const { page } = await searchParams;
-  const pageNum = Math.max(1, parseInt(page ?? "1", 10) || 1);
-  const PER_PAGE = 60;
-  const offset = (pageNum - 1) * PER_PAGE;
-
+  const { relatorio, q, order, tipo } = await searchParams;
+  const mediaType = tipo === "video" ? "video" : "photo";
+  const queryText = (q ?? "").trim().toLowerCase();
   const supabase = await createServerSupabase();
+
   const { data: siteRaw } = await supabase
-    .from("sites").select("id, name, cover_url").eq("id", id).maybeSingle();
+    .from("sites")
+    .select("id, name, cover_url")
+    .eq("id", id)
+    .in("external_provider", VISIBLE_SOURCE_PROVIDERS)
+    .maybeSingle();
   const site = siteRaw as Site | null;
   if (!site) notFound();
 
-  const { count: totalCount } = await supabase
-    .from("media").select("*", { count: "exact", head: true })
-    .eq("site_id", id).eq("kind", "photo");
+  const { data: reportsRaw } = await supabase
+    .from("daily_reports")
+    .select("id, number, date")
+    .eq("site_id", id)
+    .in("external_provider", VISIBLE_SOURCE_PROVIDERS)
+    .order("number", { ascending: order === "asc" });
+  const reports = (reportsRaw ?? []) as DailyReport[];
+  const reportMap = new Map(reports.map((report) => [report.id, report]));
 
-  const { data: photosRaw } = await supabase
-    .from("media")
-    .select("id, storage_path, thumbnail_path, caption, taken_at, daily_report_id")
-    .eq("site_id", id).eq("kind", "photo")
-    .order("taken_at", { ascending: false, nullsFirst: false })
-    .range(offset, offset + PER_PAGE - 1);
-  const photos = (photosRaw ?? []) as Photo[];
+  const mediaRows = await fetchAllPages<Photo & { kind: string | null }>(() =>
+    supabase
+      .from("media")
+      .select("id, storage_path, thumbnail_path, caption, taken_at, daily_report_id, kind")
+      .eq("site_id", id)
+      .in("external_provider", VISIBLE_SOURCE_PROVIDERS)
+  );
+  const photosAll = mediaRows.filter((media) => media.kind === "photo");
+  const videosAll = mediaRows.filter((media) => media.kind === "video");
+  const videoCount = videosAll.length;
+  const fileCount = mediaRows.filter((media) => media.kind === "file").length;
+  const selectedMedia = mediaType === "video" ? videosAll : photosAll;
 
-  const total = totalCount ?? photos.length;
-  const totalPages = Math.max(1, Math.ceil(total / PER_PAGE));
+  const visibleMedia = selectedMedia.filter((media) => {
+    if (relatorio && media.daily_report_id !== relatorio) return false;
+    if (!queryText) return true;
+    const report = media.daily_report_id ? reportMap.get(media.daily_report_id) : null;
+    const haystack = `${media.caption ?? ""} ${report ? `${fmtDate(report.date)} ${report.number}` : ""}`.toLowerCase();
+    return haystack.includes(queryText);
+  });
+
+  const { data: taskRowsRaw } = await supabase
+    .from("wbs_items")
+    .select("id")
+    .eq("site_id", id)
+    .in("external_provider", VISIBLE_SOURCE_PROVIDERS)
+    .not("parent_id", "is", null);
+  const taskRows = (taskRowsRaw ?? []) as { id: string }[];
+  const taskCount = taskRows.length;
 
   const grouped = new Map<string, Photo[]>();
-  for (const p of photos) {
-    const key = p.taken_at
-      ? new Date(p.taken_at).toLocaleDateString("pt-BR", { month: "long", year: "numeric" })
-      : "Sem data";
-    const arr = grouped.get(key) ?? [];
-    arr.push(p);
-    grouped.set(key, arr);
+  for (const media of visibleMedia) {
+    const key = media.daily_report_id ?? "sem-relatorio";
+    const list = grouped.get(key) ?? [];
+    list.push(media);
+    grouped.set(key, list);
   }
 
+  const orderedGroups = Array.from(grouped.entries()).sort(([a], [b]) => {
+    if (a === "sem-relatorio") return 1;
+    if (b === "sem-relatorio") return -1;
+    const ra = reportMap.get(a)?.number ?? 0;
+    const rb = reportMap.get(b)?.number ?? 0;
+    return order === "asc" ? ra - rb : rb - ra;
+  });
+
   return (
-    <div>
-      <div className="page-hero">
-        <div style={{ maxWidth: 1280, margin: "0 auto" }}>
-          <div style={{ marginBottom: 12, fontSize: 13 }}>
-            <Link href="/obras" style={{ color: "var(--o-text-2)", textDecoration: "none" }}>← Obras</Link>
-            <span style={{ color: "var(--o-text-3)", margin: "0 8px" }}>/</span>
-            <Link href={`/obras/${id}`} style={{ color: "var(--o-text-2)", textDecoration: "none" }}>{site.name}</Link>
-            <span style={{ color: "var(--o-text-3)", margin: "0 8px" }}>/</span>
-            <span style={{ color: "var(--o-text-1)", fontWeight: 500 }}>Fotos</span>
-          </div>
+    <div className="do-obra-layout">
+      <ObraSidebar
+        site={site}
+        active="photos"
+        counts={{
+          reports: reports.length,
+          tasks: taskCount,
+          photos: photosAll.length,
+          videos: videoCount,
+          files: fileCount,
+        }}
+      />
 
-          <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", flexWrap: "wrap", gap: 16 }}>
+      <main className="do-obra-main">
+        <div className="diario-container">
+          <div className="diario-page-header">
             <div>
-              <div style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: "0.12em", color: "var(--t-brand)", fontWeight: 600, marginBottom: 8 }}>
-                Galeria
-              </div>
-              <h1 style={{ margin: "0 0 6px", font: "700 32px var(--font-inter)", letterSpacing: "-0.025em" }}>
+              <h1>{mediaType === "video" ? "Vídeos" : "Fotos"}</h1>
+              <p>Relatórios: {reports.length}</p>
+            </div>
+            <form method="get" action={`/obras/${id}/fotos`} className="diario-toolbar">
+              {mediaType === "video" ? <input type="hidden" name="tipo" value="video" /> : null}
+              <Link className={mediaType === "photo" ? "diario-blue-button" : "diario-gray-button"} href={`/obras/${id}/fotos`}>
                 Fotos
-              </h1>
-              <p style={{ margin: 0, fontSize: 14, color: "var(--o-text-2)" }}>
-                <span className="tnum" style={{ fontWeight: 500 }}>{total}</span> fotos · {site.name}
-              </p>
-            </div>
+              </Link>
+              <Link className={mediaType === "video" ? "diario-blue-button" : "diario-gray-button"} href={`/obras/${id}/fotos?tipo=video`}>
+                Vídeos
+              </Link>
+              <select className="diario-select" name="relatorio" defaultValue={relatorio ?? ""}>
+                <option value="">Todos os relatórios</option>
+                {reports.map((report) => (
+                  <option key={report.id} value={report.id}>
+                    {fmtDate(report.date)} n° {report.number}
+                  </option>
+                ))}
+              </select>
+              <input className="diario-input" name="q" defaultValue={q ?? ""} placeholder="Pesquisa" />
+              <select className="diario-select" name="order" defaultValue={order ?? "desc"}>
+                <option value="desc">Ordem decrescente</option>
+                <option value="asc">Ordem crescente</option>
+              </select>
+              <button className="diario-blue-button" type="submit" title="Pesquisar">
+                <Search size={16} />
+              </button>
+              <button className="diario-gray-button" type="button" title="Imprimir">
+                <Printer size={16} />
+                Imprimir
+              </button>
+            </form>
+          </div>
 
-            {totalPages > 1 && (
-              <div style={{ display: "flex", gap: 6, alignItems: "center", fontSize: 13 }}>
-                {pageNum > 1 ? (
-                  <Link href={`/obras/${id}/fotos?page=${pageNum - 1}`} className="chip">
-                    ← Anterior
-                  </Link>
-                ) : (
-                  <span className="chip" style={{ opacity: 0.4, cursor: "not-allowed" }}>← Anterior</span>
-                )}
-                <span style={{ padding: "0 12px", color: "var(--o-text-2)", fontSize: 13 }} className="tnum">
-                  Página {pageNum} de {totalPages}
-                </span>
-                {pageNum < totalPages ? (
-                  <Link href={`/obras/${id}/fotos?page=${pageNum + 1}`} className="chip">
-                    Próxima →
-                  </Link>
-                ) : (
-                  <span className="chip" style={{ opacity: 0.4, cursor: "not-allowed" }}>Próxima →</span>
-                )}
+          <section className="do-panel">
+            {orderedGroups.length === 0 ? (
+              <div style={{ padding: 18, color: "#777", fontSize: 12 }}>
+                {mediaType === "video" ? "Nenhum vídeo encontrado." : "Nenhuma foto encontrada."}
               </div>
+            ) : (
+              orderedGroups.map(([reportId, list]) => {
+                const report = reportId === "sem-relatorio" ? null : reportMap.get(reportId);
+                return (
+                  <div key={reportId} className="do-gallery-report">
+                    {report ? (
+                      <Link href={`/obras/${id}/rdos/${report.id}`} className="do-gallery-report__title">
+                        {fmtDate(report.date)} n° {report.number}
+                      </Link>
+                    ) : (
+                      <span className="do-gallery-report__title">Sem relatório</span>
+                    )}
+                    {mediaType === "video" ? <VideoStrip videos={list} /> : <PhotoGrid photos={list} variant="strip" />}
+                  </div>
+                );
+              })
             )}
-          </div>
+          </section>
         </div>
-      </div>
+      </main>
+    </div>
+  );
+}
 
-      <div style={{ padding: "0 24px 32px", maxWidth: 1280, margin: "0 auto" }}>
-        {photos.length === 0 ? (
-          <div className="empty">
-            <div className="empty-emoji">📸</div>
-            <div style={{ fontSize: 16, color: "var(--o-text-1)", marginBottom: 4, fontWeight: 600 }}>
-              Sem fotos por aqui
-            </div>
-            <div style={{ fontSize: 13 }}>
-              As fotos dos RDOs desta obra vão aparecer aqui em ordem cronológica.
-            </div>
-          </div>
-        ) : (
-          <div style={{ display: "flex", flexDirection: "column", gap: 32 }}>
-            {Array.from(grouped.entries()).map(([month, list]) => (
-              <div key={month}>
-                <h3 className="section-title" style={{
-                  display: "flex", alignItems: "center", gap: 10,
-                  textTransform: "capitalize", marginBottom: 14,
-                }}>
-                  {month}
-                  <span className="tnum" style={{
-                    padding: "2px 10px", fontSize: 11, fontWeight: 600,
-                    background: "var(--t-brand-soft)", color: "var(--t-brand)",
-                    borderRadius: 999,
-                    textTransform: "none", letterSpacing: 0,
-                  }}>
-                    {list.length}
-                  </span>
-                </h3>
-                <PhotoGrid photos={list} />
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
+function VideoStrip({ videos }: { videos: Photo[] }) {
+  return (
+    <div className="diario-video-strip">
+      {videos.map((video) => (
+        <a key={video.id} href={mediaUrl(video.storage_path) || "#"} target="_blank" rel="noreferrer">
+          <PlayCircle size={28} />
+          <span>{video.caption ?? "Vídeo da obra"}</span>
+        </a>
+      ))}
     </div>
   );
 }

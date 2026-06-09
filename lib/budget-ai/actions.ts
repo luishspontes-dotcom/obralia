@@ -27,6 +27,7 @@ type Organization = {
 type EstimateRow = {
   id: string;
   organization_id: string;
+  site_id: string | null;
   template_id: string | null;
   title: string;
   client_name: string | null;
@@ -157,6 +158,10 @@ export async function finalizeAiEstimateUpload(formData: FormData) {
 
   revalidatePath("/orcamento-ia");
   revalidatePath(`/orcamento-ia/${estimateId}`);
+  if (estimate.site_id) {
+    revalidatePath(`/obras/${estimate.site_id}/orcamento-ia`);
+    revalidatePath(`/obras/${estimate.site_id}/orcamento-ia/${estimateId}`);
+  }
   return { estimateId };
 }
 
@@ -165,6 +170,11 @@ export async function failAiEstimate(formData: FormData) {
   const estimateId = asString(formData.get("estimate_id"));
   const message = asNullableString(formData.get("message"));
   if (!estimateId) return;
+
+  const estimate = await fetchEstimate(db, estimateId);
+  if (!estimate || estimate.organization_id !== activeOrg.id) {
+    throw new Error("Estudo nao encontrado.");
+  }
 
   await db
     .from("ai_estimates")
@@ -179,6 +189,10 @@ export async function failAiEstimate(formData: FormData) {
 
   revalidatePath("/orcamento-ia");
   revalidatePath(`/orcamento-ia/${estimateId}`);
+  if (estimate.site_id) {
+    revalidatePath(`/obras/${estimate.site_id}/orcamento-ia`);
+    revalidatePath(`/obras/${estimate.site_id}/orcamento-ia/${estimateId}`);
+  }
 }
 
 export async function reprocessAiEstimate(formData: FormData) {
@@ -212,12 +226,21 @@ export async function reprocessAiEstimate(formData: FormData) {
   );
 
   revalidatePath(`/orcamento-ia/${estimateId}`);
+  if (estimate.site_id) {
+    revalidatePath(`/obras/${estimate.site_id}/orcamento-ia`);
+    revalidatePath(`/obras/${estimate.site_id}/orcamento-ia/${estimateId}`);
+  }
 }
 
 export async function approveAiEstimate(formData: FormData) {
   const { db, activeOrg } = await requireContext();
   const estimateId = asString(formData.get("estimate_id"));
   if (!estimateId) throw new Error("estimate_id obrigatorio.");
+
+  const estimate = await fetchEstimate(db, estimateId);
+  if (!estimate || estimate.organization_id !== activeOrg.id) {
+    throw new Error("Estudo nao encontrado.");
+  }
 
   await db
     .from("ai_estimate_items")
@@ -241,6 +264,10 @@ export async function approveAiEstimate(formData: FormData) {
 
   revalidatePath("/orcamento-ia");
   revalidatePath(`/orcamento-ia/${estimateId}`);
+  if (estimate.site_id) {
+    revalidatePath(`/obras/${estimate.site_id}/orcamento-ia`);
+    revalidatePath(`/obras/${estimate.site_id}/orcamento-ia/${estimateId}`);
+  }
 }
 
 export async function saveEstimateMemorial(formData: FormData) {
@@ -266,6 +293,10 @@ export async function saveEstimateMemorial(formData: FormData) {
   if (error) throw new Error(error.message);
 
   revalidatePath(`/orcamento-ia/${estimateId}`);
+  if (estimate.site_id) {
+    revalidatePath(`/obras/${estimate.site_id}/orcamento-ia`);
+    revalidatePath(`/obras/${estimate.site_id}/orcamento-ia/${estimateId}`);
+  }
 }
 
 export async function updateEstimateItem(formData: FormData) {
@@ -308,6 +339,10 @@ export async function updateEstimateItem(formData: FormData) {
 
   await recalculateEstimateTotals(db, estimateId, activeOrg.id, { status: "review" });
   revalidatePath(`/orcamento-ia/${estimateId}`);
+  if (estimate.site_id) {
+    revalidatePath(`/obras/${estimate.site_id}/orcamento-ia`);
+    revalidatePath(`/obras/${estimate.site_id}/orcamento-ia/${estimateId}`);
+  }
 }
 
 export async function addEstimateItem(formData: FormData) {
@@ -357,6 +392,10 @@ export async function addEstimateItem(formData: FormData) {
 
   await recalculateEstimateTotals(db, estimateId, activeOrg.id, { status: "review" });
   revalidatePath(`/orcamento-ia/${estimateId}`);
+  if (estimate.site_id) {
+    revalidatePath(`/obras/${estimate.site_id}/orcamento-ia`);
+    revalidatePath(`/obras/${estimate.site_id}/orcamento-ia/${estimateId}`);
+  }
 }
 
 export async function deleteEstimateItem(formData: FormData) {
@@ -380,6 +419,58 @@ export async function deleteEstimateItem(formData: FormData) {
 
   await recalculateEstimateTotals(db, estimateId, activeOrg.id, { status: "review" });
   revalidatePath(`/orcamento-ia/${estimateId}`);
+  if (estimate.site_id) {
+    revalidatePath(`/obras/${estimate.site_id}/orcamento-ia`);
+    revalidatePath(`/obras/${estimate.site_id}/orcamento-ia/${estimateId}`);
+  }
+}
+
+export async function deleteAiEstimate(formData: FormData) {
+  const { supabase, db, activeOrg } = await requireContext();
+  const estimateId = asString(formData.get("estimate_id"));
+  const redirectTo = asNullableString(formData.get("redirect_to"));
+  if (!estimateId) throw new Error("estimate_id obrigatorio.");
+
+  const estimate = await fetchEstimate(db, estimateId);
+  if (!estimate || estimate.organization_id !== activeOrg.id) {
+    throw new Error("Estudo nao encontrado.");
+  }
+
+  const { data: filesRaw, error: filesError } = await db
+    .from("ai_estimate_files")
+    .select("storage_bucket, storage_path")
+    .eq("estimate_id", estimateId)
+    .eq("organization_id", activeOrg.id);
+  if (filesError) throw new Error(filesError.message);
+
+  const pathsByBucket = new Map<string, string[]>();
+  for (const file of (filesRaw ?? []) as Array<{ storage_bucket: string | null; storage_path: string | null }>) {
+    if (!file.storage_bucket || !file.storage_path) continue;
+    const list = pathsByBucket.get(file.storage_bucket) ?? [];
+    list.push(file.storage_path);
+    pathsByBucket.set(file.storage_bucket, list);
+  }
+
+  for (const [bucket, paths] of pathsByBucket.entries()) {
+    if (paths.length > 0) {
+      await supabase.storage.from(bucket).remove(paths);
+    }
+  }
+
+  const { error } = await db
+    .from("ai_estimates")
+    .delete()
+    .eq("id", estimateId)
+    .eq("organization_id", activeOrg.id);
+  if (error) throw new Error(error.message);
+
+  revalidatePath("/orcamento-ia");
+  if (estimate.site_id) {
+    revalidatePath(`/obras/${estimate.site_id}`);
+    revalidatePath(`/obras/${estimate.site_id}/orcamento-ia`);
+  }
+
+  redirect(redirectTo ?? (estimate.site_id ? `/obras/${estimate.site_id}/orcamento-ia` : "/orcamento-ia"));
 }
 
 function buildEstimateInput(
@@ -577,7 +668,7 @@ async function fetchEstimate(db: UntypedSupabase, estimateId: string): Promise<E
   const { data, error } = await db
     .from("ai_estimates")
     .select(
-      "id, organization_id, template_id, title, client_name, address, built_area_m2, pool_area_m2, terrain_area_m2, floors_count, has_basement, quality_standard"
+      "id, organization_id, site_id, template_id, title, client_name, address, built_area_m2, pool_area_m2, terrain_area_m2, floors_count, has_basement, quality_standard"
     )
     .eq("id", estimateId)
     .maybeSingle();
