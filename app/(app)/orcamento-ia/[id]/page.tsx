@@ -1,7 +1,14 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { CheckCircle2, RefreshCcw } from "lucide-react";
-import { approveAiEstimate, reprocessAiEstimate } from "@/lib/budget-ai/actions";
+import { CheckCircle2, Plus, RefreshCcw, Save, Trash2 } from "lucide-react";
+import {
+  addEstimateItem,
+  approveAiEstimate,
+  deleteEstimateItem,
+  reprocessAiEstimate,
+  saveEstimateMemorial,
+  updateEstimateItem,
+} from "@/lib/budget-ai/actions";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { untypedDb } from "@/lib/supabase/untyped";
 import { ExportButton } from "@/components/ExportButton";
@@ -139,7 +146,7 @@ export default async function OrcamentoIaDetailPage({
       <div style={{ padding: "0 24px 40px", maxWidth: 1280, margin: "0 auto" }}>
         <div className="stat-grid ai-budget-metrics-grid" style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: 12, marginBottom: 18 }}>
           <Metric label="Total preliminar" value={BRL.format(Number(estimate.total ?? 0))} />
-          <Metric label="Confiança média" value={`${Math.round(Number(estimate.confidence_score ?? 0) * 100)}%`} />
+          <Metric label={estimate.status === "approved" ? "Validação técnica" : "Confiança técnica"} value={`${Math.round(Number(estimate.confidence_score ?? 0) * 100)}%`} tone={estimate.status === "approved" ? "ok" : undefined} />
           <Metric label="Itens gerados" value={String(items.length)} />
           <Metric label="Itens com premissa" value={String(reviewItems)} tone={reviewItems ? "warn" : "ok"} />
         </div>
@@ -168,6 +175,40 @@ export default async function OrcamentoIaDetailPage({
                 />
               </div>
 
+              <details style={{ border: "1px solid var(--o-border)", borderRadius: 10, marginBottom: 14, background: "var(--o-soft)", overflow: "hidden" }}>
+                <summary style={{ cursor: "pointer", padding: "12px 14px", fontWeight: 700, color: "var(--t-brand)", display: "flex", alignItems: "center", gap: 8 }}>
+                  <Plus size={15} /> Adicionar item no orçamento
+                </summary>
+                <form action={addEstimateItem} style={{ display: "grid", gap: 10, padding: 14, borderTop: "1px solid var(--o-border)" }}>
+                  <input type="hidden" name="estimate_id" value={estimate.id} />
+                  <div className="ai-budget-editor-grid" style={{ display: "grid", gridTemplateColumns: "90px minmax(150px, 1fr) minmax(220px, 2fr)", gap: 10 }}>
+                    <EditorField label="Código">
+                      <input name="code" style={editorInputStyle} placeholder="Ex.: 41.1" />
+                    </EditorField>
+                    <EditorField label="Grupo">
+                      <input name="group_name" style={editorInputStyle} placeholder="Itens complementares" />
+                    </EditorField>
+                    <EditorField label="Descrição">
+                      <input name="description" style={editorInputStyle} placeholder="Descrição do novo item" />
+                    </EditorField>
+                  </div>
+                  <div className="ai-budget-editor-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10 }}>
+                    <EditorField label="Quantidade">
+                      <input name="quantity" inputMode="decimal" defaultValue="1" style={editorInputStyle} />
+                    </EditorField>
+                    <EditorField label="Unidade">
+                      <input name="unit" defaultValue="VB" style={editorInputStyle} />
+                    </EditorField>
+                    <EditorField label="Custo unitário">
+                      <input name="unit_cost" inputMode="decimal" defaultValue="0" style={editorInputStyle} />
+                    </EditorField>
+                  </div>
+                  <button className="btn-brand" type="submit" style={{ justifySelf: "start", display: "inline-flex", alignItems: "center", gap: 8 }}>
+                    <Plus size={15} /> Adicionar item
+                  </button>
+                </form>
+              </details>
+
               <div style={{ display: "grid", gap: 12 }}>
                 {grouped.map((group) => (
                   <div key={group.name} style={{ border: "1px solid var(--o-border)", borderRadius: 10, overflow: "hidden" }}>
@@ -176,29 +217,27 @@ export default async function OrcamentoIaDetailPage({
                       <span className="tnum" style={{ fontWeight: 700 }}>{BRL.format(group.total)}</span>
                     </div>
                     {group.items.map((item) => (
-                      <div key={item.id} className="ai-budget-item-row" style={{ display: "grid", gridTemplateColumns: "72px minmax(0, 1fr) 110px 120px", gap: 12, padding: "11px 14px", borderTop: "1px solid var(--o-mist)", alignItems: "center" }}>
-                        <span className="tnum" style={{ color: "var(--o-text-3)", fontSize: 12 }}>{item.code}</span>
-                        <div style={{ minWidth: 0 }}>
-                          <div style={{ color: "var(--o-text-1)", fontWeight: 600 }}>{item.description}</div>
-                          <div style={{ color: item.needs_review ? "var(--o-accent)" : "var(--o-text-3)", fontSize: 12, marginTop: 2 }}>
-                            {sourceLabel(item.source)} · {itemReviewLabel(item)} · confiança {Math.round(item.confidence * 100)}%
-                          </div>
-                        </div>
-                        <span className="tnum" style={{ color: "var(--o-text-2)", fontSize: 12 }}>
-                          {NUM.format(item.quantity)} {item.unit}
-                        </span>
-                        <strong className="tnum" style={{ textAlign: "right" }}>{BRL.format(item.total)}</strong>
-                      </div>
+                      <EditableItemRow key={item.id} estimateId={estimate.id} item={item} />
                     ))}
                   </div>
                 ))}
               </div>
             </Section>
 
-            <Section title="Memorial descritivo preliminar">
-              <pre style={{ margin: 0, whiteSpace: "pre-wrap", font: "400 13px/1.7 var(--font-inter)", color: "var(--o-text-1)", background: "var(--o-soft)", borderRadius: 10, padding: 16 }}>
-                {estimate.memorial_text ?? "Memorial ainda nao gerado."}
-              </pre>
+            <Section title="Memorial descritivo">
+              <form action={saveEstimateMemorial} style={{ display: "grid", gap: 12 }}>
+                <input type="hidden" name="estimate_id" value={estimate.id} />
+                <textarea
+                  name="memorial_text"
+                  defaultValue={estimate.memorial_text ?? ""}
+                  rows={24}
+                  style={editorTextareaStyle}
+                  placeholder="Memorial descritivo do orçamento..."
+                />
+                <button className="btn-brand" type="submit" style={{ justifySelf: "start", display: "inline-flex", alignItems: "center", gap: 8 }}>
+                  <Save size={15} /> Salvar memorial
+                </button>
+              </form>
             </Section>
           </div>
 
@@ -262,6 +301,78 @@ export default async function OrcamentoIaDetailPage({
   );
 }
 
+function EditableItemRow({ estimateId, item }: { estimateId: string; item: Item }) {
+  return (
+    <div style={{ borderTop: "1px solid var(--o-mist)" }}>
+      <div className="ai-budget-item-row" style={{ display: "grid", gridTemplateColumns: "72px minmax(0, 1fr) 110px 120px", gap: 12, padding: "11px 14px", alignItems: "center" }}>
+        <span className="tnum" style={{ color: "var(--o-text-3)", fontSize: 12 }}>{item.code}</span>
+        <div style={{ minWidth: 0 }}>
+          <div style={{ color: "var(--o-text-1)", fontWeight: 600 }}>{item.description}</div>
+          <div style={{ color: item.needs_review ? "var(--o-accent)" : "var(--o-text-3)", fontSize: 12, marginTop: 2 }}>
+            {sourceLabel(item.source)} · {itemReviewLabel(item)} · confiança {Math.round(item.confidence * 100)}%
+          </div>
+        </div>
+        <span className="tnum" style={{ color: "var(--o-text-2)", fontSize: 12 }}>
+          {NUM.format(item.quantity)} {item.unit}
+        </span>
+        <strong className="tnum" style={{ textAlign: "right" }}>{BRL.format(item.total)}</strong>
+      </div>
+
+      <details style={{ padding: "0 14px 12px" }}>
+        <summary style={{ cursor: "pointer", color: "var(--t-brand)", fontSize: 12, fontWeight: 700, padding: "0 0 8px 72px" }}>
+          Editar item
+        </summary>
+        <div style={{ background: "var(--o-soft)", border: "1px solid var(--o-border)", borderRadius: 10, padding: 12 }}>
+          <form action={updateEstimateItem} style={{ display: "grid", gap: 10 }}>
+            <input type="hidden" name="estimate_id" value={estimateId} />
+            <input type="hidden" name="item_id" value={item.id} />
+            <div className="ai-budget-editor-grid" style={{ display: "grid", gridTemplateColumns: "90px minmax(150px, 1fr) minmax(220px, 2fr)", gap: 10 }}>
+              <EditorField label="Código">
+                <input name="code" defaultValue={item.code ?? ""} style={editorInputStyle} />
+              </EditorField>
+              <EditorField label="Grupo">
+                <input name="group_name" defaultValue={item.group_name} style={editorInputStyle} />
+              </EditorField>
+              <EditorField label="Descrição">
+                <input name="description" defaultValue={item.description} style={editorInputStyle} />
+              </EditorField>
+            </div>
+            <div className="ai-budget-editor-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10 }}>
+              <EditorField label="Quantidade">
+                <input name="quantity" inputMode="decimal" defaultValue={String(item.quantity)} style={editorInputStyle} />
+              </EditorField>
+              <EditorField label="Unidade">
+                <input name="unit" defaultValue={item.unit} style={editorInputStyle} />
+              </EditorField>
+              <EditorField label="Custo unitário">
+                <input name="unit_cost" inputMode="decimal" defaultValue={String(item.unit_cost)} style={editorInputStyle} />
+              </EditorField>
+            </div>
+            <label style={{ display: "flex", alignItems: "center", gap: 8, color: "var(--o-text-2)", fontSize: 12, fontWeight: 700 }}>
+              <input name="needs_review" type="checkbox" defaultChecked={item.needs_review} />
+              Manter item como pendente de revisão
+            </label>
+            <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+              <button className="btn-brand" type="submit" style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+                <Save size={15} /> Salvar item
+              </button>
+              <button
+                className="chip"
+                type="submit"
+                formAction={deleteEstimateItem}
+                formNoValidate
+                style={{ color: "var(--st-late)", cursor: "pointer" }}
+              >
+                <Trash2 size={14} /> Apagar item
+              </button>
+            </div>
+          </form>
+        </div>
+      </details>
+    </div>
+  );
+}
+
 function groupItems(items: Item[]): Array<{ name: string; total: number; items: Item[] }> {
   const groups = new Map<string, Item[]>();
   for (const item of items) {
@@ -282,6 +393,15 @@ function Section({ title, children }: { title: string; children: React.ReactNode
       <h2 style={{ margin: "0 0 12px", font: "700 18px var(--font-inter)", letterSpacing: "-0.01em" }}>{title}</h2>
       {children}
     </section>
+  );
+}
+
+function EditorField({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <label style={{ display: "grid", gap: 5 }}>
+      <span style={{ color: "var(--o-text-2)", font: "700 10px var(--font-inter)", textTransform: "uppercase", letterSpacing: "0.06em" }}>{label}</span>
+      {children}
+    </label>
   );
 }
 
@@ -411,3 +531,27 @@ function formatBytes(value: number | null): string {
   if (value < 1024 * 1024) return `${Math.round(value / 1024)} KB`;
   return `${(value / 1024 / 1024).toFixed(1)} MB`;
 }
+
+const editorInputStyle: React.CSSProperties = {
+  width: "100%",
+  border: "1px solid var(--o-border)",
+  borderRadius: 8,
+  background: "white",
+  color: "var(--o-text-1)",
+  padding: "9px 10px",
+  font: "400 13px var(--font-inter)",
+  outline: "none",
+};
+
+const editorTextareaStyle: React.CSSProperties = {
+  width: "100%",
+  minHeight: 420,
+  border: "1px solid var(--o-border)",
+  borderRadius: 10,
+  background: "white",
+  color: "var(--o-text-1)",
+  padding: 14,
+  font: "400 13px/1.65 var(--font-inter)",
+  outline: "none",
+  resize: "vertical",
+};

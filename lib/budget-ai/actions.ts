@@ -219,14 +219,166 @@ export async function approveAiEstimate(formData: FormData) {
   const estimateId = asString(formData.get("estimate_id"));
   if (!estimateId) throw new Error("estimate_id obrigatorio.");
 
+  await db
+    .from("ai_estimate_items")
+    .update({
+      confidence: 1,
+      needs_review: false,
+    })
+    .eq("estimate_id", estimateId)
+    .eq("organization_id", activeOrg.id);
+
   const { error } = await db
     .from("ai_estimates")
-    .update({ status: "approved" })
+    .update({
+      status: "approved",
+      confidence_score: 1,
+      review_notes: "Orcamento validado manualmente.",
+    })
     .eq("id", estimateId)
     .eq("organization_id", activeOrg.id);
   if (error) throw new Error(error.message);
 
   revalidatePath("/orcamento-ia");
+  revalidatePath(`/orcamento-ia/${estimateId}`);
+}
+
+export async function saveEstimateMemorial(formData: FormData) {
+  const { db, activeOrg } = await requireContext();
+  const estimateId = asString(formData.get("estimate_id"));
+  const memorialText = asString(formData.get("memorial_text"));
+  if (!estimateId) throw new Error("estimate_id obrigatorio.");
+
+  const estimate = await fetchEstimate(db, estimateId);
+  if (!estimate || estimate.organization_id !== activeOrg.id) {
+    throw new Error("Estudo nao encontrado.");
+  }
+
+  const { error } = await db
+    .from("ai_estimates")
+    .update({
+      memorial_text: memorialText || null,
+      status: "review",
+      review_notes: "Memorial editado manualmente.",
+    })
+    .eq("id", estimateId)
+    .eq("organization_id", activeOrg.id);
+  if (error) throw new Error(error.message);
+
+  revalidatePath(`/orcamento-ia/${estimateId}`);
+}
+
+export async function updateEstimateItem(formData: FormData) {
+  const { db, activeOrg } = await requireContext();
+  const estimateId = asString(formData.get("estimate_id"));
+  const itemId = asString(formData.get("item_id"));
+  if (!estimateId || !itemId) throw new Error("estimate_id e item_id obrigatorios.");
+
+  const estimate = await fetchEstimate(db, estimateId);
+  if (!estimate || estimate.organization_id !== activeOrg.id) {
+    throw new Error("Estudo nao encontrado.");
+  }
+
+  const quantity = asNumber(formData.get("quantity")) ?? 0;
+  const unitCost = asNumber(formData.get("unit_cost")) ?? 0;
+  const needsReview = formData.get("needs_review") === "on";
+  const total = roundMoney(quantity * unitCost);
+
+  const { data, error } = await db
+    .from("ai_estimate_items")
+    .update({
+      code: asNullableString(formData.get("code")),
+      group_name: asString(formData.get("group_name")) || "Sem grupo",
+      description: asString(formData.get("description")) || "Item sem descricao",
+      quantity,
+      unit: asString(formData.get("unit")) || "VB",
+      unit_cost: unitCost,
+      total,
+      source: "usuario",
+      confidence: needsReview ? 0.85 : 1,
+      needs_review: needsReview,
+    })
+    .eq("id", itemId)
+    .eq("estimate_id", estimateId)
+    .eq("organization_id", activeOrg.id)
+    .select("id")
+    .maybeSingle();
+  if (error) throw new Error(error.message);
+  if (!data) throw new Error("Item nao encontrado.");
+
+  await recalculateEstimateTotals(db, estimateId, activeOrg.id, { status: "review" });
+  revalidatePath(`/orcamento-ia/${estimateId}`);
+}
+
+export async function addEstimateItem(formData: FormData) {
+  const { db, activeOrg } = await requireContext();
+  const estimateId = asString(formData.get("estimate_id"));
+  if (!estimateId) throw new Error("estimate_id obrigatorio.");
+
+  const estimate = await fetchEstimate(db, estimateId);
+  if (!estimate || estimate.organization_id !== activeOrg.id) {
+    throw new Error("Estudo nao encontrado.");
+  }
+
+  const quantity = asNumber(formData.get("quantity")) ?? 1;
+  const unitCost = asNumber(formData.get("unit_cost")) ?? 0;
+  const total = roundMoney(quantity * unitCost);
+  const { data: lastRaw } = await db
+    .from("ai_estimate_items")
+    .select("sort_order")
+    .eq("estimate_id", estimateId)
+    .eq("organization_id", activeOrg.id)
+    .order("sort_order", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  const nextSort = toNullableInteger((lastRaw as { sort_order?: unknown } | null)?.sort_order) ?? 0;
+
+  const { error } = await db.from("ai_estimate_items").insert({
+    estimate_id: estimateId,
+    organization_id: activeOrg.id,
+    template_item_id: null,
+    code: asNullableString(formData.get("code")),
+    group_name: asString(formData.get("group_name")) || "Itens complementares",
+    description: asString(formData.get("description")) || "Novo item",
+    quantity,
+    unit: asString(formData.get("unit")) || "VB",
+    unit_cost: unitCost,
+    total,
+    confidence: 1,
+    source: "usuario",
+    needs_review: false,
+    sort_order: nextSort + 10,
+    metadata: {
+      manual_item: true,
+      created_from: "orcamento_ia_editor",
+    },
+  });
+  if (error) throw new Error(error.message);
+
+  await recalculateEstimateTotals(db, estimateId, activeOrg.id, { status: "review" });
+  revalidatePath(`/orcamento-ia/${estimateId}`);
+}
+
+export async function deleteEstimateItem(formData: FormData) {
+  const { db, activeOrg } = await requireContext();
+  const estimateId = asString(formData.get("estimate_id"));
+  const itemId = asString(formData.get("item_id"));
+  if (!estimateId || !itemId) throw new Error("estimate_id e item_id obrigatorios.");
+
+  const estimate = await fetchEstimate(db, estimateId);
+  if (!estimate || estimate.organization_id !== activeOrg.id) {
+    throw new Error("Estudo nao encontrado.");
+  }
+
+  const { error } = await db
+    .from("ai_estimate_items")
+    .delete()
+    .eq("id", itemId)
+    .eq("estimate_id", estimateId)
+    .eq("organization_id", activeOrg.id);
+  if (error) throw new Error(error.message);
+
+  await recalculateEstimateTotals(db, estimateId, activeOrg.id, { status: "review" });
   revalidatePath(`/orcamento-ia/${estimateId}`);
 }
 
@@ -352,6 +504,60 @@ async function regenerateEstimateRows(
   if (updateError) throw new Error(updateError.message);
 }
 
+async function recalculateEstimateTotals(
+  db: UntypedSupabase,
+  estimateId: string,
+  organizationId: string,
+  options: { status?: "review" | "approved"; confidenceScore?: number } = {}
+) {
+  const [{ data: estimateRaw, error: estimateError }, { data: itemsRaw, error: itemsError }] =
+    await Promise.all([
+      db
+        .from("ai_estimates")
+        .select("contingency_pct")
+        .eq("id", estimateId)
+        .eq("organization_id", organizationId)
+        .maybeSingle(),
+      db
+        .from("ai_estimate_items")
+        .select("total, confidence")
+        .eq("estimate_id", estimateId)
+        .eq("organization_id", organizationId),
+    ]);
+  if (estimateError) throw new Error(estimateError.message);
+  if (itemsError) throw new Error(itemsError.message);
+
+  const items = (itemsRaw ?? []) as Array<{ total: unknown; confidence: unknown }>;
+  const subtotal = roundMoney(items.reduce((sum, item) => sum + (toNullableNumber(item.total) ?? 0), 0));
+  const contingencyPct = toNullableNumber((estimateRaw as { contingency_pct?: unknown } | null)?.contingency_pct) ?? 0;
+  const total = roundMoney(subtotal * (1 + contingencyPct / 100));
+  const confidenceScore =
+    options.confidenceScore ??
+    (items.length === 0
+      ? 0
+      : clampConfidence(
+          items.reduce((sum, item) => {
+            const itemTotal = toNullableNumber(item.total) ?? 0;
+            const weight = subtotal > 0 ? itemTotal / subtotal : 1 / items.length;
+            return sum + (toNullableNumber(item.confidence) ?? 0.5) * weight;
+          }, 0)
+        ));
+
+  const patch: Record<string, unknown> = {
+    subtotal,
+    total,
+    confidence_score: confidenceScore,
+  };
+  if (options.status) patch.status = options.status;
+
+  const { error } = await db
+    .from("ai_estimates")
+    .update(patch)
+    .eq("id", estimateId)
+    .eq("organization_id", organizationId);
+  if (error) throw new Error(error.message);
+}
+
 async function resolveTemplateId(db: UntypedSupabase): Promise<string> {
   const { data, error } = await db
     .from("budget_templates")
@@ -415,6 +621,14 @@ function toNullableNumber(value: unknown): number | null {
 function toNullableInteger(value: unknown): number | null {
   const parsed = toNullableNumber(value);
   return parsed === null ? null : Math.round(parsed);
+}
+
+function roundMoney(value: number): number {
+  return Math.round((value + Number.EPSILON) * 100) / 100;
+}
+
+function clampConfidence(value: number): number {
+  return Math.max(0, Math.min(1, Math.round(value * 100) / 100));
 }
 
 function parseUploadedFiles(

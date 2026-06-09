@@ -527,7 +527,8 @@ img[loading="lazy"]:not([src=""]) { opacity: 1; }
   }
 
   .ai-budget-form-grid,
-  .ai-budget-detail-grid {
+  .ai-budget-detail-grid,
+  .ai-budget-editor-grid {
     grid-template-columns: 1fr !important;
   }
   .ai-budget-metrics-grid {
