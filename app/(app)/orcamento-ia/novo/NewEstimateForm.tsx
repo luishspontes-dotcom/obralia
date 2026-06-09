@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useId, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { UploadCloud } from "lucide-react";
 import {
@@ -221,14 +221,41 @@ function Field({ label, required, children }: { label: string; required?: boolea
 }
 
 function FileField({ label, name, accept, required }: { label: string; name: string; accept: string; required?: boolean }) {
+  const inputId = useId();
+  const [selectedFiles, setSelectedFiles] = useState<string[]>([]);
+
   return (
-    <label style={{ display: "grid", gap: 8, border: "1px dashed var(--o-border-2)", borderRadius: 10, padding: 14, background: "var(--o-soft)" }}>
+    <div style={{ display: "grid", gap: 8, border: "1px dashed var(--o-border-2)", borderRadius: 10, padding: 14, background: "var(--o-soft)" }}>
       <span style={{ fontWeight: 700, color: "var(--o-text-1)" }}>{label}{required ? " *" : ""}</span>
-      <input name={name} type="file" accept={accept} multiple required={required} style={{ fontSize: 12 }} />
+      <input
+        id={inputId}
+        name={name}
+        type="file"
+        accept={accept}
+        multiple
+        onChange={(event) => setSelectedFiles(Array.from(event.currentTarget.files ?? []).map((file) => file.name))}
+        style={visuallyHiddenInputStyle}
+      />
+      <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+        <label
+          htmlFor={inputId}
+          className="chip"
+          style={{ cursor: "pointer", justifyContent: "center", color: "var(--t-brand)", background: "white" }}
+        >
+          Selecionar arquivos
+        </label>
+        <span style={{ color: "var(--o-text-2)", fontSize: 12, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis" }}>
+          {selectedFiles.length === 0
+            ? "Nenhum arquivo selecionado"
+            : selectedFiles.length === 1
+              ? selectedFiles[0]
+              : `${selectedFiles.length} arquivos selecionados`}
+        </span>
+      </div>
       <span style={{ color: "var(--o-text-2)", fontSize: 12 }}>
         {required ? "Arquivo principal para orçamento e memorial." : "Opcional; melhora a comparação quando existir."}
       </span>
-    </label>
+    </div>
   );
 }
 
@@ -253,4 +280,16 @@ const inputStyle: React.CSSProperties = {
   padding: "10px 12px",
   font: "400 14px var(--font-inter)",
   outline: "none",
+};
+
+const visuallyHiddenInputStyle: React.CSSProperties = {
+  position: "absolute",
+  width: 1,
+  height: 1,
+  padding: 0,
+  margin: -1,
+  overflow: "hidden",
+  clip: "rect(0 0 0 0)",
+  whiteSpace: "nowrap",
+  border: 0,
 };
