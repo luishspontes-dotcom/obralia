@@ -43,6 +43,12 @@ const rlsTables = [
   "audit_events",
   "external_accounts",
   "sync_runs",
+  "budget_templates",
+  "budget_template_items",
+  "ai_estimates",
+  "ai_estimate_files",
+  "ai_extracted_facts",
+  "ai_estimate_items",
 ];
 
 for (const table of rlsTables) {
@@ -141,10 +147,24 @@ const requiredPolicies = [
   "admins manage external accounts",
   "admins read sync runs",
   "admins manage sync runs",
+  "members read budget templates",
+  "admins manage budget templates",
+  "members read budget template items",
+  "admins manage budget template items",
+  "members read ai estimates",
+  "writers manage ai estimates",
+  "members read ai estimate files",
+  "writers manage ai estimate files",
+  "members read ai extracted facts",
+  "writers manage ai extracted facts",
+  "members read ai estimate items",
+  "writers manage ai estimate items",
   "members read media objects",
   "writers manage media objects",
   "users read own avatar objects",
   "users manage own avatar objects",
+  "members read export objects",
+  "writers manage export objects",
   "admins read export objects",
 ];
 

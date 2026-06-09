@@ -13,6 +13,7 @@ import {
   PlusCircle,
   Hash,
   ChevronsUpDown,
+  Calculator,
 } from "lucide-react";
 
 interface SidebarProps {
@@ -116,6 +117,13 @@ export function Sidebar({ activeOrg, userName, canManageSites = true, canManageU
         label="Em risco"
         pathname={pathname}
         accent="var(--st-late)"
+      />
+      <NavItem
+        href="/orcamento-ia"
+        icon={Calculator}
+        label="Orçamento IA"
+        pathname={pathname}
+        accent="var(--o-accent)"
       />
 
       <Link

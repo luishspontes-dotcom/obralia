@@ -10,6 +10,7 @@ import {
   Settings,
   Map as MapIcon,
   Calendar,
+  Calculator,
 } from "lucide-react";
 import { NotificationBell } from "@/components/NotificationBell";
 
@@ -26,6 +27,7 @@ export function Rail({ userInitials }: RailProps) {
     { href: "/tarefas", icon: CircleCheck, label: "Minhas tarefas" },
     { href: "/cronograma", icon: Calendar, label: "Cronograma" },
     { href: "/mapa", icon: MapIcon, label: "Mapa das obras" },
+    { href: "/orcamento-ia", icon: Calculator, label: "Orçamento IA" },
     { href: "/buscar", icon: Search, label: "Pesquisar" },
   ];
 

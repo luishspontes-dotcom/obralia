@@ -526,6 +526,20 @@ img[loading="lazy"]:not([src=""]) { opacity: 1; }
     padding: 12px 14px !important;
   }
 
+  .ai-budget-form-grid,
+  .ai-budget-detail-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  .ai-budget-item-row {
+    grid-template-columns: 64px minmax(0, 1fr) !important;
+  }
+  .ai-budget-item-row > span:nth-last-child(2),
+  .ai-budget-item-row > strong:last-child {
+    grid-column: 2;
+    text-align: left !important;
+  }
+
   /* Photo grid mobile: 2 columns */
   .photo-grid { grid-template-columns: repeat(2, 1fr) !important; }
 
