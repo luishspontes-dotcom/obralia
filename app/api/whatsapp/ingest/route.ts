@@ -53,7 +53,8 @@ async function transcribeAudio(bytes: Uint8Array, mimetype: string | null): Prom
   const ext = type.includes("mpeg") ? "mp3" : type.includes("mp4") ? "m4a" : type.includes("wav") ? "wav" : "ogg";
 
   const form = new FormData();
-  form.append("file", new Blob([bytes], { type }), `audio.${ext}`);
+  const buf = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer;
+  form.append("file", new Blob([buf], { type }), `audio.${ext}`);
   form.append("model", "whisper-1");
   form.append("language", "pt");
 
