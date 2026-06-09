@@ -10,8 +10,6 @@ import {
 } from "@/lib/budget-ai/estimate-engine";
 import { type UntypedSupabase, untypedDb } from "@/lib/supabase/untyped";
 
-type SupabaseServer = Awaited<ReturnType<typeof createServerSupabase>>;
-
 type Profile = {
   id: string;
   default_org_id: string | null;
@@ -69,11 +67,11 @@ async function requireContext() {
   const activeOrg = orgs.find((org) => org.id === profile?.default_org_id) ?? orgs[0] ?? null;
   if (!activeOrg) throw new Error("Nenhuma organizacao ativa encontrada.");
 
-  return { supabase, db, user, activeOrg };
+  return { db, user, activeOrg };
 }
 
-export async function createAiEstimate(formData: FormData) {
-  const { supabase, db, user, activeOrg } = await requireContext();
+export async function prepareAiEstimate(formData: FormData) {
+  const { db, user, activeOrg } = await requireContext();
   const templateId = await resolveTemplateId(db);
 
   const input: EstimateInput = {
@@ -116,9 +114,20 @@ export async function createAiEstimate(formData: FormData) {
   }
 
   const estimateId = (inserted as { id: string }).id;
-  const files = await uploadEstimateFiles(supabase, formData, activeOrg.id, estimateId, user.id);
-  input.fileNames = files.map((file) => file.file_name);
+  return { estimateId, organizationId: activeOrg.id };
+}
 
+export async function finalizeAiEstimateUpload(formData: FormData) {
+  const { db, user, activeOrg } = await requireContext();
+  const estimateId = asString(formData.get("estimate_id"));
+  if (!estimateId) throw new Error("estimate_id obrigatorio.");
+
+  const estimate = await fetchEstimate(db, estimateId);
+  if (!estimate || estimate.organization_id !== activeOrg.id) {
+    throw new Error("Estudo nao encontrado.");
+  }
+
+  const files = parseUploadedFiles(formData.get("files_json"), activeOrg.id, estimateId);
   if (files.length > 0) {
     const { error: filesError } = await db.from("ai_estimate_files").insert(
       files.map((file) => ({
@@ -131,10 +140,44 @@ export async function createAiEstimate(formData: FormData) {
     if (filesError) throw new Error(filesError.message);
   }
 
-  await regenerateEstimateRows(db, estimateId, activeOrg.id, templateId, input);
+  const templateId = estimate.template_id ?? (await resolveTemplateId(db));
+  await regenerateEstimateRows(db, estimateId, activeOrg.id, templateId, {
+    title: estimate.title,
+    clientName: estimate.client_name,
+    address: estimate.address,
+    builtAreaM2: toNullableNumber(estimate.built_area_m2),
+    poolAreaM2: toNullableNumber(estimate.pool_area_m2),
+    terrainAreaM2: toNullableNumber(estimate.terrain_area_m2),
+    floorsCount: toNullableInteger(estimate.floors_count),
+    hasBasement: estimate.has_basement,
+    qualityStandard: estimate.quality_standard,
+    fileNames: files.map((file) => file.file_name),
+  });
 
   revalidatePath("/orcamento-ia");
-  redirect(`/orcamento-ia/${estimateId}`);
+  revalidatePath(`/orcamento-ia/${estimateId}`);
+  return { estimateId };
+}
+
+export async function failAiEstimate(formData: FormData) {
+  const { db, activeOrg } = await requireContext();
+  const estimateId = asString(formData.get("estimate_id"));
+  const message = asNullableString(formData.get("message"));
+  if (!estimateId) return;
+
+  await db
+    .from("ai_estimates")
+    .update({
+      status: "failed",
+      review_notes: message
+        ? `Falha no upload/processamento: ${message.slice(0, 500)}`
+        : "Falha no upload/processamento.",
+    })
+    .eq("id", estimateId)
+    .eq("organization_id", activeOrg.id);
+
+  revalidatePath("/orcamento-ia");
+  revalidatePath(`/orcamento-ia/${estimateId}`);
 }
 
 export async function reprocessAiEstimate(formData: FormData) {
@@ -274,53 +317,6 @@ async function fetchEstimate(db: UntypedSupabase, estimateId: string): Promise<E
   return data as EstimateRow | null;
 }
 
-async function uploadEstimateFiles(
-  supabase: SupabaseServer,
-  formData: FormData,
-  organizationId: string,
-  estimateId: string,
-  userId: string
-): Promise<UploadedEstimateFile[]> {
-  const fields: Array<{ name: string; kind: UploadedEstimateFile["kind"] }> = [
-    { name: "plan_files", kind: "plan" },
-    { name: "proposal_files", kind: "proposal" },
-    { name: "spreadsheet_files", kind: "spreadsheet" },
-  ];
-  const uploaded: UploadedEstimateFile[] = [];
-
-  for (const field of fields) {
-    const files = formData
-      .getAll(field.name)
-      .filter((file): file is File => file instanceof File && file.size > 0);
-
-    for (const file of files) {
-      const safeName = safeFileName(file.name);
-      const path = `${organizationId}/estimativas/${estimateId}/${field.kind}-${Date.now()}-${safeName}`;
-      const body = new Uint8Array(await file.arrayBuffer());
-      const { error } = await supabase.storage.from("exports").upload(path, body, {
-        contentType: file.type || "application/octet-stream",
-        upsert: false,
-        metadata: {
-          estimate_id: estimateId,
-          uploaded_by: userId,
-          kind: field.kind,
-        },
-      });
-      if (error) throw new Error(error.message);
-      uploaded.push({
-        kind: field.kind,
-        file_name: file.name,
-        storage_bucket: "exports",
-        storage_path: path,
-        content_type: file.type || null,
-        size_bytes: file.size,
-      });
-    }
-  }
-
-  return uploaded;
-}
-
 function asString(value: FormDataEntryValue | null): string {
   return typeof value === "string" ? value.trim() : "";
 }
@@ -353,14 +349,55 @@ function toNullableInteger(value: unknown): number | null {
   return typeof value === "number" && Number.isFinite(value) ? Math.round(value) : null;
 }
 
-function safeFileName(value: string): string {
-  const fallback = "arquivo";
-  return (
-    value
-      .normalize("NFD")
-      .replace(/[\u0300-\u036f]/g, "")
-      .replace(/[^a-zA-Z0-9._-]+/g, "-")
-      .replace(/^-+|-+$/g, "")
-      .slice(0, 120) || fallback
-  );
+function parseUploadedFiles(
+  value: FormDataEntryValue | null,
+  organizationId: string,
+  estimateId: string
+): UploadedEstimateFile[] {
+  const raw = asString(value);
+  if (!raw) return [];
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    throw new Error("Metadados de arquivos invalidos.");
+  }
+
+  if (!Array.isArray(parsed)) {
+    throw new Error("Metadados de arquivos invalidos.");
+  }
+
+  const allowedKinds = new Set<UploadedEstimateFile["kind"]>([
+    "plan",
+    "proposal",
+    "spreadsheet",
+    "other",
+  ]);
+  const prefix = `${organizationId}/estimativas/${estimateId}/`;
+
+  return parsed.map((item): UploadedEstimateFile => {
+    const record = item as Partial<UploadedEstimateFile>;
+    const kind = record.kind;
+    const fileName = typeof record.file_name === "string" ? record.file_name.trim() : "";
+    const storagePath = typeof record.storage_path === "string" ? record.storage_path.trim() : "";
+    const sizeBytes = Number(record.size_bytes ?? 0);
+
+    if (!kind || !allowedKinds.has(kind)) throw new Error("Tipo de arquivo invalido.");
+    if (!fileName || fileName.length > 240) throw new Error("Nome de arquivo invalido.");
+    if (!storagePath.startsWith(prefix)) throw new Error("Caminho de arquivo invalido.");
+    if (!Number.isFinite(sizeBytes) || sizeBytes < 0) throw new Error("Tamanho de arquivo invalido.");
+
+    return {
+      kind,
+      file_name: fileName,
+      storage_bucket: "exports",
+      storage_path: storagePath,
+      content_type:
+        typeof record.content_type === "string" && record.content_type.trim()
+          ? record.content_type.trim().slice(0, 160)
+          : null,
+      size_bytes: sizeBytes,
+    };
+  });
 }
