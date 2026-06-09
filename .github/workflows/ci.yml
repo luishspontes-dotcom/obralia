@@ -6,16 +6,14 @@ on:
     branches:
       - main
 
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  verify:
+  typecheck:
+    name: Typecheck
     runs-on: ubuntu-latest
-    env:
-      NEXT_PUBLIC_SUPABASE_URL: https://bhhscygbhaqyewejlgug.supabase.co
-      NEXT_PUBLIC_SUPABASE_ANON_KEY: sb_publishable_tx3t7usTHlQo2tWazVeAwQ_ohUOOo_C
-      NEXT_PUBLIC_APP_URL: http://127.0.0.1:3000
-      PLAYWRIGHT_BASE_URL: http://127.0.0.1:3000
-      E2E_AUTH_EMAIL: ${{ secrets.E2E_AUTH_EMAIL }}
-      E2E_AUTH_PASSWORD: ${{ secrets.E2E_AUTH_PASSWORD }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -29,23 +27,114 @@ jobs:
       - name: Install
         run: npm ci
 
-      - name: Typecheck
+      - name: Typecheck (tsc --noEmit)
         run: npm run typecheck
-
-      - name: Lint
-        run: npm run lint
 
       - name: Schema contract
         run: npm run schema:check
 
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Audit
+        run: npm audit --audit-level=moderate
+
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    env:
+      # Placeholders: o build do Next só precisa que as vars existam e tenham
+      # formato válido — nenhum dado real é acessado em build time.
+      NEXT_PUBLIC_SUPABASE_URL: https://placeholder.supabase.co
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: sb_publishable_placeholder_ci_only
+      NEXT_PUBLIC_APP_URL: http://127.0.0.1:3000
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
       - name: Build
         run: npm run build
+
+  # O contexto `secrets` não está disponível em `jobs.<id>.if`, então um job
+  # intermediário expõe a presença dos secrets como output.
+  e2e-gate:
+    name: Checar secrets de E2E
+    runs-on: ubuntu-latest
+    outputs:
+      has-secrets: ${{ steps.check.outputs.has-secrets }}
+    steps:
+      - name: Verificar E2E_BASE_URL / E2E_EMAIL / E2E_PASSWORD
+        id: check
+        env:
+          E2E_BASE_URL: ${{ secrets.E2E_BASE_URL }}
+          E2E_EMAIL: ${{ secrets.E2E_EMAIL }}
+          E2E_PASSWORD: ${{ secrets.E2E_PASSWORD }}
+        run: |
+          if [ -n "$E2E_BASE_URL" ] && [ -n "$E2E_EMAIL" ] && [ -n "$E2E_PASSWORD" ]; then
+            echo "has-secrets=true" >> "$GITHUB_OUTPUT"
+            echo "Secrets de E2E presentes — job e2e vai rodar."
+          else
+            echo "has-secrets=false" >> "$GITHUB_OUTPUT"
+            echo "Secrets de E2E ausentes — job e2e será pulado. Veja e2e/README.md."
+          fi
+
+  e2e:
+    name: E2E (Playwright)
+    runs-on: ubuntu-latest
+    needs: [e2e-gate, typecheck, lint, build]
+    if: needs.e2e-gate.outputs.has-secrets == 'true'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install
+        run: npm ci
 
       - name: Install Playwright browser
         run: npx playwright install --with-deps chromium
 
-      - name: E2E smoke
+      - name: Run E2E against deployed environment
+        env:
+          E2E_BASE_URL: ${{ secrets.E2E_BASE_URL }}
+          E2E_EMAIL: ${{ secrets.E2E_EMAIL }}
+          E2E_PASSWORD: ${{ secrets.E2E_PASSWORD }}
         run: npm run test:e2e
 
-      - name: Audit
-        run: npm audit --audit-level=moderate
+      - name: Upload Playwright report
+        uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-report
+          path: playwright-report
+          retention-days: 7

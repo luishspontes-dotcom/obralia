@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createOrUpdateRdo, saveRdoTemplate, deleteRdoTemplate } from "@/lib/rdo-actions";
+import { enqueueRdo, isNetworkError, isNextRedirectError } from "@/lib/offline/rdo-queue";
 
 type WF = { role: string; count: number };
 type EQ = { name: string; hours: number | null };
@@ -48,6 +49,47 @@ const CLIMAS = ["", "Claro", "Parcialmente nublado", "Nublado", "Chuvoso", "Garo
 const CONDICOES = ["", "Praticável", "Impraticável", "Parcial"];
 const UNIDADES = ["un", "m²", "m³", "kg", "t", "sc", "br", "l"];
 
+/** Draft do form salvo em localStorage (só rascunho — a FILA offline fica no IndexedDB). */
+type RdoDraft = {
+  date: string;
+  status: string;
+  weather_morning: string;
+  weather_afternoon: string;
+  condition_morning: string;
+  condition_afternoon: string;
+  general_notes: string;
+  work_start: string;
+  work_end: string;
+  work_break_minutes: number;
+  workforce: WF[];
+  equipment: EQ[];
+  activities: AC[];
+  materials: MT[];
+};
+
+function draftKey(siteId: string, rdoId: string | null | undefined): string {
+  return `obralia:rdo-draft:${siteId}:${rdoId ?? "new"}`;
+}
+
+function readDraft(key: string): RdoDraft | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = window.localStorage.getItem(key);
+    return raw ? (JSON.parse(raw) as RdoDraft) : null;
+  } catch {
+    return null;
+  }
+}
+
+function clearDraft(key: string): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.removeItem(key);
+  } catch {
+    /* quota/modo privado — ignora */
+  }
+}
+
 /** "07:00" + "17:00" − 60min → "9h00". Retorna null se incompleto/inválido. */
 function jornadaTotal(start: string, end: string, breakMin: number): string | null {
   if (!start || !end) return null;
@@ -80,23 +122,121 @@ export function RdoForm(props: RdoFormProps) {
   const [materials, setMaterials] = useState<MT[]>(ini.materials ?? []);
 
   const [submitting, setSubmitting] = useState(false);
+  const [banner, setBanner] = useState<{ kind: "offline" | "error"; text: string } | null>(null);
+
+  /* ── Draft local (localStorage): auto-save a cada mudança, restaura no reload ── */
+  const dKey = draftKey(props.siteId, props.rdoId);
+  const hydrated = useRef(false);
+
+  useEffect(() => {
+    const draft = readDraft(dKey);
+    if (draft) {
+      setDate(draft.date);
+      setStatus(draft.status);
+      setWm(draft.weather_morning);
+      setWa(draft.weather_afternoon);
+      setCm(draft.condition_morning);
+      setCa(draft.condition_afternoon);
+      setNotes(draft.general_notes);
+      setWorkStart(draft.work_start);
+      setWorkEnd(draft.work_end);
+      setWorkBreak(draft.work_break_minutes);
+      setWorkforce(draft.workforce ?? []);
+      setEquipment(draft.equipment ?? []);
+      setActivities(draft.activities ?? []);
+      setMaterials(draft.materials ?? []);
+    }
+    hydrated.current = true;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dKey]);
+
+  useEffect(() => {
+    if (!hydrated.current || typeof window === "undefined") return;
+    const draft: RdoDraft = {
+      date, status,
+      weather_morning: wm, weather_afternoon: wa,
+      condition_morning: cm, condition_afternoon: ca,
+      general_notes: notes,
+      work_start: workStart, work_end: workEnd, work_break_minutes: workBreak,
+      workforce, equipment, activities, materials,
+    };
+    try {
+      window.localStorage.setItem(dKey, JSON.stringify(draft));
+    } catch {
+      /* quota cheia/modo privado — segue sem draft */
+    }
+  }, [dKey, date, status, wm, wa, cm, ca, notes, workStart, workEnd, workBreak, workforce, equipment, activities, materials]);
 
   const totalWorkers = workforce.reduce((s, w) => s + (Number(w.count) || 0), 0);
   const jornada = jornadaTotal(workStart, workEnd, workBreak);
+
+  /** Serializa o FormData (só campos string) e guarda na fila offline (IndexedDB). */
+  const saveOffline = async (fd: FormData): Promise<void> => {
+    const payload: Record<string, string> = {};
+    fd.forEach((value, key) => {
+      if (typeof value === "string") payload[key] = value;
+    });
+    await enqueueRdo(payload);
+    clearDraft(dKey);
+    setBanner({
+      kind: "offline",
+      text: "📴 Sem conexão — RDO salvo no aparelho. Sincroniza automático quando a internet voltar.",
+    });
+  };
 
   return (
     <form
       action={async (fd) => {
         setSubmitting(true);
+        setBanner(null);
         fd.set("workforce_json", JSON.stringify(workforce));
         fd.set("equipment_json", JSON.stringify(equipment));
         fd.set("activities_json", JSON.stringify(activities));
         fd.set("materials_json", JSON.stringify(materials));
-        try { await createOrUpdateRdo(fd); }
-        finally { setSubmitting(false); }
+        try {
+          if (typeof navigator !== "undefined" && navigator.onLine === false) {
+            await saveOffline(fd);
+            return;
+          }
+          await createOrUpdateRdo(fd);
+          clearDraft(dKey); // sucesso (a action redireciona pro detalhe do RDO)
+        } catch (err: unknown) {
+          if (isNextRedirectError(err)) {
+            clearDraft(dKey); // redirect() = sucesso
+            return;
+          }
+          if (isNetworkError(err)) {
+            await saveOffline(fd);
+            return;
+          }
+          setBanner({
+            kind: "error",
+            text: "⚠️ Não foi possível salvar: " + (err instanceof Error ? err.message : String(err)),
+          });
+        } finally {
+          setSubmitting(false);
+        }
       }}
       style={{ display: "flex", flexDirection: "column", gap: 18 }}
     >
+      {banner && (
+        <div
+          role="status"
+          aria-live="polite"
+          style={{
+            padding: "12px 16px",
+            borderRadius: 10,
+            fontSize: 13,
+            lineHeight: 1.5,
+            background: banner.kind === "offline" ? "var(--o-mist)" : "var(--o-accent-soft, var(--o-mist))",
+            border: "1px solid var(--o-border)",
+            color: "var(--o-text-1)",
+          }}
+        >
+          {banner.text}
+        </div>
+      )}
+
       <input type="hidden" name="siteId" value={props.siteId} />
       {props.rdoId && <input type="hidden" name="rdoId" value={props.rdoId} />}
 

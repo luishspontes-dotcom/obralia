@@ -15,7 +15,8 @@
     "diario:summary": "node scripts/import/diario-sync.mjs summary",
     "schema:check": "node scripts/audit/schema-contract.mjs",
     "test:e2e": "playwright test",
-    "test:e2e:ui": "playwright test --ui"
+    "test:e2e:ui": "playwright test --ui",
+    "test:e2e:headed": "playwright test --headed"
   },
   "overrides": {
     "postcss": "^8.5.12"

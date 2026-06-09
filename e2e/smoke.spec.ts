@@ -12,8 +12,8 @@ const protectedPaths = [
 test("login page renders", async ({ page }) => {
   await page.goto("/login");
 
-  await expect(page.getByText("obralia", { exact: true })).toBeVisible();
-  await expect(page.getByRole("heading", { name: "Entre na sua conta" })).toBeVisible();
+  await expect(page.getByText("Obrália", { exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Entrar" })).toBeVisible();
   await expect(page.getByPlaceholder("seu@construtora.com.br")).toBeVisible();
 });
 
@@ -67,11 +67,11 @@ test("health endpoint returns structured status", async ({ request }) => {
 });
 
 test("authenticated user can reach the app shell", async ({ page }) => {
-  const email = process.env.E2E_AUTH_EMAIL;
-  const password = process.env.E2E_AUTH_PASSWORD;
+  const email = process.env.E2E_EMAIL ?? process.env.E2E_AUTH_EMAIL;
+  const password = process.env.E2E_PASSWORD ?? process.env.E2E_AUTH_PASSWORD;
 
   if (!email || !password) {
-    test.skip(true, "Set E2E_AUTH_EMAIL and E2E_AUTH_PASSWORD.");
+    test.skip(true, "Defina E2E_EMAIL e E2E_PASSWORD (ou E2E_AUTH_EMAIL/E2E_AUTH_PASSWORD).");
     return;
   }
 

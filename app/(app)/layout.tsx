@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { Topbar } from "@/components/layout/Topbar";
 import { KeyboardShortcuts } from "@/components/KeyboardShortcuts";
+import { OfflineIndicator } from "@/components/OfflineIndicator";
 
 type Profile = {
   full_name: string | null;
@@ -54,6 +55,7 @@ export default async function AppLayout({
         {children}
       </main>
       <KeyboardShortcuts />
+      <OfflineIndicator />
     </div>
   );
 }
