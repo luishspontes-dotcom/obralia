@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { RdoForm } from "@/components/RdoForm";
+import { RdoVoiceAssist } from "@/components/RdoVoiceAssist";
 import { VISIBLE_SOURCE_PROVIDERS } from "@/lib/rdo-source-scope";
 
 export default async function NovoRdoPage({ params }: { params: Promise<{ id: string }> }) {
@@ -46,6 +47,7 @@ export default async function NovoRdoPage({ params }: { params: Promise<{ id: st
       </div>
 
       <div style={{ padding: "0 24px 32px", maxWidth: 880, margin: "0 auto" }}>
+        <RdoVoiceAssist siteId={id} />
         <RdoForm
           siteId={id}
           templates={templates.map((t) => ({

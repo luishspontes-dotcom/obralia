@@ -9,12 +9,13 @@ import {
   LayoutDashboard,
   ListChecks,
   Pencil,
+  Ruler,
   Search,
   Video,
 } from "lucide-react";
 import { mediaUrl } from "@/lib/storage";
 
-type ActiveSection = "overview" | "tasks" | "reports" | "photos" | "budget" | "edit";
+type ActiveSection = "overview" | "tasks" | "reports" | "medicoes" | "photos" | "budget" | "edit";
 
 type ObraSidebarProps = {
   site: {
@@ -29,6 +30,7 @@ type ObraSidebarProps = {
     videos?: number;
     files?: number;
     estimates?: number;
+    medicoes?: number;
   };
   active: ActiveSection;
 };
@@ -67,6 +69,13 @@ export function ObraSidebar({ site, counts, active }: ObraSidebarProps) {
           icon={<FileText size={16} />}
           label="Relatórios"
           count={counts.reports}
+        />
+        <SideLink
+          href={`/obras/${site.id}/medicoes`}
+          active={active === "medicoes"}
+          icon={<Ruler size={16} />}
+          label="Medições"
+          count={counts.medicoes}
         />
         <SideLink
           href={`/obras/${site.id}/orcamento-ia`}

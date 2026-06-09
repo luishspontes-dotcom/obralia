@@ -6,6 +6,7 @@ import { PhotoUploader } from "@/components/PhotoUploader";
 import { PhotoGrid } from "@/components/PhotoLightbox";
 import { SignaturePad } from "@/components/SignaturePad";
 import { setRdoStatus, deleteRdo, postComment, addMaterial, deleteMaterial, uploadAttachments, deletePhoto } from "@/lib/rdo-actions";
+import { generateClientSummary } from "@/lib/summary-actions";
 import { getCurrentRole, canWrite } from "@/lib/permissions";
 import { VISIBLE_SOURCE_PROVIDERS } from "@/lib/rdo-source-scope";
 
@@ -26,6 +27,8 @@ type DR = {
   signature_data_url: string | null;
   signature_signer_name: string | null;
   signature_signed_at: string | null;
+  client_summary: string | null;
+  client_summary_generated_at: string | null;
 };
 
 /** "07:00:00" + "17:00:00" − 60min → "07:00–17:00 · intervalo 60min · total 9h00" */
@@ -73,12 +76,13 @@ export default async function RdoDetailPage({
 
   const { data: rdoRaw } = await supabase
     .from("daily_reports")
-    .select("id, number, date, status, weather_morning, weather_afternoon, condition_morning, condition_afternoon, general_notes, work_start, work_end, work_break_minutes, signature_data_url, signature_signer_name, signature_signed_at")
+    .select("id, number, date, status, weather_morning, weather_afternoon, condition_morning, condition_afternoon, general_notes, work_start, work_end, work_break_minutes, signature_data_url, signature_signer_name, signature_signed_at, client_summary, client_summary_generated_at")
     .eq("id", rdoId)
     .eq("site_id", id)
     .in("external_provider", VISIBLE_SOURCE_PROVIDERS)
     .maybeSingle();
-  const rdo = rdoRaw as DR | null;
+  // client_summary ainda não está em database.types.ts (coluna nova) — cast via unknown.
+  const rdo = rdoRaw as unknown as DR | null;
   if (!rdo) notFound();
 
   const [actsR, wfR, eqR, photosR, videosR, filesR, commentsR, matsR] = await Promise.all([
@@ -222,6 +226,48 @@ export default async function RdoDetailPage({
             <div style={{ fontSize: 14, color: "var(--o-text-1)", whiteSpace: "pre-wrap", lineHeight: 1.6 }}>
               {rdo.general_notes}
             </div>
+          </Block>
+        )}
+
+        {/* Resumo IA para o cliente */}
+        {(canEdit || rdo.client_summary) && (
+          <Block title="💬 Resumo para o cliente" style={{ marginBottom: 20 }}>
+            {rdo.client_summary ? (
+              <>
+                <div style={{ fontSize: 14, color: "var(--o-text-1)", whiteSpace: "pre-wrap", lineHeight: 1.65 }}>
+                  {rdo.client_summary}
+                </div>
+                <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 12, flexWrap: "wrap" }}>
+                  {rdo.client_summary_generated_at && (
+                    <span style={{ fontSize: 11, color: "var(--o-text-3)" }}>
+                      Gerado com IA em {new Date(rdo.client_summary_generated_at).toLocaleString("pt-BR", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })}
+                    </span>
+                  )}
+                  {canEdit && (
+                    <form action={generateClientSummary} style={{ display: "inline" }}>
+                      <input type="hidden" name="rdoId" value={rdoId} />
+                      <input type="hidden" name="siteId" value={id} />
+                      <button type="submit" className="chip" style={{ cursor: "pointer" }}>
+                        ↺ Regenerar
+                      </button>
+                    </form>
+                  )}
+                </div>
+              </>
+            ) : (
+              <div style={{ display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap" }}>
+                <span style={{ fontSize: 13, color: "var(--o-text-3)" }}>
+                  Gere um resumo do dia em linguagem simples para enviar ao cliente.
+                </span>
+                <form action={generateClientSummary} style={{ display: "inline" }}>
+                  <input type="hidden" name="rdoId" value={rdoId} />
+                  <input type="hidden" name="siteId" value={id} />
+                  <button type="submit" className="chip" style={{ background: "var(--t-brand-soft)", color: "var(--t-brand)", border: "1px solid var(--t-brand)", cursor: "pointer" }}>
+                    ✨ Gerar resumo com IA
+                  </button>
+                </form>
+              </div>
+            )}
           </Block>
         )}
 

@@ -7,6 +7,9 @@ import { createServerSupabase } from "@/lib/supabase/server";
 import { fetchAllPages } from "@/lib/supabase/fetch-all";
 import { VISIBLE_SOURCE_PROVIDERS } from "@/lib/rdo-source-scope";
 import { mediaUrl } from "@/lib/storage";
+import { getCurrentRole, canManageUsers } from "@/lib/permissions";
+import { untypedDb } from "@/lib/supabase/untyped";
+import { createShareLink, revokeShareLink, type ShareLinkRow } from "@/lib/share-actions";
 
 type Site = {
   id: string;
@@ -164,6 +167,25 @@ export default async function ObraDetailPage({
 
   const siteStatus = SITE_STATUS[site.status] ?? SITE_STATUS.in_progress;
   const schedule = daysBetween(site.start_date, site.end_date);
+
+  // Portal do cliente — apenas administradores gerenciam links públicos
+  const role = await getCurrentRole();
+  const isAdmin = canManageUsers(role);
+  let shareLinks: ShareLinkRow[] = [];
+  if (isAdmin) {
+    const db = untypedDb(supabase);
+    const { data: linksRaw } = await db
+      .from<ShareLinkRow[]>("share_links")
+      .select("id, token, label, created_at, expires_at, revoked_at")
+      .eq("site_id", id)
+      .is("revoked_at", null)
+      .order("created_at", { ascending: false });
+    shareLinks = (linksRaw ?? []) as ShareLinkRow[];
+  }
+  const portalBase =
+    process.env.NEXT_PUBLIC_APP_URL?.trim() ||
+    (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "") ||
+    "https://www.obralia.com.br";
 
   return (
     <div className="do-obra-layout">
@@ -383,6 +405,75 @@ export default async function ObraDetailPage({
                     ))}
                   </tbody>
                 </table>
+              </div>
+            </section>
+          ) : null}
+
+          {isAdmin ? (
+            <section id="portal-do-cliente" className="do-panel" style={{ marginTop: 18 }}>
+              <div className="do-panel__header">
+                <h2>🔗 Portal do cliente</h2>
+                <span style={{ color: "#777", fontSize: 12 }}>
+                  {shareLinks.length} {shareLinks.length === 1 ? "link ativo" : "links ativos"}
+                </span>
+              </div>
+              <div style={{ padding: "14px 16px" }}>
+                <p style={{ margin: "0 0 12px", fontSize: 12.5, color: "#777" }}>
+                  Compartilhe um link público (sem login) com o cliente: ele vê o andamento da obra,
+                  os relatórios aprovados e as fotos recentes — sem custos nem dados internos.
+                </p>
+
+                {shareLinks.length > 0 ? (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 14 }}>
+                    {shareLinks.map((link) => {
+                      const url = `${portalBase}/p/${link.token}`;
+                      return (
+                        <div key={link.id} style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                          <input
+                            readOnly
+                            value={url}
+                            style={{
+                              flex: "1 1 280px", minWidth: 0,
+                              border: "1px solid var(--o-border, #ddd)", borderRadius: 8,
+                              padding: "8px 10px", fontSize: 12.5,
+                              color: "var(--o-text-2, #555)", background: "var(--o-paper, #fafafa)",
+                            }}
+                          />
+                          <span style={{ fontSize: 12, color: "#777", whiteSpace: "nowrap" }}>
+                            {link.label ? `${link.label} · ` : ""}criado em {link.created_at ? new Date(link.created_at).toLocaleDateString("pt-BR") : "—"}
+                          </span>
+                          <form action={revokeShareLink} style={{ display: "inline" }}>
+                            <input type="hidden" name="id" value={link.id} />
+                            <input type="hidden" name="siteId" value={id} />
+                            <button type="submit" className="chip" style={{ color: "#b3261e", borderColor: "#f5c6c2", cursor: "pointer", fontSize: 12 }}>
+                              Revogar
+                            </button>
+                          </form>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div style={{ marginBottom: 14, fontSize: 12.5, color: "#999" }}>
+                    Nenhum link ativo. Crie um abaixo para compartilhar com o cliente.
+                  </div>
+                )}
+
+                <form action={createShareLink} style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+                  <input type="hidden" name="siteId" value={id} />
+                  <input
+                    name="label"
+                    placeholder="Rótulo (ex: Cliente — João)"
+                    style={{
+                      flex: "1 1 220px", minWidth: 0,
+                      border: "1px solid var(--o-border, #ddd)", borderRadius: 8,
+                      padding: "8px 10px", fontSize: 13, outline: "none",
+                    }}
+                  />
+                  <button type="submit" className="btn-brand" style={{ padding: "8px 16px", fontSize: 13 }}>
+                    + Criar link público
+                  </button>
+                </form>
               </div>
             </section>
           ) : null}
