@@ -147,7 +147,6 @@ export function RdoForm(props: RdoFormProps) {
       setMaterials(draft.materials ?? []);
     }
     hydrated.current = true;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dKey]);
 
   useEffect(() => {
