@@ -5,7 +5,7 @@ import { mediaUrl } from "@/lib/storage";
 import { PhotoUploader } from "@/components/PhotoUploader";
 import { PhotoGrid } from "@/components/PhotoLightbox";
 import { SignaturePad } from "@/components/SignaturePad";
-import { setRdoStatus, deleteRdo, postComment, addMaterial, deleteMaterial } from "@/lib/rdo-actions";
+import { setRdoStatus, deleteRdo, postComment, addMaterial, deleteMaterial, uploadAttachments, deletePhoto } from "@/lib/rdo-actions";
 import { getCurrentRole, canWrite } from "@/lib/permissions";
 import { VISIBLE_SOURCE_PROVIDERS } from "@/lib/rdo-source-scope";
 
@@ -20,10 +20,26 @@ type DR = {
   condition_morning: string | null;
   condition_afternoon: string | null;
   general_notes: string | null;
+  work_start: string | null;
+  work_end: string | null;
+  work_break_minutes: number | null;
   signature_data_url: string | null;
   signature_signer_name: string | null;
   signature_signed_at: string | null;
 };
+
+/** "07:00:00" + "17:00:00" − 60min → "07:00–17:00 · intervalo 60min · total 9h00" */
+function formatHorario(start: string | null, end: string | null, breakMin: number | null): string | null {
+  if (!start || !end) return null;
+  const s = start.slice(0, 5);
+  const e = end.slice(0, 5);
+  const [sh, sm] = s.split(":").map(Number);
+  const [eh, em] = e.split(":").map(Number);
+  const pausa = breakMin ?? 0;
+  const mins = (eh * 60 + em) - (sh * 60 + sm) - pausa;
+  const total = mins > 0 ? `${Math.floor(mins / 60)}h${String(mins % 60).padStart(2, "0")}` : null;
+  return `${s}–${e}${pausa > 0 ? ` · intervalo ${pausa}min` : ""}${total ? ` · total ${total}` : ""}`;
+}
 type Material = { id: string; name: string; unit: string | null; quantity: number | null; notes: string | null };
 type Activity = { id: string; description: string; progress_pct: number | null; notes: string | null };
 type Workforce = { id: string; role: string; count: number };
@@ -57,7 +73,7 @@ export default async function RdoDetailPage({
 
   const { data: rdoRaw } = await supabase
     .from("daily_reports")
-    .select("id, number, date, status, weather_morning, weather_afternoon, condition_morning, condition_afternoon, general_notes, signature_data_url, signature_signer_name, signature_signed_at")
+    .select("id, number, date, status, weather_morning, weather_afternoon, condition_morning, condition_afternoon, general_notes, work_start, work_end, work_break_minutes, signature_data_url, signature_signer_name, signature_signed_at")
     .eq("id", rdoId)
     .eq("site_id", id)
     .in("external_provider", VISIBLE_SOURCE_PROVIDERS)
@@ -89,6 +105,7 @@ export default async function RdoDetailPage({
   const d = new Date(rdo.date);
   const dateLong = d.toLocaleDateString("pt-BR", { weekday: "long", day: "2-digit", month: "long", year: "numeric" });
   const totalWorkers = workforce.reduce((s, w) => s + (w.count ?? 0), 0);
+  const horario = formatHorario(rdo.work_start, rdo.work_end, rdo.work_break_minutes);
   const role = await getCurrentRole();
   const canEdit = canWrite(role);
 
@@ -122,6 +139,11 @@ export default async function RdoDetailPage({
                 <span className={`status ${meta.cls}`}>{meta.label}</span>
               </div>
               <div style={{ fontSize: 14, color: "var(--o-text-2)", textTransform: "capitalize" }}>{dateLong}</div>
+              {horario && (
+                <div className="tnum" style={{ fontSize: 13, color: "var(--o-text-2)", marginTop: 4 }}>
+                  🕐 Horário: {horario}
+                </div>
+              )}
             </div>
 
             {/* Action buttons */}
@@ -352,19 +374,54 @@ export default async function RdoDetailPage({
         )}
 
         {/* Anexos */}
-        {files.length > 0 && (
-          <Section title={`Anexos · ${files.length}`}>
-            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-              {files.map((f) => (
-                <a key={f.id} href={mediaUrl(f.storage_path) || "#"} target="_blank" rel="noreferrer"
-                  className="card card-hover"
-                  style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 16px", fontSize: 14, color: "var(--o-text-1)", textDecoration: "none" }}>
-                  <span style={{ fontSize: 18 }}>📎</span>
-                  <span style={{ flex: 1, fontWeight: 500 }}>{f.caption ?? "Anexo"}</span>
-                  <span style={{ fontSize: 12, color: "var(--t-brand)", fontWeight: 500 }}>abrir →</span>
-                </a>
-              ))}
-            </div>
+        {(canEdit || files.length > 0) && (
+          <Section title={`📎 Anexos · ${files.length}`}>
+            {canEdit && (
+              <form action={uploadAttachments} className="card" style={{ padding: "14px 16px", marginBottom: files.length > 0 ? 10 : 0 }}>
+                <input type="hidden" name="rdoId" value={rdoId} />
+                <input type="hidden" name="siteId" value={id} />
+                <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+                  <input type="file" name="attachments" multiple required
+                    style={{ font: "400 13px var(--font-inter)", color: "var(--o-text-2)", maxWidth: 320 }} />
+                  <button type="submit" className="btn-brand" style={{ padding: "8px 16px", fontSize: 13 }}>
+                    Anexar
+                  </button>
+                  <span style={{ fontSize: 11, color: "var(--o-text-3)" }}>
+                    Documentos, planilhas, PDFs · até 25MB por arquivo
+                  </span>
+                </div>
+              </form>
+            )}
+            {files.length > 0 && (
+              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                {files.map((f) => (
+                  <div key={f.id} className="card card-hover"
+                    style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 16px", fontSize: 14, color: "var(--o-text-1)" }}>
+                    <span style={{ fontSize: 18 }}>📎</span>
+                    <a href={mediaUrl(f.storage_path) || "#"} target="_blank" rel="noreferrer" download
+                      style={{ flex: 1, fontWeight: 500, color: "var(--o-text-1)", textDecoration: "none" }}>
+                      {f.caption ?? "Anexo"}
+                    </a>
+                    <a href={mediaUrl(f.storage_path) || "#"} target="_blank" rel="noreferrer"
+                      style={{ fontSize: 12, color: "var(--t-brand)", fontWeight: 500, textDecoration: "none" }}>
+                      baixar →
+                    </a>
+                    {canEdit && (
+                      <form action={deletePhoto} style={{ display: "inline" }}>
+                        <input type="hidden" name="photoId" value={f.id} />
+                        <input type="hidden" name="rdoId" value={rdoId} />
+                        <input type="hidden" name="siteId" value={id} />
+                        <button type="submit" title="Remover anexo" style={{
+                          width: 22, height: 22, borderRadius: 5, border: "1px solid var(--o-border)",
+                          background: "transparent", color: "var(--o-text-3)", fontSize: 12,
+                          cursor: "pointer", lineHeight: 1, display: "grid", placeItems: "center",
+                        }}>×</button>
+                      </form>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
           </Section>
         )}
 

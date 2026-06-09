@@ -17,13 +17,35 @@ type WbsItem = {
 };
 type Site = { id: string; name: string };
 
+const PER_PAGE = 100;
+
 export default async function TarefasPage({
   searchParams,
 }: {
-  searchParams: Promise<{ status?: string }>;
+  searchParams: Promise<{ status?: string; page?: string }>;
 }) {
   const supabase = await createServerSupabase();
-  const { status: filter } = await searchParams;
+  const { status: filter, page } = await searchParams;
+  const pageNum = Math.max(1, parseInt(page ?? "1", 10) || 1);
+  const offset = (pageNum - 1) * PER_PAGE;
+
+  const statusFilter =
+    filter && ["waiting", "in_progress", "done", "late"].includes(filter) ? filter : undefined;
+
+  // Total do filtro ativo — head:true não baixa linhas, só conta
+  let countQuery = supabase
+    .from("wbs_items")
+    .select("*", { count: "exact", head: true })
+    .in("external_provider", VISIBLE_SOURCE_PROVIDERS)
+    .not("parent_id", "is", null);
+  if (statusFilter) {
+    countQuery = countQuery.eq("status", statusFilter);
+  } else {
+    countQuery = countQuery.in("status", ["waiting", "in_progress", "late"]);
+  }
+  const { count: totalCount } = await countQuery;
+  const total = totalCount ?? 0;
+  const totalPages = Math.max(1, Math.ceil(total / PER_PAGE));
 
   let query = supabase
     .from("wbs_items")
@@ -32,14 +54,23 @@ export default async function TarefasPage({
     .not("parent_id", "is", null)
     .order("due_date", { ascending: true, nullsFirst: false });
 
-  if (filter && ["waiting", "in_progress", "done", "late"].includes(filter)) {
-    query = query.eq("status", filter);
-  } else if (!filter || filter === "active") {
+  if (statusFilter) {
+    query = query.eq("status", statusFilter);
+  } else {
     query = query.in("status", ["waiting", "in_progress", "late"]);
   }
 
-  const { data: itemsRaw } = await query.limit(500);
+  const { data: itemsRaw } = await query.range(offset, offset + PER_PAGE - 1);
   const items = (itemsRaw ?? []) as WbsItem[];
+
+  // Monta href preservando o filtro de status ao trocar de página
+  const pageHref = (p: number) => {
+    const sp = new URLSearchParams();
+    if (filter) sp.set("status", filter);
+    if (p > 1) sp.set("page", String(p));
+    const qs = sp.toString();
+    return `/tarefas${qs ? `?${qs}` : ""}`;
+  };
 
   const { data: sitesRaw } = await supabase
     .from("sites")
@@ -67,7 +98,12 @@ export default async function TarefasPage({
               Atividades
             </h1>
             <p style={{ margin: 0, fontSize: 14, color: "var(--o-text-2)" }}>
-              {items.length} atividades · agrupadas por obra
+              <span className="tnum">{total}</span> atividades · agrupadas por obra
+              {totalPages > 1 && (
+                <span className="tnum" style={{ color: "var(--o-text-3)" }}>
+                  {" · "}página {pageNum} de {totalPages}
+                </span>
+              )}
             </p>
           </div>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
@@ -173,6 +209,24 @@ export default async function TarefasPage({
             );
           })}
         </div>
+
+        {totalPages > 1 && (
+          <div style={{ display: "flex", justifyContent: "center", alignItems: "center", gap: 8, paddingTop: 18 }}>
+            {pageNum > 1 ? (
+              <Link href={pageHref(pageNum - 1)} className="chip">← Anteriores</Link>
+            ) : (
+              <span className="chip" style={{ opacity: 0.4, cursor: "not-allowed" }}>← Anteriores</span>
+            )}
+            <span className="tnum" style={{ padding: "0 10px", fontSize: 13, color: "var(--o-text-2)" }}>
+              Página {pageNum} de {totalPages}
+            </span>
+            {pageNum < totalPages ? (
+              <Link href={pageHref(pageNum + 1)} className="chip">Próximos →</Link>
+            ) : (
+              <span className="chip" style={{ opacity: 0.4, cursor: "not-allowed" }}>Próximos →</span>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );

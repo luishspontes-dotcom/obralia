@@ -76,7 +76,14 @@ export function PhotoGrid({
               src={mediaUrl(p.thumbnail_path ?? p.storage_path)}
               alt={p.caption ?? "Foto"}
               loading="lazy"
-              style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
+              decoding="async"
+              style={{
+                width: "100%",
+                height: "100%",
+                objectFit: "cover",
+                display: "block",
+                aspectRatio: strip ? undefined : "1 / 1",
+              }}
             />
           </button>
         ))}
@@ -169,6 +176,7 @@ export function PhotoGrid({
             <img
               src={mediaUrl(current.storage_path ?? current.thumbnail_path)}
               alt={current.caption ?? "Foto"}
+              decoding="async"
               style={{ maxWidth: "94vw", maxHeight: "84vh", objectFit: "contain" }}
             />
             <div style={{

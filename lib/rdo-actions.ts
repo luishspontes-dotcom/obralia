@@ -42,19 +42,25 @@ export async function createOrUpdateRdo(formData: FormData) {
   const ca = asString(formData.get("condition_afternoon")) || null;
   const notes = asString(formData.get("general_notes")) || null;
   const status = asString(formData.get("status")) || "draft";
+  const workStart = asString(formData.get("work_start")) || null;
+  const workEnd = asString(formData.get("work_end")) || null;
+  const workBreak = asNum(formData.get("work_break_minutes"));
 
   // arrays vêm como JSON em hidden inputs (mantém o form simples)
   const wfRaw = asString(formData.get("workforce_json"));
   const eqRaw = asString(formData.get("equipment_json"));
   const acRaw = asString(formData.get("activities_json"));
+  const mtRaw = asString(formData.get("materials_json"));
 
   type WF = { role: string; count: number };
   type EQ = { name: string; hours: number | null };
   type AC = { description: string; progress_pct: number | null; notes: string | null };
+  type MT = { name: string; quantity: number | null; unit: string | null; notes: string | null };
 
   const wfList: WF[] = wfRaw ? JSON.parse(wfRaw) : [];
   const eqList: EQ[] = eqRaw ? JSON.parse(eqRaw) : [];
   const acList: AC[] = acRaw ? JSON.parse(acRaw) : [];
+  const mtList: MT[] = mtRaw ? JSON.parse(mtRaw) : [];
 
   let drId = rdoId;
 
@@ -70,6 +76,9 @@ export async function createOrUpdateRdo(formData: FormData) {
         condition_morning: cm,
         condition_afternoon: ca,
         general_notes: notes,
+        work_start: workStart,
+        work_end: workEnd,
+        work_break_minutes: workBreak,
       } as never)
       .eq("id", drId);
     if (upErr) throw new Error(upErr.message);
@@ -94,6 +103,9 @@ export async function createOrUpdateRdo(formData: FormData) {
         condition_morning: cm,
         condition_afternoon: ca,
         general_notes: notes,
+        work_start: workStart,
+        work_end: workEnd,
+        work_break_minutes: workBreak ?? 60,
         created_by: user.id,
         external_provider: OBRALIA_SOURCE_PROVIDER,
       } as never)
@@ -106,6 +118,7 @@ export async function createOrUpdateRdo(formData: FormData) {
   await admin.from("report_workforce").delete().eq("daily_report_id", drId);
   await admin.from("report_equipment").delete().eq("daily_report_id", drId);
   await admin.from("report_activities").delete().eq("daily_report_id", drId);
+  await admin.from("report_materials").delete().eq("daily_report_id", drId);
 
   if (wfList.length > 0) {
     const rows = wfList
@@ -130,6 +143,18 @@ export async function createOrUpdateRdo(formData: FormData) {
       }));
     if (rows.length > 0) await admin.from("report_activities").insert(rows as never);
   }
+  if (mtList.length > 0) {
+    const rows = mtList
+      .filter(m => m.name && m.name.trim())
+      .map(m => ({
+        daily_report_id: drId,
+        name: m.name.trim(),
+        quantity: m.quantity,
+        unit: m.unit ? m.unit.trim() : null,
+        notes: m.notes ? m.notes.trim() : null,
+      }));
+    if (rows.length > 0) await admin.from("report_materials").insert(rows as never);
+  }
 
   revalidatePath(`/obras/${siteId}`);
   revalidatePath(`/obras/${siteId}/rdos`);
@@ -148,6 +173,7 @@ export async function deleteRdo(formData: FormData) {
   await admin.from("report_workforce").delete().eq("daily_report_id", rdoId);
   await admin.from("report_equipment").delete().eq("daily_report_id", rdoId);
   await admin.from("report_activities").delete().eq("daily_report_id", rdoId);
+  await admin.from("report_materials").delete().eq("daily_report_id", rdoId);
   await admin.from("comments").delete().eq("target_table", "daily_reports").eq("target_id", rdoId);
   const { error } = await admin.from("daily_reports").delete().eq("id", rdoId);
   if (error) throw new Error(error.message);
@@ -200,16 +226,19 @@ export async function uploadPhotos(formData: FormData) {
     metas = [];
   }
 
+  const VIDEO_EXTS = ["mp4", "mov", "webm", "m4v", "avi", "mkv", "3gp"];
+
   for (let i = 0; i < files.length; i++) {
     const file = files[i];
     const meta = metas[i] ?? {};
     const ext = (file.name.split(".").pop() || "jpg").toLowerCase();
+    const isVideo = file.type.startsWith("video/") || (!file.type && VIDEO_EXTS.includes(ext));
     const id = crypto.randomUUID();
     const path = `${siteId}/${id}.${ext}`;
 
     const buf = new Uint8Array(await file.arrayBuffer());
     const up = await admin.storage.from("media").upload(path, buf, {
-      contentType: file.type || "image/jpeg",
+      contentType: file.type || (isVideo ? "video/mp4" : "image/jpeg"),
       upsert: false,
     });
     if (up.error) {
@@ -221,7 +250,7 @@ export async function uploadPhotos(formData: FormData) {
       id,
       site_id: siteId,
       daily_report_id: rdoId,
-      kind: file.type.startsWith("video/") ? "video" : "photo",
+      kind: isVideo ? "video" : "photo",
       storage_path: path,
       size_bytes: file.size,
       taken_at: meta.takenAt ?? new Date().toISOString(),
@@ -260,6 +289,59 @@ export async function deletePhoto(formData: FormData) {
 
   if (rdoId) revalidatePath(`/obras/${siteId}/rdos/${rdoId}`);
   if (siteId) revalidatePath(`/obras/${siteId}/fotos`);
+}
+
+/* ───────── Anexos (documentos do RDO) ───────── */
+
+const MAX_ATTACHMENT_BYTES = 25 * 1024 * 1024; // 25MB
+
+export async function uploadAttachments(formData: FormData) {
+  const { supabase, user } = await requireUser();
+  const admin = supabase;
+  const rdoId = asString(formData.get("rdoId"));
+  const siteId = asString(formData.get("siteId"));
+  if (!rdoId || !siteId) throw new Error("rdoId e siteId obrigatórios");
+
+  const files = formData.getAll("attachments").filter((f): f is File => f instanceof File && f.size > 0);
+  if (files.length === 0) return;
+
+  const tooBig = files.find(f => f.size > MAX_ATTACHMENT_BYTES);
+  if (tooBig) {
+    throw new Error(`O arquivo "${tooBig.name}" excede o limite de 25MB por anexo.`);
+  }
+
+  for (const file of files) {
+    const ext = (file.name.split(".").pop() || "bin").toLowerCase();
+    const id = crypto.randomUUID();
+    const path = `${siteId}/anexos/${id}.${ext}`;
+
+    const buf = new Uint8Array(await file.arrayBuffer());
+    const up = await admin.storage.from("media").upload(path, buf, {
+      contentType: file.type || "application/octet-stream",
+      upsert: false,
+    });
+    if (up.error) {
+      console.error("attachment upload error:", up.error.message);
+      continue;
+    }
+
+    await admin.from("media").insert({
+      id,
+      site_id: siteId,
+      daily_report_id: rdoId,
+      kind: "file",
+      storage_path: path,
+      caption: file.name,
+      size_bytes: file.size,
+      taken_at: new Date().toISOString(),
+      taken_by: user.id,
+      migrated_at: new Date().toISOString(),
+      external_provider: OBRALIA_SOURCE_PROVIDER,
+      sync_metadata: { uploaded_via: "obralia" },
+    } as never);
+  }
+
+  revalidatePath(`/obras/${siteId}/rdos/${rdoId}`);
 }
 
 /* ───────── Obra edit ───────── */

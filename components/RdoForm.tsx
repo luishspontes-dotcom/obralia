@@ -6,6 +6,7 @@ import { createOrUpdateRdo, saveRdoTemplate, deleteRdoTemplate } from "@/lib/rdo
 type WF = { role: string; count: number };
 type EQ = { name: string; hours: number | null };
 type AC = { description: string; progress_pct: number | null; notes: string | null };
+type MT = { name: string; quantity: number | null; unit: string | null; notes: string | null };
 
 export type RdoTemplate = {
   id: string;
@@ -27,9 +28,13 @@ export type RdoFormProps = {
     condition_morning?: string | null;
     condition_afternoon?: string | null;
     general_notes?: string | null;
+    work_start?: string | null;
+    work_end?: string | null;
+    work_break_minutes?: number | null;
     workforce?: WF[];
     equipment?: EQ[];
     activities?: AC[];
+    materials?: MT[];
   };
 };
 
@@ -41,6 +46,18 @@ const ROLES_DEFAULT = [
 
 const CLIMAS = ["", "Claro", "Parcialmente nublado", "Nublado", "Chuvoso", "Garoa", "Sol forte"];
 const CONDICOES = ["", "Praticável", "Impraticável", "Parcial"];
+const UNIDADES = ["un", "m²", "m³", "kg", "t", "sc", "br", "l"];
+
+/** "07:00" + "17:00" − 60min → "9h00". Retorna null se incompleto/inválido. */
+function jornadaTotal(start: string, end: string, breakMin: number): string | null {
+  if (!start || !end) return null;
+  const [sh, sm] = start.split(":").map(Number);
+  const [eh, em] = end.split(":").map(Number);
+  if ([sh, sm, eh, em].some(n => isNaN(n))) return null;
+  const mins = (eh * 60 + em) - (sh * 60 + sm) - (breakMin || 0);
+  if (mins <= 0) return null;
+  return `${Math.floor(mins / 60)}h${String(mins % 60).padStart(2, "0")}`;
+}
 
 export function RdoForm(props: RdoFormProps) {
   const isEdit = !!props.rdoId;
@@ -53,14 +70,19 @@ export function RdoForm(props: RdoFormProps) {
   const [ca, setCa] = useState(ini.condition_afternoon ?? "");
   const [notes, setNotes] = useState(ini.general_notes ?? "");
   const [status, setStatus] = useState(ini.status ?? "draft");
+  const [workStart, setWorkStart] = useState((ini.work_start ?? "").slice(0, 5));
+  const [workEnd, setWorkEnd] = useState((ini.work_end ?? "").slice(0, 5));
+  const [workBreak, setWorkBreak] = useState<number>(ini.work_break_minutes ?? 60);
 
   const [workforce, setWorkforce] = useState<WF[]>(ini.workforce ?? []);
   const [equipment, setEquipment] = useState<EQ[]>(ini.equipment ?? []);
   const [activities, setActivities] = useState<AC[]>(ini.activities ?? []);
+  const [materials, setMaterials] = useState<MT[]>(ini.materials ?? []);
 
   const [submitting, setSubmitting] = useState(false);
 
   const totalWorkers = workforce.reduce((s, w) => s + (Number(w.count) || 0), 0);
+  const jornada = jornadaTotal(workStart, workEnd, workBreak);
 
   return (
     <form
@@ -69,6 +91,7 @@ export function RdoForm(props: RdoFormProps) {
         fd.set("workforce_json", JSON.stringify(workforce));
         fd.set("equipment_json", JSON.stringify(equipment));
         fd.set("activities_json", JSON.stringify(activities));
+        fd.set("materials_json", JSON.stringify(materials));
         try { await createOrUpdateRdo(fd); }
         finally { setSubmitting(false); }
       }}
@@ -159,7 +182,25 @@ export function RdoForm(props: RdoFormProps) {
               <option value="approved">Aprovado</option>
             </select>
           </Field>
+          <Field label="Início do trabalho">
+            <input name="work_start" type="time" value={workStart}
+              onChange={(e) => setWorkStart(e.target.value)} style={inputStyle} className="tnum" />
+          </Field>
+          <Field label="Fim do trabalho">
+            <input name="work_end" type="time" value={workEnd}
+              onChange={(e) => setWorkEnd(e.target.value)} style={inputStyle} className="tnum" />
+          </Field>
+          <Field label="Intervalo (min)">
+            <input name="work_break_minutes" type="number" min={0} step={5} value={workBreak}
+              onChange={(e) => setWorkBreak(Number(e.target.value) || 0)} style={inputStyle} className="tnum" />
+          </Field>
         </div>
+        {jornada && (
+          <div style={{ marginTop: 12, fontSize: 13, color: "var(--o-text-2)" }}>
+            🕐 Jornada: <strong className="tnum" style={{ color: "var(--t-brand)" }}>{jornada}</strong>
+            {workBreak > 0 && <span style={{ color: "var(--o-text-3)" }}> (descontado intervalo de {workBreak}min)</span>}
+          </div>
+        )}
       </div>
 
       {/* Clima */}
@@ -238,6 +279,42 @@ export function RdoForm(props: RdoFormProps) {
             </div>
           ))}
         </div>
+      </div>
+
+      {/* Materiais */}
+      <div className="card" style={{ padding: "22px 24px" }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
+          <h3 className="section-title" style={{ margin: 0 }}>🧱 Materiais · {materials.length}</h3>
+          <button type="button" className="chip" onClick={() => setMaterials([...materials, { name: "", quantity: null, unit: null, notes: null }])}>
+            + Adicionar
+          </button>
+        </div>
+        {materials.length === 0 && <Empty text="Nenhum material registrado" />}
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          {materials.map((m, i) => (
+            <div key={i} style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              <div className="row-3col" style={{ display: "grid", gridTemplateColumns: "1fr 100px 36px", gap: 10, alignItems: "center" }}>
+                <input placeholder="Material (ex: Cimento CP-II)" value={m.name}
+                  onChange={(ev) => updateAt(materials, setMaterials, i, { ...m, name: ev.target.value })}
+                  style={inputStyle} />
+                <input type="number" min={0} step={0.01} placeholder="Qtde" value={m.quantity ?? ""}
+                  onChange={(ev) => updateAt(materials, setMaterials, i, { ...m, quantity: ev.target.value ? Number(ev.target.value) : null })}
+                  style={inputStyle} className="tnum" />
+                <button type="button" onClick={() => setMaterials(materials.filter((_, j) => j !== i))}
+                  style={removeBtn} aria-label="Remover">×</button>
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "100px 1fr", gap: 10, alignItems: "center" }}>
+                <input list="unit-options" placeholder="Unid" value={m.unit ?? ""}
+                  onChange={(ev) => updateAt(materials, setMaterials, i, { ...m, unit: ev.target.value || null })}
+                  style={inputStyle} />
+                <input placeholder="Obs (opcional)" value={m.notes ?? ""}
+                  onChange={(ev) => updateAt(materials, setMaterials, i, { ...m, notes: ev.target.value || null })}
+                  style={inputStyle} />
+              </div>
+            </div>
+          ))}
+        </div>
+        <datalist id="unit-options">{UNIDADES.map(u => <option key={u} value={u} />)}</datalist>
       </div>
 
       {/* Atividades */}

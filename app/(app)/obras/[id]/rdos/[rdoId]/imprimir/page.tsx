@@ -10,12 +10,29 @@ type DR = {
   weather_morning: string | null; weather_afternoon: string | null;
   condition_morning: string | null; condition_afternoon: string | null;
   general_notes: string | null;
+  work_start: string | null;
+  work_end: string | null;
+  work_break_minutes: number | null;
   approval_status_label: string | null;
 };
 type Activity = { id: string; description: string; progress_pct: number | null; notes: string | null };
 type Workforce = { id: string; role: string; count: number };
 type Equipment = { id: string; name: string; hours: number | null };
+type Material = { id: string; name: string; unit: string | null; quantity: number | null; notes: string | null };
 type Photo = { id: string; storage_path: string | null; thumbnail_path: string | null; caption: string | null };
+
+/** "07:00:00" + "17:00:00" − 60min → "07:00–17:00 · intervalo 60min · total 9h00" */
+function formatHorario(start: string | null, end: string | null, breakMin: number | null): string | null {
+  if (!start || !end) return null;
+  const s = start.slice(0, 5);
+  const e = end.slice(0, 5);
+  const [sh, sm] = s.split(":").map(Number);
+  const [eh, em] = e.split(":").map(Number);
+  const pausa = breakMin ?? 0;
+  const mins = (eh * 60 + em) - (sh * 60 + sm) - pausa;
+  const total = mins > 0 ? `${Math.floor(mins / 60)}h${String(mins % 60).padStart(2, "0")}` : null;
+  return `${s}–${e}${pausa > 0 ? ` · intervalo ${pausa}min` : ""}${total ? ` · total ${total}` : ""}`;
+}
 
 export default async function ImprimirRdoPage({
   params,
@@ -36,7 +53,7 @@ export default async function ImprimirRdoPage({
 
   const { data: rdoRaw } = await supabase
     .from("daily_reports")
-    .select("id, number, date, status, weather_morning, weather_afternoon, condition_morning, condition_afternoon, general_notes, approval_status_label")
+    .select("id, number, date, status, weather_morning, weather_afternoon, condition_morning, condition_afternoon, general_notes, work_start, work_end, work_break_minutes, approval_status_label")
     .eq("id", rdoId)
     .eq("site_id", id)
     .in("external_provider", VISIBLE_SOURCE_PROVIDERS)
@@ -44,21 +61,28 @@ export default async function ImprimirRdoPage({
   const rdo = rdoRaw as DR | null;
   if (!rdo) notFound();
 
-  const [actsR, wfR, eqR, photosR] = await Promise.all([
+  const [actsR, wfR, eqR, photosR, videosR, filesR, matsR] = await Promise.all([
     supabase.from("report_activities").select("id, description, progress_pct, notes").eq("daily_report_id", rdoId),
     supabase.from("report_workforce").select("id, role, count").eq("daily_report_id", rdoId),
     supabase.from("report_equipment").select("id, name, hours").eq("daily_report_id", rdoId),
     supabase.from("media").select("id, storage_path, thumbnail_path, caption").eq("daily_report_id", rdoId).in("external_provider", VISIBLE_SOURCE_PROVIDERS).eq("kind", "photo").limit(60),
+    supabase.from("media").select("id, storage_path, thumbnail_path, caption").eq("daily_report_id", rdoId).in("external_provider", VISIBLE_SOURCE_PROVIDERS).eq("kind", "video"),
+    supabase.from("media").select("id, storage_path, thumbnail_path, caption").eq("daily_report_id", rdoId).in("external_provider", VISIBLE_SOURCE_PROVIDERS).eq("kind", "file"),
+    supabase.from("report_materials").select("id, name, unit, quantity, notes").eq("daily_report_id", rdoId),
   ]);
 
   const activities = (actsR.data ?? []) as Activity[];
   const workforce  = (wfR.data ?? []) as Workforce[];
   const equipment  = (eqR.data ?? []) as Equipment[];
   const photos     = (photosR.data ?? []) as Photo[];
+  const videos     = (videosR.data ?? []) as Photo[];
+  const files      = (filesR.data ?? []) as Photo[];
+  const materials  = (matsR.data ?? []) as Material[];
 
   const d = new Date(rdo.date);
   const dateLong = d.toLocaleDateString("pt-BR", { weekday: "long", day: "2-digit", month: "long", year: "numeric" });
   const totalWorkers = workforce.reduce((s, w) => s + (w.count ?? 0), 0);
+  const horario = formatHorario(rdo.work_start, rdo.work_end, rdo.work_break_minutes);
 
   return (
     <>
@@ -124,6 +148,7 @@ export default async function ImprimirRdoPage({
         <div className="pr-meta-grid avoid-break">
           <div className="pr-kv"><span className="pr-kv-label">Obra</span><span className="pr-kv-value">{site.name}</span></div>
           <div className="pr-kv"><span className="pr-kv-label">Data</span><span className="pr-kv-value" style={{ textTransform: "capitalize" }}>{dateLong}</span></div>
+          {horario && <div className="pr-kv"><span className="pr-kv-label">Horário</span><span className="pr-kv-value">{horario}</span></div>}
           {site.address && <div className="pr-kv"><span className="pr-kv-label">Endereço</span><span className="pr-kv-value">{site.address}</span></div>}
           {site.contract_number && <div className="pr-kv"><span className="pr-kv-label">Contrato</span><span className="pr-kv-value">{site.contract_number}</span></div>}
         </div>
@@ -181,6 +206,28 @@ export default async function ImprimirRdoPage({
           </div>
         )}
 
+        {/* Materiais */}
+        {materials.length > 0 && (
+          <div className="pr-section avoid-break">
+            <div className="pr-section-title">Materiais · {materials.length}</div>
+            <table className="pr-table">
+              <tbody>
+                {materials.map((m) => (
+                  <tr key={m.id}>
+                    <td>
+                      <div>{m.name}</div>
+                      {m.notes && <div style={{ fontSize: 11, color: "#718096", marginTop: 2 }}>{m.notes}</div>}
+                    </td>
+                    <td style={{ width: 120, textAlign: "right", color: "#4a5568", whiteSpace: "nowrap" }}>
+                      {m.quantity != null ? `${m.quantity} ${m.unit ?? ""}`.trim() : (m.unit ?? "—")}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+
         {/* Atividades */}
         {activities.length > 0 && (
           <div className="pr-section">
@@ -230,6 +277,26 @@ export default async function ImprimirRdoPage({
                 + {photos.length - 24} fotos no sistema
               </div>
             )}
+          </div>
+        )}
+
+        {/* Vídeos (só nomes — vídeo não imprime) */}
+        {videos.length > 0 && (
+          <div className="pr-section avoid-break">
+            <div className="pr-section-title">Vídeos · {videos.length}</div>
+            <ul style={{ margin: 0, paddingLeft: 20, fontSize: 13 }}>
+              {videos.map((v) => <li key={v.id}>🎬 {v.caption ?? "Vídeo registrado no RDO (disponível no sistema)"}</li>)}
+            </ul>
+          </div>
+        )}
+
+        {/* Anexos (só nomes) */}
+        {files.length > 0 && (
+          <div className="pr-section avoid-break">
+            <div className="pr-section-title">Anexos · {files.length}</div>
+            <ul style={{ margin: 0, paddingLeft: 20, fontSize: 13 }}>
+              {files.map((f) => <li key={f.id}>📎 {f.caption ?? "Anexo"}</li>)}
+            </ul>
           </div>
         )}
 

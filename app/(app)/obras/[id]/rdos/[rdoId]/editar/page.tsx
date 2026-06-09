@@ -23,7 +23,7 @@ export default async function EditarRdoPage({
 
   const { data: rdoRaw } = await supabase
     .from("daily_reports")
-    .select("id, number, date, status, weather_morning, weather_afternoon, condition_morning, condition_afternoon, general_notes")
+    .select("id, number, date, status, weather_morning, weather_afternoon, condition_morning, condition_afternoon, general_notes, work_start, work_end, work_break_minutes")
     .eq("id", rdoId)
     .eq("site_id", id)
     .in("external_provider", VISIBLE_SOURCE_PROVIDERS)
@@ -33,13 +33,15 @@ export default async function EditarRdoPage({
     weather_morning: string | null; weather_afternoon: string | null;
     condition_morning: string | null; condition_afternoon: string | null;
     general_notes: string | null;
+    work_start: string | null; work_end: string | null; work_break_minutes: number | null;
   } | null;
   if (!rdo) notFound();
 
-  const [wfR, eqR, acR] = await Promise.all([
+  const [wfR, eqR, acR, mtR] = await Promise.all([
     supabase.from("report_workforce").select("role, count").eq("daily_report_id", rdoId),
     supabase.from("report_equipment").select("name, hours").eq("daily_report_id", rdoId),
     supabase.from("report_activities").select("description, progress_pct, notes").eq("daily_report_id", rdoId),
+    supabase.from("report_materials").select("name, quantity, unit, notes").eq("daily_report_id", rdoId),
   ]);
 
   return (
@@ -73,9 +75,13 @@ export default async function EditarRdoPage({
             condition_morning: rdo.condition_morning,
             condition_afternoon: rdo.condition_afternoon,
             general_notes: rdo.general_notes,
+            work_start: rdo.work_start,
+            work_end: rdo.work_end,
+            work_break_minutes: rdo.work_break_minutes,
             workforce: (wfR.data ?? []) as { role: string; count: number }[],
             equipment: (eqR.data ?? []) as { name: string; hours: number | null }[],
             activities: (acR.data ?? []) as { description: string; progress_pct: number | null; notes: string | null }[],
+            materials: (mtR.data ?? []) as { name: string; quantity: number | null; unit: string | null; notes: string | null }[],
           }}
         />
       </div>

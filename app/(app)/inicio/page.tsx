@@ -178,12 +178,17 @@ export default async function InicioPage() {
             >
               {recentSites.map((s) => (
                 <Link key={s.id} href={`/obras/${s.id}`} className="obra-card">
-                  <div
-                    className="obra-card-cover"
-                    style={{
-                      backgroundImage: s.cover_url ? `url(${mediaUrl(s.cover_url)})` : undefined,
-                    }}
-                  >
+                  <div className="obra-card-cover">
+                    {s.cover_url && (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        className="obra-card-cover-img"
+                        src={mediaUrl(s.cover_url)}
+                        alt=""
+                        loading="lazy"
+                        decoding="async"
+                      />
+                    )}
                     <span className="status status-progress status-on-cover obra-card-status">
                       Em andamento
                     </span>

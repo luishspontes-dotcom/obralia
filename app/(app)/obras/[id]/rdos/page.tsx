@@ -3,7 +3,6 @@ import { notFound } from "next/navigation";
 import { Camera, FileText, Pencil, Printer, Search } from "lucide-react";
 import { ObraSidebar } from "@/components/layout/ObraSidebar";
 import { createServerSupabase } from "@/lib/supabase/server";
-import { fetchAllPages } from "@/lib/supabase/fetch-all";
 import { VISIBLE_SOURCE_PROVIDERS } from "@/lib/rdo-source-scope";
 
 type Site = {
@@ -26,6 +25,8 @@ const STATUS_META: Record<string, { label: string; cls: string }> = {
   approved: { label: "Aprovado", cls: "is-done" },
 };
 
+const PER_PAGE = 50;
+
 function fmtDate(value: string): string {
   return new Date(`${value}T00:00:00`).toLocaleDateString("pt-BR");
 }
@@ -35,11 +36,17 @@ export default async function ObraRdosPage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ status?: string; q?: string; order?: string }>;
+  searchParams: Promise<{ status?: string; q?: string; order?: string; page?: string }>;
 }) {
   const { id } = await params;
-  const { status: filter, q, order } = await searchParams;
+  const { status: rawFilter, q, order, page } = await searchParams;
+  const filter =
+    rawFilter && ["draft", "submitted", "review", "approved"].includes(rawFilter)
+      ? rawFilter
+      : undefined;
   const queryText = (q ?? "").trim().toLowerCase();
+  const pageNum = Math.max(1, parseInt(page ?? "1", 10) || 1);
+  const offset = (pageNum - 1) * PER_PAGE;
   const supabase = await createServerSupabase();
 
   const { data: siteRaw } = await supabase
@@ -51,6 +58,27 @@ export default async function ObraRdosPage({
   const site = siteRaw as Site | null;
   if (!site) notFound();
 
+  // Contador total (sem filtro) — head:true não traz linhas, só o count
+  const { count: totalAllCount } = await supabase
+    .from("daily_reports")
+    .select("*", { count: "exact", head: true })
+    .eq("site_id", id)
+    .in("external_provider", VISIBLE_SOURCE_PROVIDERS);
+  const totalAll = totalAllCount ?? 0;
+
+  // Contador do filtro ativo (pra calcular as páginas)
+  let filteredTotal = totalAll;
+  if (filter) {
+    const { count } = await supabase
+      .from("daily_reports")
+      .select("*", { count: "exact", head: true })
+      .eq("site_id", id)
+      .in("external_provider", VISIBLE_SOURCE_PROVIDERS)
+      .eq("status", filter);
+    filteredTotal = count ?? 0;
+  }
+  const totalPages = Math.max(1, Math.ceil(filteredTotal / PER_PAGE));
+
   let rdoQuery = supabase
     .from("daily_reports")
     .select("id, number, date, status")
@@ -58,48 +86,80 @@ export default async function ObraRdosPage({
     .in("external_provider", VISIBLE_SOURCE_PROVIDERS)
     .order("number", { ascending: order === "asc" });
 
-  if (filter && ["draft", "submitted", "review", "approved"].includes(filter)) {
+  if (filter) {
     rdoQuery = rdoQuery.eq("status", filter);
   }
 
-  const { data: reportsRaw } = await rdoQuery;
-  const allReports = (reportsRaw ?? []) as DailyReport[];
+  const { data: reportsRaw } = await rdoQuery.range(offset, offset + PER_PAGE - 1);
+  const pageReports = (reportsRaw ?? []) as DailyReport[];
+  // Busca textual aplicada sobre a página atual (server-side viria depois)
   const reports = queryText
-    ? allReports.filter((report) => {
+    ? pageReports.filter((report) => {
         const haystack = `${report.number} ${fmtDate(report.date)} ${STATUS_META[report.status]?.label ?? report.status}`.toLowerCase();
         return haystack.includes(queryText);
       })
-    : allReports;
+    : pageReports;
 
-  const mediaRows = await fetchAllPages<{ daily_report_id: string | null; kind: string | null }>(() =>
+  // Contadores da sidebar via head:true (sem baixar linhas)
+  const [
+    { count: photoTotalCount },
+    { count: videoTotalCount },
+    { count: fileTotalCount },
+    { count: taskTotalCount },
+  ] = await Promise.all([
     supabase
       .from("media")
-      .select("daily_report_id, kind")
+      .select("*", { count: "exact", head: true })
       .eq("site_id", id)
       .in("external_provider", VISIBLE_SOURCE_PROVIDERS)
-  );
+      .eq("kind", "photo"),
+    supabase
+      .from("media")
+      .select("*", { count: "exact", head: true })
+      .eq("site_id", id)
+      .in("external_provider", VISIBLE_SOURCE_PROVIDERS)
+      .eq("kind", "video"),
+    supabase
+      .from("media")
+      .select("*", { count: "exact", head: true })
+      .eq("site_id", id)
+      .in("external_provider", VISIBLE_SOURCE_PROVIDERS)
+      .eq("kind", "file"),
+    supabase
+      .from("wbs_items")
+      .select("*", { count: "exact", head: true })
+      .eq("site_id", id)
+      .in("external_provider", VISIBLE_SOURCE_PROVIDERS)
+      .not("parent_id", "is", null),
+  ]);
+
+  // Fotos por RDO: só dos relatórios visíveis nesta página
   const photoCounts = new Map<string, number>();
-  let photoTotal = 0;
-  let videoTotal = 0;
-  for (const media of mediaRows) {
-    if (media.kind === "video") videoTotal += 1;
-    if (media.kind !== "photo") continue;
-    photoTotal += 1;
-    if (media.daily_report_id) {
+  if (reports.length > 0) {
+    const { data: mediaRowsRaw } = await supabase
+      .from("media")
+      .select("daily_report_id")
+      .eq("site_id", id)
+      .in("external_provider", VISIBLE_SOURCE_PROVIDERS)
+      .eq("kind", "photo")
+      .in("daily_report_id", reports.map((report) => report.id));
+    const mediaRows = (mediaRowsRaw ?? []) as { daily_report_id: string | null }[];
+    for (const media of mediaRows) {
+      if (!media.daily_report_id) continue;
       photoCounts.set(media.daily_report_id, (photoCounts.get(media.daily_report_id) ?? 0) + 1);
     }
   }
 
-  const { data: taskRowsRaw } = await supabase
-    .from("wbs_items")
-    .select("id")
-    .eq("site_id", id)
-    .in("external_provider", VISIBLE_SOURCE_PROVIDERS)
-    .not("parent_id", "is", null);
-  const taskRows = (taskRowsRaw ?? []) as { id: string }[];
-  const taskCount = taskRows.length;
-
-  const fileCount = mediaRows.filter((media) => media.kind === "file").length;
+  // Monta href preservando filtros ao trocar de página
+  const pageHref = (p: number) => {
+    const sp = new URLSearchParams();
+    if (filter) sp.set("status", filter);
+    if (q) sp.set("q", q);
+    if (order) sp.set("order", order);
+    if (p > 1) sp.set("page", String(p));
+    const qs = sp.toString();
+    return `/obras/${id}/rdos${qs ? `?${qs}` : ""}`;
+  };
 
   return (
     <div className="do-obra-layout">
@@ -107,11 +167,11 @@ export default async function ObraRdosPage({
         site={site}
         active="reports"
         counts={{
-          reports: allReports.length,
-          tasks: taskCount,
-          photos: photoTotal,
-          videos: videoTotal,
-          files: fileCount,
+          reports: totalAll,
+          tasks: taskTotalCount ?? 0,
+          photos: photoTotalCount ?? 0,
+          videos: videoTotalCount ?? 0,
+          files: fileTotalCount ?? 0,
         }}
       />
 
@@ -119,8 +179,13 @@ export default async function ObraRdosPage({
         <div className="diario-container">
           <div className="diario-page-header">
             <div>
-              <h1>Relatórios ({allReports.length})</h1>
-              <p>{site.name}</p>
+              <h1>Relatórios ({totalAll})</h1>
+              <p>
+                {site.name}
+                {totalPages > 1 ? (
+                  <span className="tnum"> · página {pageNum} de {totalPages}</span>
+                ) : null}
+              </p>
             </div>
             <form method="get" action={`/obras/${id}/rdos`} className="diario-toolbar">
               <select className="diario-select" name="status" defaultValue={filter ?? ""}>
@@ -202,6 +267,40 @@ export default async function ObraRdosPage({
               </table>
             </div>
           </section>
+
+          {totalPages > 1 && (
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "center",
+                alignItems: "center",
+                gap: 10,
+                marginTop: 14,
+              }}
+            >
+              {pageNum > 1 ? (
+                <Link href={pageHref(pageNum - 1)} className="diario-gray-button">
+                  ← Anteriores
+                </Link>
+              ) : (
+                <span className="diario-gray-button" style={{ opacity: 0.45, pointerEvents: "none" }}>
+                  ← Anteriores
+                </span>
+              )}
+              <span className="tnum" style={{ padding: "0 10px", fontSize: 13, color: "#555" }}>
+                Página {pageNum} de {totalPages}
+              </span>
+              {pageNum < totalPages ? (
+                <Link href={pageHref(pageNum + 1)} className="diario-gray-button">
+                  Próximos →
+                </Link>
+              ) : (
+                <span className="diario-gray-button" style={{ opacity: 0.45, pointerEvents: "none" }}>
+                  Próximos →
+                </span>
+              )}
+            </div>
+          )}
         </div>
       </main>
     </div>

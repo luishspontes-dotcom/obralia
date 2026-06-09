@@ -143,15 +143,22 @@ export default async function ObrasPage({
           </div>
         ) : (
           <div className="diario-obra-grid">
-            {visibleSites.map((site) => {
+            {visibleSites.map((site, cardIdx) => {
               const status = STATUS_META[site.status] ?? STATUS_META.in_progress;
               const stats = perSite.get(site.id) ?? { total: 0, done: 0, late: 0, in_progress: 0, progressAvg: 0 };
               return (
                 <Link key={site.id} href={`/obras/${site.id}`} className="diario-obra-card">
-                  <div
-                    className="diario-obra-card__cover"
-                    style={{ backgroundImage: site.cover_url ? `url(${mediaUrl(site.cover_url)})` : undefined }}
-                  >
+                  <div className="diario-obra-card__cover">
+                    {site.cover_url && (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        className="diario-obra-card__cover-img"
+                        src={mediaUrl(site.cover_url)}
+                        alt=""
+                        loading={cardIdx < 4 ? "eager" : "lazy"}
+                        decoding="async"
+                      />
+                    )}
                     <span className={`diario-status-badge ${status.cls}`}>{status.label}</span>
                   </div>
                   <div className="diario-obra-card__body">

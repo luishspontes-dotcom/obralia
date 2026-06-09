@@ -4,7 +4,6 @@ import { PlayCircle, Printer, Search } from "lucide-react";
 import { ObraSidebar } from "@/components/layout/ObraSidebar";
 import { PhotoGrid } from "@/components/PhotoLightbox";
 import { createServerSupabase } from "@/lib/supabase/server";
-import { fetchAllPages } from "@/lib/supabase/fetch-all";
 import { VISIBLE_SOURCE_PROVIDERS } from "@/lib/rdo-source-scope";
 import { mediaUrl } from "@/lib/storage";
 
@@ -29,6 +28,8 @@ type Photo = {
   daily_report_id: string | null;
 };
 
+const PER_PAGE = 100;
+
 function fmtDate(value: string): string {
   return new Date(`${value}T00:00:00`).toLocaleDateString("pt-BR");
 }
@@ -38,12 +39,14 @@ export default async function ObraFotosPage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ relatorio?: string; q?: string; order?: string; tipo?: string }>;
+  searchParams: Promise<{ relatorio?: string; q?: string; order?: string; tipo?: string; page?: string }>;
 }) {
   const { id } = await params;
-  const { relatorio, q, order, tipo } = await searchParams;
+  const { relatorio, q, order, tipo, page } = await searchParams;
   const mediaType = tipo === "video" ? "video" : "photo";
   const queryText = (q ?? "").trim().toLowerCase();
+  const pageNum = Math.max(1, parseInt(page ?? "1", 10) || 1);
+  const offset = (pageNum - 1) * PER_PAGE;
   const supabase = await createServerSupabase();
 
   const { data: siteRaw } = await supabase
@@ -64,35 +67,70 @@ export default async function ObraFotosPage({
   const reports = (reportsRaw ?? []) as DailyReport[];
   const reportMap = new Map(reports.map((report) => [report.id, report]));
 
-  const mediaRows = await fetchAllPages<Photo & { kind: string | null }>(() =>
+  // Contadores da sidebar via head:true — sem baixar a tabela media inteira
+  const [
+    { count: photoTotalCount },
+    { count: videoTotalCount },
+    { count: fileTotalCount },
+    { count: taskTotalCount },
+  ] = await Promise.all([
     supabase
       .from("media")
-      .select("id, storage_path, thumbnail_path, caption, taken_at, daily_report_id, kind")
+      .select("*", { count: "exact", head: true })
       .eq("site_id", id)
       .in("external_provider", VISIBLE_SOURCE_PROVIDERS)
-  );
-  const photosAll = mediaRows.filter((media) => media.kind === "photo");
-  const videosAll = mediaRows.filter((media) => media.kind === "video");
-  const videoCount = videosAll.length;
-  const fileCount = mediaRows.filter((media) => media.kind === "file").length;
-  const selectedMedia = mediaType === "video" ? videosAll : photosAll;
+      .eq("kind", "photo"),
+    supabase
+      .from("media")
+      .select("*", { count: "exact", head: true })
+      .eq("site_id", id)
+      .in("external_provider", VISIBLE_SOURCE_PROVIDERS)
+      .eq("kind", "video"),
+    supabase
+      .from("media")
+      .select("*", { count: "exact", head: true })
+      .eq("site_id", id)
+      .in("external_provider", VISIBLE_SOURCE_PROVIDERS)
+      .eq("kind", "file"),
+    supabase
+      .from("wbs_items")
+      .select("*", { count: "exact", head: true })
+      .eq("site_id", id)
+      .in("external_provider", VISIBLE_SOURCE_PROVIDERS)
+      .not("parent_id", "is", null),
+  ]);
 
+  // Total do recorte atual (tipo + relatório) pra calcular as páginas
+  let filteredCountQuery = supabase
+    .from("media")
+    .select("*", { count: "exact", head: true })
+    .eq("site_id", id)
+    .in("external_provider", VISIBLE_SOURCE_PROVIDERS)
+    .eq("kind", mediaType);
+  if (relatorio) filteredCountQuery = filteredCountQuery.eq("daily_report_id", relatorio);
+  const { count: filteredCount } = await filteredCountQuery;
+  const filteredTotal = filteredCount ?? 0;
+  const totalPages = Math.max(1, Math.ceil(filteredTotal / PER_PAGE));
+
+  // Página atual de mídias (range no servidor, sem fetchAllPages)
+  let mediaQuery = supabase
+    .from("media")
+    .select("id, storage_path, thumbnail_path, caption, taken_at, daily_report_id")
+    .eq("site_id", id)
+    .in("external_provider", VISIBLE_SOURCE_PROVIDERS)
+    .eq("kind", mediaType)
+    .order("taken_at", { ascending: order === "asc", nullsFirst: false });
+  if (relatorio) mediaQuery = mediaQuery.eq("daily_report_id", relatorio);
+  const { data: mediaRaw } = await mediaQuery.range(offset, offset + PER_PAGE - 1);
+  const selectedMedia = (mediaRaw ?? []) as Photo[];
+
+  // Busca textual aplicada sobre a página atual
   const visibleMedia = selectedMedia.filter((media) => {
-    if (relatorio && media.daily_report_id !== relatorio) return false;
     if (!queryText) return true;
     const report = media.daily_report_id ? reportMap.get(media.daily_report_id) : null;
     const haystack = `${media.caption ?? ""} ${report ? `${fmtDate(report.date)} ${report.number}` : ""}`.toLowerCase();
     return haystack.includes(queryText);
   });
-
-  const { data: taskRowsRaw } = await supabase
-    .from("wbs_items")
-    .select("id")
-    .eq("site_id", id)
-    .in("external_provider", VISIBLE_SOURCE_PROVIDERS)
-    .not("parent_id", "is", null);
-  const taskRows = (taskRowsRaw ?? []) as { id: string }[];
-  const taskCount = taskRows.length;
 
   const grouped = new Map<string, Photo[]>();
   for (const media of visibleMedia) {
@@ -110,6 +148,18 @@ export default async function ObraFotosPage({
     return order === "asc" ? ra - rb : rb - ra;
   });
 
+  // Monta href preservando filtros ao trocar de página
+  const pageHref = (p: number) => {
+    const sp = new URLSearchParams();
+    if (mediaType === "video") sp.set("tipo", "video");
+    if (relatorio) sp.set("relatorio", relatorio);
+    if (q) sp.set("q", q);
+    if (order) sp.set("order", order);
+    if (p > 1) sp.set("page", String(p));
+    const qs = sp.toString();
+    return `/obras/${id}/fotos${qs ? `?${qs}` : ""}`;
+  };
+
   return (
     <div className="do-obra-layout">
       <ObraSidebar
@@ -117,10 +167,10 @@ export default async function ObraFotosPage({
         active="photos"
         counts={{
           reports: reports.length,
-          tasks: taskCount,
-          photos: photosAll.length,
-          videos: videoCount,
-          files: fileCount,
+          tasks: taskTotalCount ?? 0,
+          photos: photoTotalCount ?? 0,
+          videos: videoTotalCount ?? 0,
+          files: fileTotalCount ?? 0,
         }}
       />
 
@@ -128,8 +178,15 @@ export default async function ObraFotosPage({
         <div className="diario-container">
           <div className="diario-page-header">
             <div>
-              <h1>{mediaType === "video" ? "Vídeos" : "Fotos"}</h1>
-              <p>Relatórios: {reports.length}</p>
+              <h1>
+                {mediaType === "video" ? "Vídeos" : "Fotos"} ({filteredTotal})
+              </h1>
+              <p>
+                Relatórios: {reports.length}
+                {totalPages > 1 ? (
+                  <span className="tnum"> · página {pageNum} de {totalPages}</span>
+                ) : null}
+              </p>
             </div>
             <form method="get" action={`/obras/${id}/fotos`} className="diario-toolbar">
               {mediaType === "video" ? <input type="hidden" name="tipo" value="video" /> : null}
@@ -185,6 +242,40 @@ export default async function ObraFotosPage({
               })
             )}
           </section>
+
+          {totalPages > 1 && (
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "center",
+                alignItems: "center",
+                gap: 10,
+                marginTop: 14,
+              }}
+            >
+              {pageNum > 1 ? (
+                <Link href={pageHref(pageNum - 1)} className="diario-gray-button">
+                  ← Anteriores
+                </Link>
+              ) : (
+                <span className="diario-gray-button" style={{ opacity: 0.45, pointerEvents: "none" }}>
+                  ← Anteriores
+                </span>
+              )}
+              <span className="tnum" style={{ padding: "0 10px", fontSize: 13, color: "#555" }}>
+                Página {pageNum} de {totalPages}
+              </span>
+              {pageNum < totalPages ? (
+                <Link href={pageHref(pageNum + 1)} className="diario-gray-button">
+                  Próximos →
+                </Link>
+              ) : (
+                <span className="diario-gray-button" style={{ opacity: 0.45, pointerEvents: "none" }}>
+                  Próximos →
+                </span>
+              )}
+            </div>
+          )}
         </div>
       </main>
     </div>
