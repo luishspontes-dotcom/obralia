@@ -74,7 +74,7 @@ export default async function OrcamentoIaPage() {
       </div>
 
       <div style={{ padding: "0 24px 32px", maxWidth: 1280, margin: "0 auto" }}>
-        <div className="stat-grid" style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: 12, marginBottom: 18 }}>
+        <div className="stat-grid ai-budget-metrics-grid" style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: 12, marginBottom: 18 }}>
           <Metric icon={<FileText size={18} />} label="Estudos" value={String(estimates.length)} />
           <Metric icon={<Sparkles size={18} />} label="Para revisar" value={String(reviewCount)} />
           <Metric icon={<Calculator size={18} />} label="Aprovados" value={String(approvedCount)} />

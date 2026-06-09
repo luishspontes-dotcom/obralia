@@ -126,7 +126,7 @@ export default async function OrcamentoIaDetailPage({
       </div>
 
       <div style={{ padding: "0 24px 40px", maxWidth: 1280, margin: "0 auto" }}>
-        <div className="stat-grid" style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: 12, marginBottom: 18 }}>
+        <div className="stat-grid ai-budget-metrics-grid" style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: 12, marginBottom: 18 }}>
           <Metric label="Total preliminar" value={BRL.format(Number(estimate.total ?? 0))} />
           <Metric label="Confiança média" value={`${Math.round(Number(estimate.confidence_score ?? 0) * 100)}%`} />
           <Metric label="Itens gerados" value={String(items.length)} />

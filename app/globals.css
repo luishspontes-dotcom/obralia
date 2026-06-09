@@ -530,6 +530,9 @@ img[loading="lazy"]:not([src=""]) { opacity: 1; }
   .ai-budget-detail-grid {
     grid-template-columns: 1fr !important;
   }
+  .ai-budget-metrics-grid {
+    grid-template-columns: 1fr !important;
+  }
 
   .ai-budget-item-row {
     grid-template-columns: 64px minmax(0, 1fr) !important;
