@@ -124,6 +124,9 @@ export async function sendWhatsAppReply(phone: string, text: string): Promise<vo
       headers: {
         "Content-Type": "application/json",
         apikey: apiKey,
+        // A Evolution API do VPS valida Origin (CORS_ORIGIN). Server-to-server
+        // não envia Origin por padrão, então mandamos o permitido explicitamente.
+        ...(process.env.EVOLUTION_ORIGIN ? { Origin: process.env.EVOLUTION_ORIGIN } : {}),
       },
       body: JSON.stringify({ number: phone, text }),
     });
