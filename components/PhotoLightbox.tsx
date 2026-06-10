@@ -2,12 +2,17 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { mediaUrl } from "@/lib/storage";
+import { stageLabel, flagLabel, normalizeAiFlags } from "@/lib/ai-photo-meta";
 
 type Photo = {
   id: string;
   storage_path: string | null;
   thumbnail_path: string | null;
   caption: string | null;
+  /** Campos opcionais da análise por IA (galeria envia, RDO pode omitir) */
+  ai_caption?: string | null;
+  ai_stage?: string | null;
+  ai_flags?: unknown;
 };
 
 export function PhotoGrid({
@@ -56,37 +61,83 @@ export function PhotoGrid({
               gap: 6,
             }),
       }} className={strip ? "diario-photo-strip" : "photo-grid"}>
-        {photos.map((p, i) => (
-          <button
-            key={p.id}
-            type="button"
-            onClick={() => setOpenIdx(i)}
-            style={{
-              padding: 0,
-              border: 0,
-              cursor: "pointer",
-              aspectRatio: strip ? undefined : "1 / 1",
-              background: "var(--o-border)",
-              borderRadius: strip ? 0 : 6,
-              overflow: "hidden",
-            }}
-          >
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={mediaUrl(p.thumbnail_path ?? p.storage_path)}
-              alt={p.caption ?? "Foto"}
-              loading="lazy"
-              decoding="async"
+        {photos.map((p, i) => {
+          const flags = normalizeAiFlags(p.ai_flags);
+          const stage = stageLabel(p.ai_stage);
+          const title = p.ai_caption ?? p.caption ?? undefined;
+          return (
+            <button
+              key={p.id}
+              type="button"
+              onClick={() => setOpenIdx(i)}
+              title={title}
               style={{
-                width: "100%",
-                height: "100%",
-                objectFit: "cover",
-                display: "block",
+                position: "relative",
+                padding: 0,
+                border: 0,
+                cursor: "pointer",
                 aspectRatio: strip ? undefined : "1 / 1",
+                background: "var(--o-border)",
+                borderRadius: strip ? 0 : 6,
+                overflow: "hidden",
               }}
-            />
-          </button>
-        ))}
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={mediaUrl(p.thumbnail_path ?? p.storage_path)}
+                alt={title ?? "Foto"}
+                loading="lazy"
+                decoding="async"
+                style={{
+                  width: "100%",
+                  height: "100%",
+                  objectFit: "cover",
+                  display: "block",
+                  aspectRatio: strip ? undefined : "1 / 1",
+                }}
+              />
+              {stage && (
+                <span
+                  style={{
+                    position: "absolute",
+                    left: 4,
+                    bottom: 4,
+                    fontSize: 10,
+                    lineHeight: "14px",
+                    padding: "1px 6px",
+                    borderRadius: 999,
+                    background: "rgba(0,0,0,0.62)",
+                    color: "rgba(255,255,255,0.92)",
+                    maxWidth: "calc(100% - 8px)",
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  {stage}
+                </span>
+              )}
+              {flags.length > 0 && (
+                <span
+                  title={`Alertas: ${flags.map(flagLabel).join(", ")}`}
+                  style={{
+                    position: "absolute",
+                    top: 4,
+                    right: 4,
+                    fontSize: 11,
+                    lineHeight: "16px",
+                    padding: "0 5px",
+                    borderRadius: 999,
+                    background: "rgba(179,38,30,0.92)",
+                    color: "white",
+                  }}
+                >
+                  ⚠️{flags.length > 1 ? ` ${flags.length}` : ""}
+                </span>
+              )}
+            </button>
+          );
+        })}
       </div>
 
       {current && (
@@ -183,11 +234,35 @@ export function PhotoGrid({
               color: "rgba(255,255,255,0.85)",
               fontSize: 13,
               marginTop: 12,
+              textAlign: "center",
             }}>
               {current.caption ?? ""} {photos.length > 1 && (
                 <span style={{ color: "rgba(255,255,255,0.5)", marginLeft: 12 }} className="tnum">
                   {(openIdx ?? 0) + 1} / {photos.length}
                 </span>
+              )}
+              {(current.ai_caption || current.ai_stage || normalizeAiFlags(current.ai_flags).length > 0) && (
+                <div style={{ marginTop: 6, fontSize: 12, color: "rgba(255,255,255,0.65)" }}>
+                  {current.ai_caption && current.ai_caption !== current.caption && (
+                    <span style={{ fontStyle: "italic" }}>✨ {current.ai_caption}</span>
+                  )}
+                  {stageLabel(current.ai_stage) && (
+                    <span style={{
+                      marginLeft: 8,
+                      padding: "1px 7px",
+                      borderRadius: 999,
+                      background: "rgba(255,255,255,0.14)",
+                      fontSize: 11,
+                    }}>
+                      {stageLabel(current.ai_stage)}
+                    </span>
+                  )}
+                  {normalizeAiFlags(current.ai_flags).length > 0 && (
+                    <span style={{ marginLeft: 8, color: "#ff8a80" }}>
+                      ⚠️ {normalizeAiFlags(current.ai_flags).map(flagLabel).join(" · ")}
+                    </span>
+                  )}
+                </div>
               )}
             </div>
           </div>

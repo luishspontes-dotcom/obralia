@@ -3,9 +3,13 @@ import { notFound } from "next/navigation";
 import { PlayCircle, Printer, Search } from "lucide-react";
 import { ObraSidebar } from "@/components/layout/ObraSidebar";
 import { PhotoGrid } from "@/components/PhotoLightbox";
+import { PhotoAiPanel } from "@/components/PhotoAiPanel";
 import { createServerSupabase } from "@/lib/supabase/server";
+import { untypedDb, type DbQuery } from "@/lib/supabase/untyped";
 import { VISIBLE_SOURCE_PROVIDERS } from "@/lib/rdo-source-scope";
+import { getCurrentRole, canWrite } from "@/lib/permissions";
 import { mediaUrl } from "@/lib/storage";
+import { AI_STAGES, AI_STAGE_LABELS, isAiStage, normalizeAiFlags } from "@/lib/ai-photo-meta";
 
 type Site = {
   id: string;
@@ -26,6 +30,9 @@ type Photo = {
   caption: string | null;
   taken_at: string | null;
   daily_report_id: string | null;
+  ai_caption: string | null;
+  ai_stage: string | null;
+  ai_flags: unknown;
 };
 
 const PER_PAGE = 100;
@@ -39,15 +46,24 @@ export default async function ObraFotosPage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ relatorio?: string; q?: string; order?: string; tipo?: string; page?: string }>;
+  searchParams: Promise<{
+    relatorio?: string; q?: string; order?: string; tipo?: string; page?: string;
+    etapa?: string; flags?: string; ia?: string; iaerr?: string; iagrande?: string;
+  }>;
 }) {
   const { id } = await params;
-  const { relatorio, q, order, tipo, page } = await searchParams;
+  const { relatorio, q, order, tipo, page, etapa, flags, ia, iaerr, iagrande } = await searchParams;
   const mediaType = tipo === "video" ? "video" : "photo";
   const queryText = (q ?? "").trim().toLowerCase();
   const pageNum = Math.max(1, parseInt(page ?? "1", 10) || 1);
   const offset = (pageNum - 1) * PER_PAGE;
+  // Filtros de IA só fazem sentido pra fotos
+  const stageFilter = mediaType === "photo" && etapa && isAiStage(etapa) ? etapa : null;
+  const flagsFilter = mediaType === "photo" && flags === "1";
   const supabase = await createServerSupabase();
+  const db = untypedDb(supabase);
+  const role = await getCurrentRole();
+  const canEdit = canWrite(role);
 
   const { data: siteRaw } = await supabase
     .from("sites")
@@ -100,35 +116,70 @@ export default async function ObraFotosPage({
       .not("parent_id", "is", null),
   ]);
 
-  // Total do recorte atual (tipo + relatório) pra calcular as páginas
-  let filteredCountQuery = supabase
-    .from("media")
-    .select("*", { count: "exact", head: true })
-    .eq("site_id", id)
-    .in("external_provider", VISIBLE_SOURCE_PROVIDERS)
-    .eq("kind", mediaType);
-  if (relatorio) filteredCountQuery = filteredCountQuery.eq("daily_report_id", relatorio);
-  const { count: filteredCount } = await filteredCountQuery;
+  // Aplica os filtros comuns (tipo + relatório + IA) em qualquer query de media
+  const applyMediaFilters = <T,>(query: DbQuery<T>): DbQuery<T> => {
+    let q2 = query
+      .eq("site_id", id)
+      .in("external_provider", VISIBLE_SOURCE_PROVIDERS)
+      .eq("kind", mediaType);
+    if (relatorio) q2 = q2.eq("daily_report_id", relatorio);
+    if (stageFilter) q2 = q2.eq("ai_stage", stageFilter);
+    if (flagsFilter) q2 = q2.not("ai_flags", "eq", "[]");
+    return q2;
+  };
+
+  // Total do recorte atual (tipo + relatório + IA) pra calcular as páginas
+  const { count: filteredCount } = await applyMediaFilters(
+    db.from("media").select("*", { count: "exact", head: true }),
+  );
   const filteredTotal = filteredCount ?? 0;
   const totalPages = Math.max(1, Math.ceil(filteredTotal / PER_PAGE));
 
-  // Página atual de mídias (range no servidor, sem fetchAllPages)
-  let mediaQuery = supabase
-    .from("media")
-    .select("id, storage_path, thumbnail_path, caption, taken_at, daily_report_id")
-    .eq("site_id", id)
-    .in("external_provider", VISIBLE_SOURCE_PROVIDERS)
-    .eq("kind", mediaType)
-    .order("taken_at", { ascending: order === "asc", nullsFirst: false });
-  if (relatorio) mediaQuery = mediaQuery.eq("daily_report_id", relatorio);
-  const { data: mediaRaw } = await mediaQuery.range(offset, offset + PER_PAGE - 1);
-  const selectedMedia = (mediaRaw ?? []) as Photo[];
+  // Página atual de mídias (range no servidor, sem fetchAllPages).
+  // untypedDb: os campos ai_* ainda não estão em database.types.ts.
+  const { data: mediaRaw } = await applyMediaFilters(
+    db.from<Photo[]>("media").select(
+      "id, storage_path, thumbnail_path, caption, taken_at, daily_report_id, ai_caption, ai_stage, ai_flags",
+    ),
+  )
+    .order("taken_at", { ascending: order === "asc", nullsFirst: false })
+    .range(offset, offset + PER_PAGE - 1);
+  const selectedMedia = mediaRaw ?? [];
+
+  // Controles de IA: fotos pendentes de análise + alertas de segurança (30 dias)
+  let pendingCount = 0;
+  let flaggedPhotoCount = 0;
+  let flagTotal = 0;
+  if (mediaType === "photo") {
+    const cutoff30d = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+    const [pendingR, flaggedR] = await Promise.all([
+      db.from("media")
+        .select("*", { count: "exact", head: true })
+        .eq("site_id", id)
+        .in("external_provider", VISIBLE_SOURCE_PROVIDERS)
+        .eq("kind", "photo")
+        .is("ai_analyzed_at", null),
+      db.from<{ ai_flags: unknown }[]>("media")
+        .select("ai_flags")
+        .eq("site_id", id)
+        .in("external_provider", VISIBLE_SOURCE_PROVIDERS)
+        .eq("kind", "photo")
+        .gte("taken_at", cutoff30d)
+        .not("ai_flags", "eq", "[]")
+        .limit(500),
+    ]);
+    pendingCount = pendingR.count ?? 0;
+    const flaggedRows = flaggedR.data ?? [];
+    flaggedPhotoCount = flaggedRows.length;
+    flagTotal = flaggedRows.reduce((sum, row) => sum + normalizeAiFlags(row.ai_flags).length, 0);
+  }
+  const analyzedNotice = ia !== undefined ? Math.max(0, parseInt(ia, 10) || 0) : null;
 
   // Busca textual aplicada sobre a página atual
   const visibleMedia = selectedMedia.filter((media) => {
     if (!queryText) return true;
     const report = media.daily_report_id ? reportMap.get(media.daily_report_id) : null;
-    const haystack = `${media.caption ?? ""} ${report ? `${fmtDate(report.date)} ${report.number}` : ""}`.toLowerCase();
+    const haystack = `${media.caption ?? ""} ${media.ai_caption ?? ""} ${report ? `${fmtDate(report.date)} ${report.number}` : ""}`.toLowerCase();
     return haystack.includes(queryText);
   });
 
@@ -155,6 +206,8 @@ export default async function ObraFotosPage({
     if (relatorio) sp.set("relatorio", relatorio);
     if (q) sp.set("q", q);
     if (order) sp.set("order", order);
+    if (stageFilter) sp.set("etapa", stageFilter);
+    if (flagsFilter) sp.set("flags", "1");
     if (p > 1) sp.set("page", String(p));
     const qs = sp.toString();
     return `/obras/${id}/fotos${qs ? `?${qs}` : ""}`;
@@ -190,6 +243,7 @@ export default async function ObraFotosPage({
             </div>
             <form method="get" action={`/obras/${id}/fotos`} className="diario-toolbar">
               {mediaType === "video" ? <input type="hidden" name="tipo" value="video" /> : null}
+              {flagsFilter ? <input type="hidden" name="flags" value="1" /> : null}
               <Link className={mediaType === "photo" ? "diario-blue-button" : "diario-gray-button"} href={`/obras/${id}/fotos`}>
                 Fotos
               </Link>
@@ -204,6 +258,16 @@ export default async function ObraFotosPage({
                   </option>
                 ))}
               </select>
+              {mediaType === "photo" ? (
+                <select className="diario-select" name="etapa" defaultValue={stageFilter ?? ""} title="Etapa identificada pela IA">
+                  <option value="">Todas as etapas</option>
+                  {AI_STAGES.map((stage) => (
+                    <option key={stage} value={stage}>
+                      {AI_STAGE_LABELS[stage]}
+                    </option>
+                  ))}
+                </select>
+              ) : null}
               <input className="diario-input" name="q" defaultValue={q ?? ""} placeholder="Pesquisa" />
               <select className="diario-select" name="order" defaultValue={order ?? "desc"}>
                 <option value="desc">Ordem decrescente</option>
@@ -219,10 +283,28 @@ export default async function ObraFotosPage({
             </form>
           </div>
 
+          {mediaType === "photo" && (
+            <PhotoAiPanel
+              siteId={id}
+              canEdit={canEdit}
+              pendingCount={pendingCount}
+              flaggedPhotoCount={flaggedPhotoCount}
+              flagTotal={flagTotal}
+              flagsActive={flagsFilter}
+              analyzedNotice={analyzedNotice}
+              failedNotice={iaerr !== undefined ? Math.max(0, parseInt(iaerr, 10) || 0) : 0}
+              tooLargeNotice={iagrande !== undefined ? Math.max(0, parseInt(iagrande, 10) || 0) : 0}
+            />
+          )}
+
           <section className="do-panel">
             {orderedGroups.length === 0 ? (
               <div style={{ padding: 18, color: "#777", fontSize: 12 }}>
-                {mediaType === "video" ? "Nenhum vídeo encontrado." : "Nenhuma foto encontrada."}
+                {mediaType === "video"
+                  ? "Nenhum vídeo encontrado."
+                  : stageFilter || flagsFilter
+                    ? "Nenhuma foto encontrada com esse filtro de IA."
+                    : "Nenhuma foto encontrada."}
               </div>
             ) : (
               orderedGroups.map(([reportId, list]) => {

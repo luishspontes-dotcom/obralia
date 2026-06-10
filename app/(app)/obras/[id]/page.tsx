@@ -7,9 +7,11 @@ import { createServerSupabase } from "@/lib/supabase/server";
 import { fetchAllPages } from "@/lib/supabase/fetch-all";
 import { VISIBLE_SOURCE_PROVIDERS } from "@/lib/rdo-source-scope";
 import { mediaUrl } from "@/lib/storage";
-import { getCurrentRole, canManageUsers } from "@/lib/permissions";
+import { getCurrentRole, canManageUsers, canWrite } from "@/lib/permissions";
 import { untypedDb } from "@/lib/supabase/untyped";
 import { createShareLink, revokeShareLink, type ShareLinkRow } from "@/lib/share-actions";
+import { recomputeSiteRisk, type RiskFactor } from "@/lib/risk";
+import { RiskBadge, riskLevel } from "@/components/RiskBadge";
 
 type Site = {
   id: string;
@@ -47,6 +49,12 @@ type Photo = {
   thumbnail_path: string | null;
   caption: string | null;
   daily_report_id: string | null;
+};
+
+type SiteRisk = {
+  risk_score: number | null;
+  risk_factors: RiskFactor[] | null;
+  risk_computed_at: string | null;
 };
 
 const SITE_STATUS: Record<string, { label: string; cls: string }> = {
@@ -171,9 +179,20 @@ export default async function ObraDetailPage({
   // Portal do cliente — apenas administradores gerenciam links públicos
   const role = await getCurrentRole();
   const isAdmin = canManageUsers(role);
+  const writer = canWrite(role);
+  const db = untypedDb(supabase);
+
+  // Risco de atraso — pré-calculado em sites.risk_* (lib/risk.ts)
+  const { data: riskRaw } = await db
+    .from<SiteRisk>("sites")
+    .select("risk_score, risk_factors, risk_computed_at")
+    .eq("id", id)
+    .maybeSingle();
+  const risk = (riskRaw ?? null) as SiteRisk | null;
+  const riskFactors: RiskFactor[] = Array.isArray(risk?.risk_factors) ? risk.risk_factors : [];
+
   let shareLinks: ShareLinkRow[] = [];
   if (isAdmin) {
-    const db = untypedDb(supabase);
     const { data: linksRaw } = await db
       .from<ShareLinkRow[]>("share_links")
       .select("id, token, label, created_at, expires_at, revoked_at")
@@ -330,6 +349,76 @@ export default async function ObraDetailPage({
               <Info label="Observação">
                 <p>{site.address || ""}</p>
               </Info>
+            </div>
+          </section>
+
+          <section id="risco-de-atraso" className="do-panel" style={{ marginBottom: 18 }}>
+            <div className="do-panel__header">
+              <h2>🎯 Risco de atraso</h2>
+              {writer ? (
+                <form action={recomputeSiteRisk} style={{ display: "inline" }}>
+                  <input type="hidden" name="siteId" value={id} />
+                  <button
+                    type="submit"
+                    className="chip"
+                    style={{ cursor: "pointer", fontSize: 12 }}
+                    title="Recalcula o risco a partir dos dados históricos desta obra"
+                  >
+                    ↺ Recalcular
+                  </button>
+                </form>
+              ) : null}
+            </div>
+            <div style={{ padding: "14px 16px" }}>
+              {risk?.risk_computed_at ? (
+                <>
+                  <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap", marginBottom: 14 }}>
+                    <span
+                      className="tnum"
+                      style={{
+                        font: "700 34px var(--font-inter)",
+                        letterSpacing: "-0.02em",
+                        color: riskLevel(risk.risk_score).color,
+                      }}
+                    >
+                      {risk.risk_score != null ? Math.round(risk.risk_score) : "—"}
+                    </span>
+                    <RiskBadge score={risk.risk_score} />
+                    <span style={{ fontSize: 12, color: "#777" }}>
+                      Calculado em {new Date(risk.risk_computed_at).toLocaleString("pt-BR")}
+                    </span>
+                  </div>
+                  {riskFactors.length > 0 ? (
+                    <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
+                      {riskFactors.map((f) => (
+                        <div
+                          key={f.fator}
+                          style={{ display: "flex", gap: 10, alignItems: "baseline", fontSize: 13, lineHeight: 1.45 }}
+                        >
+                          <span
+                            className="tnum"
+                            style={{
+                              minWidth: 36,
+                              textAlign: "right",
+                              fontWeight: 700,
+                              color: f.peso > 0 ? "#e53935" : "#39b54a",
+                            }}
+                          >
+                            {f.peso > 0 ? `+${f.peso}` : "0"}
+                          </span>
+                          <strong style={{ minWidth: 150, color: "var(--o-text-1, #1B2733)" }}>{f.fator}</strong>
+                          <span style={{ color: "var(--o-text-2, #5C6B72)" }}>{f.detalhe}</span>
+                        </div>
+                      ))}
+                    </div>
+                  ) : null}
+                </>
+              ) : (
+                <p style={{ margin: 0, fontSize: 12.5, color: "#777" }}>
+                  Risco ainda não calculado para esta obra.
+                  {writer ? " Clique em “↺ Recalcular” para analisar prazo, ritmo, clima, efetivo e tarefas vencidas." : ""}
+                </p>
+              )}
             </div>
           </section>
 
