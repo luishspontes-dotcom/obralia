@@ -24,7 +24,8 @@ const iconBtnStyle: React.CSSProperties = {
 };
 
 export function MemberRow({
-  profileId, organizationId, name, initials, role, isMe, canManage, email,
+  profileId, organizationId, name, initials, role, isMe, canManage, email, returnTo, subtitle,
+  accessCount, lastAccessLabel,
 }: {
   profileId: string;
   organizationId: string;
@@ -34,6 +35,14 @@ export function MemberRow({
   isMe: boolean;
   canManage: boolean;
   email?: string | null;
+  /** Página para onde as ações redirecionam (default /usuarios). */
+  returnTo?: string;
+  /** Linha extra de contexto (ex.: grupo do Diário). */
+  subtitle?: string | null;
+  /** Quantidade de logins (visível só quando fornecido — admins). */
+  accessCount?: number | null;
+  /** Último acesso já formatado no servidor (evita divergência de fuso). */
+  lastAccessLabel?: string | null;
 }) {
   const [editing, setEditing] = useState(false);
   const [confirm, setConfirm] = useState<ConfirmAction>(null);
@@ -68,7 +77,26 @@ export function MemberRow({
             {email}
           </div>
         )}
+        {subtitle && (
+          <div style={{ fontSize: 11, color: "var(--o-text-3)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+            {subtitle}
+          </div>
+        )}
       </div>
+
+      {typeof accessCount === "number" && (
+        <span
+          title={lastAccessLabel ? `Último acesso: ${lastAccessLabel}` : "Nunca acessou"}
+          style={{ display: "grid", justifyItems: "end", lineHeight: 1.3, flexShrink: 0 }}
+        >
+          <span style={{ fontSize: 11, fontWeight: 600, color: accessCount > 0 ? "var(--t-brand)" : "var(--o-text-3)", whiteSpace: "nowrap" }}>
+            {accessCount} acesso{accessCount === 1 ? "" : "s"}
+          </span>
+          <span style={{ fontSize: 10, color: "var(--o-text-3)", whiteSpace: "nowrap" }}>
+            {lastAccessLabel ?? "nunca entrou"}
+          </span>
+        </span>
+      )}
 
       {editing && canManage ? (
         <form action={async (fd) => { await updateMemberRole(fd); setEditing(false); }} style={{ display: "flex", gap: 6 }}>
@@ -96,6 +124,7 @@ export function MemberRow({
           <form action={adminResetPasswordEmail} style={{ display: "contents" }}>
             <input type="hidden" name="profile_id" value={profileId} />
             <input type="hidden" name="email" value={email ?? ""} />
+            <input type="hidden" name="next" value={returnTo ?? "/usuarios"} />
             <button type="submit" disabled={!email}
               title={email ? "Enviar e-mail de redefinição de senha" : "E-mail do usuário não disponível"}
               style={{ ...iconBtnStyle, opacity: email ? 1 : 0.4, cursor: email ? "pointer" : "not-allowed" }}>🔑</button>
@@ -125,6 +154,7 @@ export function MemberRow({
       {canManage && !isMe && !editing && confirm === "temp" && (
         <form action={adminSetTemporaryPassword} style={{ display: "flex", alignItems: "center", gap: 4 }}>
           <input type="hidden" name="profile_id" value={profileId} />
+          <input type="hidden" name="next" value={returnTo ?? "/usuarios"} />
           <span style={{ fontSize: 11, color: "var(--o-text-3)" }}>Gerar senha temporária? A senha atual deixa de funcionar.</span>
           <button type="submit" className="chip" style={{ padding: "4px 10px", fontSize: 11, color: "var(--t-brand)", borderColor: "var(--t-brand-soft)" }}>Confirmar</button>
           <button type="button" onClick={() => setConfirm(null)} className="chip" style={{ padding: "4px 10px", fontSize: 11 }}>×</button>
@@ -134,6 +164,7 @@ export function MemberRow({
       {canManage && !isMe && !editing && confirm === "delete" && (
         <form action={adminDeleteUser} style={{ display: "flex", alignItems: "center", gap: 4 }}>
           <input type="hidden" name="profile_id" value={profileId} />
+          <input type="hidden" name="next" value={returnTo ?? "/usuarios"} />
           <span style={{ fontSize: 11, color: "#b3261e" }}>
             Excluir de verdade? Remove o acesso e o login; o histórico de RDOs fica preservado sem autor.
           </span>

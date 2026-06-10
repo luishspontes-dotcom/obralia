@@ -687,8 +687,26 @@ img[loading="lazy"]:not([src=""]) { opacity: 1; }
 .do-topbar-menu.is-active > .do-topbar-menu__trigger,
 .do-topbar-menu.is-open > .do-topbar-menu__trigger,
 .do-topbar-menu__trigger:hover {
-  background: rgba(0, 0, 0, 0.15);
+  background: rgba(0, 0, 0, 0.2);
   color: #fff;
+}
+
+.do-topbar-menu__panel a em {
+  margin-left: auto;
+  min-width: 17px;
+  padding: 1px 5px;
+  border-radius: 3px;
+  background: #e5e5e5;
+  color: #666;
+  font-style: normal;
+  font-size: 11px;
+  text-align: center;
+}
+
+.do-topbar-menu__panel hr {
+  margin: 4px 0;
+  border: 0;
+  border-top: 1px solid #e5e5e5;
 }
 
 .do-topbar-menu {
@@ -756,7 +774,7 @@ img[loading="lazy"]:not([src=""]) { opacity: 1; }
   align-items: center;
   gap: 6px;
   padding: 0 15px;
-  background: #ff9800;
+  background: #ffab02;
   color: #fff;
   border: 0;
   border-radius: 2px;
@@ -768,7 +786,7 @@ img[loading="lazy"]:not([src=""]) { opacity: 1; }
 }
 
 .do-add-button:hover {
-  background: #f08f00;
+  background: #f0a000;
 }
 
 .do-user-pill {
@@ -885,7 +903,31 @@ img[loading="lazy"]:not([src=""]) { opacity: 1; }
 }
 
 .diario-red-button {
-  background: #e53958;
+  background: #d32f2f;
+  color: #fff;
+}
+
+/* Toggle lista/grade na listagem de obras */
+.diario-view-toggle {
+  display: inline-flex;
+  border: 1px solid #d8d8d8;
+  border-radius: 2px;
+  overflow: hidden;
+}
+.diario-view-toggle a {
+  height: 32px;
+  width: 36px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: #fff;
+  color: #777;
+}
+.diario-view-toggle a + a {
+  border-left: 1px solid #d8d8d8;
+}
+.diario-view-toggle a.is-active {
+  background: #2196f3;
   color: #fff;
 }
 
@@ -1096,7 +1138,7 @@ img[loading="lazy"]:not([src=""]) { opacity: 1; }
   gap: 8px;
   padding: 9px 12px;
   background: #fff;
-  border-top: 2px solid #de6b55;
+  border-top: 2px solid #ff6f00;
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
   color: #999;
   text-decoration: none;
@@ -1104,7 +1146,7 @@ img[loading="lazy"]:not([src=""]) { opacity: 1; }
 
 .do-metric-card strong {
   display: block;
-  color: #d0644f;
+  color: #ff6f00;
   font: 700 22px var(--font-inter);
   line-height: 1;
   margin-bottom: 4px;
@@ -1145,7 +1187,7 @@ img[loading="lazy"]:not([src=""]) { opacity: 1; }
 .do-panel__header h2,
 .do-panel__header h3 {
   margin: 0;
-  color: #c05f4e;
+  color: #ff6f00;
   font: 700 13px var(--font-inter);
 }
 
@@ -1273,13 +1315,19 @@ img[loading="lazy"]:not([src=""]) { opacity: 1; }
   color: #777;
 }
 
-.do-row-actions a {
+.do-row-actions a,
+.do-row-actions button {
   width: 26px;
   height: 26px;
   display: inline-grid;
   place-items: center;
   color: #2196f3;
   background: #eef5fb;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+  font: 700 13px var(--font-inter);
+  line-height: 1;
 }
 
 .do-photo-mosaic {
@@ -1801,4 +1849,295 @@ img[loading="lazy"]:not([src=""]) { opacity: 1; }
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
   max-width: 100%;
+}
+
+/* =========================================================
+   MOBILE TAB BAR — barra de abas inferior (igual ao app
+   nativo do Diário de Obra). Visível só em < 768px.
+   ========================================================= */
+.do-mobile-tabbar {
+  display: none;
+}
+@media (max-width: 767px) {
+  .do-mobile-tabbar {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    z-index: 140;
+    display: flex;
+    align-items: stretch;
+    justify-content: space-around;
+    background: var(--o-paper);
+    border-top: 1px solid var(--o-border);
+    box-shadow: 0 -2px 10px rgba(27, 39, 51, 0.08);
+    padding: 4px 4px calc(4px + env(safe-area-inset-bottom, 0px));
+  }
+  .do-mobile-tabbar__item {
+    flex: 1 1 0;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    padding: 6px 2px;
+    border-radius: var(--r-sm);
+    color: var(--o-text-3);
+    text-decoration: none;
+    font: 500 10px var(--font-inter);
+    line-height: 1.2;
+    text-align: center;
+  }
+  .do-mobile-tabbar__item span {
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .do-mobile-tabbar__item.is-active {
+    color: var(--t-brand);
+  }
+  .do-mobile-tabbar__fab {
+    flex: 0 0 auto;
+    align-self: center;
+    width: 52px;
+    height: 52px;
+    margin-top: -22px;
+    border-radius: 999px;
+    background: var(--o-accent);
+    color: var(--o-accent-on);
+    display: grid;
+    place-items: center;
+    text-decoration: none;
+    box-shadow: var(--shadow-md);
+    border: 3px solid var(--o-paper);
+  }
+  .do-mobile-tabbar__fab:active {
+    background: var(--o-accent-h);
+  }
+  /* Conteúdo não fica escondido atrás da barra */
+  .app-main {
+    padding-bottom: calc(76px + env(safe-area-inset-bottom, 0px));
+  }
+}
+@media print {
+  .do-mobile-tabbar {
+    display: none !important;
+  }
+}
+
+/* =========================================================
+   PARIDADE DIÁRIO DE OBRA — documento do RDO (visualizar)
+   ========================================================= */
+.do-doc {
+  background: #fff;
+  border: 1px solid #c9c9c9;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+  padding: 14px;
+}
+
+.do-doc-status {
+  margin-bottom: 10px;
+}
+
+.do-doc-table {
+  width: 100%;
+  border-collapse: collapse;
+  background: #fff;
+  color: #333;
+  font-size: 12px;
+  table-layout: fixed;
+}
+
+.do-doc-table th,
+.do-doc-table td {
+  border: 1px solid #d2d2d2;
+  padding: 7px 10px;
+  text-align: left;
+  vertical-align: top;
+  word-wrap: break-word;
+}
+
+.do-doc-table th {
+  background: #f5f5f5;
+  color: #444;
+  font-weight: 700;
+}
+
+.do-doc-section {
+  background: #f5f5f5;
+  color: #444;
+  font-weight: 700;
+}
+
+.do-doc-section .do-doc-percent {
+  float: right;
+  color: #555;
+  font-weight: 700;
+}
+
+.do-doc-logo {
+  text-align: center;
+  vertical-align: middle;
+}
+
+.do-doc-logo img {
+  display: inline-block;
+  max-height: 66px;
+  max-width: 220px;
+  object-fit: contain;
+}
+
+.do-doc-logo strong {
+  font: 700 14px var(--font-inter);
+  text-transform: uppercase;
+  color: #333;
+}
+
+.do-doc-kv span {
+  display: block;
+  color: #777;
+  font-size: 11px;
+  font-weight: 700;
+  margin-bottom: 2px;
+}
+
+.do-doc-kv strong {
+  font-weight: 500;
+}
+
+.do-doc-photos {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 4px;
+}
+
+.do-doc-photos a {
+  display: block;
+  aspect-ratio: 4 / 3;
+  background: #ddd;
+  overflow: hidden;
+}
+
+.do-doc-photos img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.do-doc-sign {
+  height: 130px;
+  text-align: center;
+  vertical-align: bottom;
+}
+
+.do-doc-sign img {
+  display: block;
+  margin: 0 auto 8px;
+  max-height: 80px;
+  max-width: 90%;
+  object-fit: contain;
+}
+
+.do-doc-sign small {
+  display: block;
+  border-top: 1px solid #999;
+  padding-top: 6px;
+  color: #666;
+  font-size: 11px;
+}
+
+.do-doc-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  flex-wrap: wrap;
+  margin-top: 14px;
+}
+
+.do-doc-footer-nav a,
+.do-doc-footer-nav span {
+  color: #2196f3;
+  font: 500 12px var(--font-inter);
+  text-decoration: none;
+}
+
+.do-doc-footer-nav span.is-disabled {
+  color: #aaa;
+}
+
+.do-doc-footer-meta {
+  flex: 1;
+  min-width: 220px;
+  color: #777;
+  font-size: 11px;
+  text-align: center;
+  line-height: 1.5;
+}
+
+.do-doc-footer-meta a {
+  color: #2196f3;
+  text-decoration: none;
+}
+
+/* Contadores da lista de tarefas (Total · Não iniciada · …) */
+.do-task-counter-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(116px, 1fr));
+  gap: 16px;
+  margin-bottom: 18px;
+}
+
+@media (max-width: 768px) {
+  .do-task-counter-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+  }
+  .do-doc-photos {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+.diario-checkbox {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: #555;
+  font: 500 12px var(--font-inter);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+/* Dropdown do usuário (avatar + nome + email) e seletor de idioma */
+.do-user-pill {
+  cursor: default;
+}
+
+.do-user-pill span.do-user-pill__email {
+  display: block;
+  width: auto;
+  height: auto;
+  border-radius: 0;
+  background: transparent;
+  text-align: left;
+  font: 400 10px var(--font-inter);
+  color: rgba(255, 255, 255, 0.72);
+  max-width: 168px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.do-topbar-menu__panel.is-right {
+  left: auto;
+  right: 0;
+}
+
+@media (max-width: 768px) {
+  .do-user-pill .do-user-pill__email {
+    display: none;
+  }
 }

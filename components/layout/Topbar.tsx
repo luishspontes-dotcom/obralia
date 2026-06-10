@@ -5,8 +5,10 @@ import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import {
   BarChart3,
+  Building2,
   BriefcaseBusiness,
   Camera,
+  CheckSquare,
   ChevronDown,
   ClipboardList,
   FileArchive,
@@ -15,20 +17,35 @@ import {
   ListTodo,
   LogOut,
   Map,
+  PenLine,
   Plus,
   Search,
   Settings,
-  UserCog,
+  User,
   Users,
   Video,
 } from "lucide-react";
 
+export interface TopbarMenuCounts {
+  fotos: number;
+  videos: number;
+  anexos: number;
+  usuarios: number;
+  gruposDeObra: number;
+  modelosRelatorios: number;
+  maoDeObra: number;
+  equipamentos: number;
+  tiposOcorrencias: number;
+}
+
 interface TopbarProps {
   activeOrg: { name: string } | null;
   userName: string | null;
+  userEmail?: string | null;
+  menuCounts?: TopbarMenuCounts | null;
 }
 
-export function Topbar({ activeOrg, userName }: TopbarProps) {
+export function Topbar({ activeOrg, userName, userEmail, menuCounts }: TopbarProps) {
   const pathname = usePathname();
   const topbarRef = useRef<HTMLElement | null>(null);
   const [openMenu, setOpenMenu] = useState<string | null>(null);
@@ -73,11 +90,12 @@ export function Topbar({ activeOrg, userName }: TopbarProps) {
 
       <nav className="do-topbar__nav" aria-label="Navegação principal">
         <TopbarLink href="/obras" label="Obras" pathname={pathname} />
-        <TopbarLink href="/relatorios" label="Relatórios" pathname={pathname} />
+        {/* No Diário de Obra, "Relatórios" do topo abre a caixa de notificações */}
+        <TopbarLink href="/caixa" label="Relatórios" pathname={pathname} />
         <Menu
           label="Análise de dados"
           id="analise"
-          active={pathname.startsWith("/inicio") || pathname.startsWith("/mapa") || pathname.startsWith("/analise-de-dados") || pathname.startsWith("/tarefas") || pathname.startsWith("/caixa")}
+          active={pathname.startsWith("/inicio") || pathname.startsWith("/mapa") || pathname.startsWith("/analise-de-dados") || pathname.startsWith("/tarefas") || pathname.startsWith("/relatorios")}
           openMenu={openMenu}
           setOpenMenu={setOpenMenu}
         >
@@ -85,17 +103,13 @@ export function Topbar({ activeOrg, userName }: TopbarProps) {
             <BarChart3 size={15} />
             Visão geral
           </Link>
-          <Link href="/mapa">
-            <Map size={15} />
-            Mapa das obras
-          </Link>
           <Link href="/relatorios">
             <FileText size={15} />
             Relatórios criados
           </Link>
           <Link href="/caixa">
             <FileText size={15} />
-            Relatórios aguardando aprovação
+            Aguardando aprovação
           </Link>
           <Link href="/tarefas">
             <ListTodo size={15} />
@@ -104,14 +118,30 @@ export function Topbar({ activeOrg, userName }: TopbarProps) {
           <Link href="/analise-de-dados/fotos">
             <Camera size={15} />
             Fotos
+            {menuCounts ? <em className="tnum">{menuCounts.fotos.toLocaleString("pt-BR")}</em> : null}
           </Link>
           <Link href="/analise-de-dados/videos">
             <Video size={15} />
             Vídeos
+            {menuCounts ? <em className="tnum">{menuCounts.videos.toLocaleString("pt-BR")}</em> : null}
           </Link>
           <Link href="/analise-de-dados/anexos">
             <FileArchive size={15} />
             Anexos
+            {menuCounts ? <em className="tnum">{menuCounts.anexos.toLocaleString("pt-BR")}</em> : null}
+          </Link>
+          <Link href="/cadastros/mao-de-obra">
+            <HardHat size={15} />
+            Mão de obra (histórico)
+          </Link>
+          <Link href="/cadastros/equipamentos">
+            <Settings size={15} />
+            Equipamentos (histórico)
+          </Link>
+          <hr />
+          <Link href="/mapa">
+            <Map size={15} />
+            Mapa das obras
           </Link>
         </Menu>
         <Menu
@@ -121,37 +151,63 @@ export function Topbar({ activeOrg, userName }: TopbarProps) {
           openMenu={openMenu}
           setOpenMenu={setOpenMenu}
         >
-          <Link href="/usuarios">
-            <Users size={15} />
-            Usuários
+          <Link href="/configuracoes">
+            <User size={15} />
+            Meu perfil
+          </Link>
+          <Link href="/configuracoes#assinatura">
+            <PenLine size={15} />
+            Assinatura
           </Link>
           <Link href="/cadastros/usuarios-empresas-acesso">
-            <UserCog size={15} />
-            Usuários empresas/acesso
+            <Building2 size={15} />
+            Empresa
           </Link>
+          <Link href="/usuarios">
+            <Users size={15} />
+            Usuários (login de acesso)
+            {menuCounts ? <em className="tnum">{menuCounts.usuarios.toLocaleString("pt-BR")}</em> : null}
+          </Link>
+          <hr />
           <Link href="/cadastros/grupos-de-obra">
             <BriefcaseBusiness size={15} />
             Grupos de obra
+            {menuCounts ? <em className="tnum">{menuCounts.gruposDeObra.toLocaleString("pt-BR")}</em> : null}
           </Link>
           <Link href="/cadastros/modelos-relatorios">
             <ClipboardList size={15} />
             Modelos de relatórios
+            {menuCounts ? <em className="tnum">{menuCounts.modelosRelatorios.toLocaleString("pt-BR")}</em> : null}
           </Link>
           <Link href="/cadastros/mao-de-obra">
             <HardHat size={15} />
             Mão de obra
+            {menuCounts ? <em className="tnum">{menuCounts.maoDeObra.toLocaleString("pt-BR")}</em> : null}
           </Link>
           <Link href="/cadastros/equipamentos">
             <Settings size={15} />
             Equipamentos
+            {menuCounts ? <em className="tnum">{menuCounts.equipamentos.toLocaleString("pt-BR")}</em> : null}
           </Link>
           <Link href="/cadastros/tipos-ocorrencias">
             <ClipboardList size={15} />
             Tipos de ocorrências
+            {menuCounts ? <em className="tnum">{menuCounts.tiposOcorrencias.toLocaleString("pt-BR")}</em> : null}
           </Link>
-          <Link href="/configuracoes">
-            <Settings size={15} />
-            Configurações
+          <Link href="/cadastros" title="Em breve">
+            <CheckSquare size={15} />
+            Checklist
+          </Link>
+        </Menu>
+        <Menu
+          label="PT"
+          id="idioma"
+          active={false}
+          openMenu={openMenu}
+          setOpenMenu={setOpenMenu}
+        >
+          <Link href="#" title="Idioma atual">
+            🇧🇷 Português (Brasil)
           </Link>
         </Menu>
       </nav>
@@ -164,15 +220,52 @@ export function Topbar({ activeOrg, userName }: TopbarProps) {
           <Plus size={16} />
           Adicionar
         </Link>
-        <div className="do-user-pill" title={userName ?? "Usuário"}>
-          <span>{initials}</span>
-          <strong>{userName ?? "Você"}</strong>
-        </div>
-        <form action="/auth/signout" method="post">
-          <button className="do-icon-action" type="submit" title="Sair">
-            <LogOut size={17} />
+        <div className={`do-topbar-menu ${openMenu === "usuario" ? "is-open" : ""}`}>
+          <button
+            type="button"
+            className="do-topbar-menu__trigger"
+            aria-expanded={openMenu === "usuario"}
+            aria-haspopup="menu"
+            onClick={() => setOpenMenu(openMenu === "usuario" ? null : "usuario")}
+            style={{ padding: "0 6px" }}
+          >
+            <span className="do-user-pill" title={userName ?? "Usuário"}>
+              <span>{initials}</span>
+              <strong>
+                {userName ?? "Você"}
+                {userEmail ? <span className="do-user-pill__email">{userEmail}</span> : null}
+              </strong>
+            </span>
+            <ChevronDown size={14} />
           </button>
-        </form>
+          <div className="do-topbar-menu__panel is-right" role="menu">
+            <Link href="/configuracoes">
+              <User size={15} />
+              Meu perfil
+            </Link>
+            <form action="/auth/signout" method="post" style={{ display: "contents" }}>
+              <button
+                type="submit"
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 9,
+                  padding: "9px 10px",
+                  color: "#333",
+                  font: "500 13px var(--font-inter)",
+                  background: "transparent",
+                  border: 0,
+                  width: "100%",
+                  cursor: "pointer",
+                  textAlign: "left",
+                }}
+              >
+                <LogOut size={15} />
+                Sair
+              </button>
+            </form>
+          </div>
+        </div>
       </nav>
     </header>
   );

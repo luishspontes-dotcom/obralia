@@ -1,16 +1,26 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { AlignLeft, Pencil, Printer } from "lucide-react";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { mediaUrl } from "@/lib/storage";
 import { PhotoUploader } from "@/components/PhotoUploader";
-import { PhotoGrid } from "@/components/PhotoLightbox";
 import { SignaturePad } from "@/components/SignaturePad";
 import { setRdoStatus, deleteRdo, postComment, addMaterial, deleteMaterial, uploadAttachments, deletePhoto } from "@/lib/rdo-actions";
 import { generateClientSummary } from "@/lib/summary-actions";
 import { getCurrentRole, canWrite } from "@/lib/permissions";
 import { VISIBLE_SOURCE_PROVIDERS } from "@/lib/rdo-source-scope";
 
-type Site = { id: string; name: string; client_name: string | null };
+type Site = {
+  id: string;
+  name: string;
+  client_name: string | null;
+  address: string | null;
+  contract_number: string | null;
+  contract_days: number | null;
+  start_date: string | null;
+  end_date: string | null;
+  responsible_id: string | null;
+};
 type DR = {
   id: string;
   number: number;
@@ -29,6 +39,25 @@ type DR = {
   signature_signed_at: string | null;
   client_summary: string | null;
   client_summary_generated_at: string | null;
+  created_at: string | null;
+  created_by: string | null;
+  approved_at: string | null;
+  approved_by: string | null;
+  approval_status_label: string | null;
+};
+type Material = { id: string; name: string; unit: string | null; quantity: number | null; notes: string | null };
+type Activity = { id: string; description: string; progress_pct: number | null; notes: string | null };
+type Workforce = { id: string; role: string; count: number };
+type Equipment = { id: string; name: string; hours: number | null };
+type Media = { id: string; storage_path: string | null; thumbnail_path: string | null; caption: string | null };
+type Comment = { id: string; body: string; target_table: string; created_at: string | null };
+type NeighborRdo = { id: string; date: string };
+
+const STATUS_META: Record<string, { label: string; cls: string }> = {
+  draft:     { label: "Rascunho", cls: "is-paused" },
+  submitted: { label: "Enviado p/ aprovação", cls: "" },
+  review:    { label: "Em revisão", cls: "" },
+  approved:  { label: "Aprovado", cls: "is-done" },
 };
 
 /** "07:00:00" + "17:00:00" − 60min → "07:00–17:00 · intervalo 60min · total 9h00" */
@@ -43,19 +72,32 @@ function formatHorario(start: string | null, end: string | null, breakMin: numbe
   const total = mins > 0 ? `${Math.floor(mins / 60)}h${String(mins % 60).padStart(2, "0")}` : null;
   return `${s}–${e}${pausa > 0 ? ` · intervalo ${pausa}min` : ""}${total ? ` · total ${total}` : ""}`;
 }
-type Material = { id: string; name: string; unit: string | null; quantity: number | null; notes: string | null };
-type Activity = { id: string; description: string; progress_pct: number | null; notes: string | null };
-type Workforce = { id: string; role: string; count: number };
-type Equipment = { id: string; name: string; hours: number | null };
-type Media = { id: string; storage_path: string | null; thumbnail_path: string | null; caption: string | null };
-type Comment = { id: string; body: string; target_table: string; created_at: string | null };
 
-const STATUS_META: Record<string, { label: string; cls: string }> = {
-  draft:     { label: "Rascunho",          cls: "status-paused" },
-  submitted: { label: "Enviado p/ aprovação", cls: "status-progress" },
-  review:    { label: "Em revisão",        cls: "status-progress" },
-  approved:  { label: "Aprovado",          cls: "status-done" },
-};
+function fmtDate(value: string | null): string {
+  if (!value) return "—";
+  return new Date(`${value.slice(0, 10)}T00:00:00`).toLocaleDateString("pt-BR");
+}
+
+function fmtDateTime(value: string | null): string {
+  if (!value) return "—";
+  return new Date(value).toLocaleString("pt-BR", {
+    day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit",
+  });
+}
+
+function daysBetween(start: string | null, end: string | null): { total: number | null; elapsed: number | null; remaining: number | null } {
+  if (!start || !end) return { total: null, elapsed: null, remaining: null };
+  const startMs = new Date(`${start}T00:00:00`).getTime();
+  const endMs = new Date(`${end}T00:00:00`).getTime();
+  if (!Number.isFinite(startMs) || !Number.isFinite(endMs) || endMs <= startMs) {
+    return { total: null, elapsed: null, remaining: null };
+  }
+  const day = 1000 * 60 * 60 * 24;
+  const total = Math.ceil((endMs - startMs) / day);
+  const elapsedRaw = Math.ceil((Date.now() - startMs) / day);
+  const elapsed = Math.min(Math.max(elapsedRaw, 0), total);
+  return { total, elapsed, remaining: Math.max(total - elapsed, 0) };
+}
 
 export default async function RdoDetailPage({
   params,
@@ -67,7 +109,7 @@ export default async function RdoDetailPage({
 
   const { data: siteRaw } = await supabase
     .from("sites")
-    .select("id, name, client_name")
+    .select("id, name, client_name, address, contract_number, contract_days, start_date, end_date, responsible_id")
     .eq("id", id)
     .in("external_provider", VISIBLE_SOURCE_PROVIDERS)
     .maybeSingle();
@@ -76,7 +118,7 @@ export default async function RdoDetailPage({
 
   const { data: rdoRaw } = await supabase
     .from("daily_reports")
-    .select("id, number, date, status, weather_morning, weather_afternoon, condition_morning, condition_afternoon, general_notes, work_start, work_end, work_break_minutes, signature_data_url, signature_signer_name, signature_signed_at, client_summary, client_summary_generated_at")
+    .select("id, number, date, status, weather_morning, weather_afternoon, condition_morning, condition_afternoon, general_notes, work_start, work_end, work_break_minutes, signature_data_url, signature_signer_name, signature_signed_at, client_summary, client_summary_generated_at, created_at, created_by, approved_at, approved_by, approval_status_label")
     .eq("id", rdoId)
     .eq("site_id", id)
     .in("external_provider", VISIBLE_SOURCE_PROVIDERS)
@@ -85,7 +127,7 @@ export default async function RdoDetailPage({
   const rdo = rdoRaw as unknown as DR | null;
   if (!rdo) notFound();
 
-  const [actsR, wfR, eqR, photosR, videosR, filesR, commentsR, matsR] = await Promise.all([
+  const [actsR, wfR, eqR, photosR, videosR, filesR, commentsR, matsR, prevR, nextR, orgR] = await Promise.all([
     supabase.from("report_activities").select("id, description, progress_pct, notes").eq("daily_report_id", rdoId),
     supabase.from("report_workforce").select("id, role, count").eq("daily_report_id", rdoId),
     supabase.from("report_equipment").select("id, name, hours").eq("daily_report_id", rdoId),
@@ -94,6 +136,12 @@ export default async function RdoDetailPage({
     supabase.from("media").select("id, storage_path, thumbnail_path, caption").eq("daily_report_id", rdoId).in("external_provider", VISIBLE_SOURCE_PROVIDERS).eq("kind", "file"),
     supabase.from("comments").select("id, body, target_table, created_at").eq("target_id", rdoId).order("created_at", { ascending: false }),
     supabase.from("report_materials").select("id, name, unit, quantity, notes").eq("daily_report_id", rdoId),
+    // Navegação ← Anterior / Próximo → por data dentro da mesma obra
+    supabase.from("daily_reports").select("id, date").eq("site_id", id).in("external_provider", VISIBLE_SOURCE_PROVIDERS)
+      .lt("date", rdo.date).order("date", { ascending: false }).order("number", { ascending: false }).limit(1).maybeSingle(),
+    supabase.from("daily_reports").select("id, date").eq("site_id", id).in("external_provider", VISIBLE_SOURCE_PROVIDERS)
+      .gt("date", rdo.date).order("date", { ascending: true }).order("number", { ascending: true }).limit(1).maybeSingle(),
+    supabase.from("organizations").select("id, name, logo_url").limit(1).maybeSingle(),
   ]);
 
   const activities = (actsR.data ?? []) as Activity[];
@@ -102,72 +150,99 @@ export default async function RdoDetailPage({
   const photos     = (photosR.data ?? []) as Media[];
   const videos     = (videosR.data ?? []) as Media[];
   const files      = (filesR.data ?? []) as Media[];
-  const comments   = (commentsR.data ?? []) as Comment[];
+  const allComments = (commentsR.data ?? []) as Comment[];
   const materials  = (matsR.data ?? []) as Material[];
+  const prevRdo    = prevR.data as NeighborRdo | null;
+  const nextRdo    = nextR.data as NeighborRdo | null;
+  const org        = orgR.data as { id: string; name: string; logo_url: string | null } | null;
+
+  const occurrences = allComments.filter((c) => c.body.startsWith("[OCORRÊNCIA]"));
+  const comments = allComments.filter((c) => !c.body.startsWith("[OCORRÊNCIA]"));
+
+  // Criado por / Última modificação (não há updated_at — usa aprovação quando houver)
+  const peopleIds = [rdo.created_by, rdo.approved_by, site.responsible_id].filter(
+    (value): value is string => typeof value === "string" && value.length > 0
+  );
+  const peopleNames = new Map<string, string>();
+  if (peopleIds.length > 0) {
+    const { data: peopleRaw } = await supabase
+      .from("profiles")
+      .select("id, full_name")
+      .in("id", peopleIds);
+    for (const person of (peopleRaw ?? []) as { id: string; full_name: string | null }[]) {
+      if (person.full_name) peopleNames.set(person.id, person.full_name);
+    }
+  }
+  const createdByName = rdo.created_by ? peopleNames.get(rdo.created_by) ?? "—" : "—";
+  const approvedByName = rdo.approved_by ? peopleNames.get(rdo.approved_by) ?? null : null;
+  const responsibleName = site.responsible_id ? peopleNames.get(site.responsible_id) ?? "—" : "—";
 
   const meta = STATUS_META[rdo.status] ?? STATUS_META.draft;
-  const d = new Date(rdo.date);
-  const dateLong = d.toLocaleDateString("pt-BR", { weekday: "long", day: "2-digit", month: "long", year: "numeric" });
-  const totalWorkers = workforce.reduce((s, w) => s + (w.count ?? 0), 0);
+  const dateShort = fmtDate(rdo.date);
+  const weekday = new Date(`${rdo.date}T00:00:00`)
+    .toLocaleDateString("pt-BR", { weekday: "long" })
+    .toUpperCase();
   const horario = formatHorario(rdo.work_start, rdo.work_end, rdo.work_break_minutes);
+  const totalWorkers = workforce.reduce((s, w) => s + (w.count ?? 0), 0);
+  const schedule = daysBetween(site.start_date, site.end_date);
+  const contractDays = schedule.total ?? site.contract_days;
   const role = await getCurrentRole();
   const canEdit = canWrite(role);
 
+  const grayBtn = (
+    <Link href={`/obras/${id}/rdos/${rdoId}/imprimir`} className="diario-gray-button" target="_blank">
+      <Printer size={15} />
+      Imprimir
+    </Link>
+  );
+  const redBtn = canEdit ? (
+    <Link href={`/obras/${id}/rdos/${rdoId}/editar`} className="diario-red-button">
+      <Pencil size={14} />
+      Editar
+    </Link>
+  ) : null;
+
   return (
-    <div>
-      <div className="page-hero">
-        <div style={{ maxWidth: 1280, margin: "0 auto" }}>
-          <div style={{ marginBottom: 12, fontSize: 13 }}>
-            <Link href="/obras" style={{ color: "var(--o-text-2)", textDecoration: "none" }}>← Obras</Link>
-            <span style={{ color: "var(--o-text-3)", margin: "0 8px" }}>/</span>
-            <Link href={`/obras/${id}`} style={{ color: "var(--o-text-2)", textDecoration: "none" }}>{site.name}</Link>
-            <span style={{ color: "var(--o-text-3)", margin: "0 8px" }}>/</span>
-            <Link href={`/obras/${id}/rdos`} style={{ color: "var(--o-text-2)", textDecoration: "none" }}>RDOs</Link>
-            <span style={{ color: "var(--o-text-3)", margin: "0 8px" }}>/</span>
-            <span style={{ color: "var(--o-text-1)", fontWeight: 500 }} className="tnum">#{rdo.number}</span>
+    <div className="diario-page">
+      <div className="diario-container">
+        {/* Header: ← Visualizar relatório: dd/mm/aaaa n° N */}
+        <div className="diario-page-header">
+          <div style={{ display: "flex", alignItems: "center", gap: 12, minWidth: 0 }}>
+            <Link href={`/obras/${id}/rdos`} className="do-obra-back" style={{ margin: 0 }} title="Voltar">
+              ←
+            </Link>
+            <h1>
+              Visualizar relatório: <span className="tnum">{dateShort}</span> n° <span className="tnum">{rdo.number}</span>
+            </h1>
           </div>
+          <div className="diario-toolbar">
+            <button type="button" className="diario-gray-button" title="Informações do relatório">
+              <AlignLeft size={15} />
+            </button>
+            {grayBtn}
+            {redBtn}
+          </div>
+        </div>
 
-          <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", flexWrap: "wrap", gap: 16 }}>
-            <div>
-              <div style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: "0.12em", color: "var(--t-brand)", fontWeight: 600, marginBottom: 8 }}>
-                Relatório diário
-              </div>
-              <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 6 }}>
-                <h1 className="tnum" style={{
-                  margin: 0, font: "700 36px var(--font-inter)",
-                  letterSpacing: "-0.025em",
-                  color: "var(--t-brand)",
-                }}>
-                  RDO #{rdo.number}
-                </h1>
-                <span className={`status ${meta.cls}`}>{meta.label}</span>
-              </div>
-              <div style={{ fontSize: 14, color: "var(--o-text-2)", textTransform: "capitalize" }}>{dateLong}</div>
-              {horario && (
-                <div className="tnum" style={{ fontSize: 13, color: "var(--o-text-2)", marginTop: 4 }}>
-                  🕐 Horário: {horario}
-                </div>
-              )}
-            </div>
-
-            {/* Action buttons */}
-            <div className="action-bar" style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-              {canEdit && (
-                <Link href={`/obras/${id}/rdos/${rdoId}/editar`} className="chip" style={{ textDecoration: "none" }}>
-                  ✎ Editar
-                </Link>
-              )}
-              <Link href={`/obras/${id}/rdos/${rdoId}/imprimir`} className="chip" style={{ textDecoration: "none" }} target="_blank">
-                ⎙ Imprimir / PDF
-              </Link>
+        {/* Ações extras do Obralia — fora do documento pra não poluir a cópia fiel */}
+        <section className="do-panel" style={{ marginBottom: 14 }}>
+          <div className="do-panel__header">
+            <h2>Informações do relatório</h2>
+            <span style={{ color: "#777", fontSize: 12 }}>
+              {site.name}
+              {horario ? <span className="tnum"> · {horario}</span> : null}
+            </span>
+          </div>
+          <div style={{ padding: "12px 12px 14px", display: "flex", flexDirection: "column", gap: 12 }}>
+            {/* Fluxo de status */}
+            <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+              <span className={`diario-status-badge ${meta.cls}`}>{meta.label}</span>
               {canEdit && rdo.status === "draft" && (
                 <form action={setRdoStatus} style={{ display: "inline" }}>
                   <input type="hidden" name="rdoId" value={rdoId} />
                   <input type="hidden" name="siteId" value={id} />
                   <input type="hidden" name="status" value="submitted" />
-                  <button type="submit" className="chip" style={{ background: "var(--t-brand-soft)", color: "var(--t-brand)", border: "1px solid var(--t-brand)", cursor: "pointer" }}>
-                    📤 Enviar p/ aprovação
-                  </button>
+                  <button type="submit" className="diario-blue-button">Enviar p/ aprovação</button>
                 </form>
               )}
               {canEdit && (rdo.status === "submitted" || rdo.status === "review") && (
@@ -175,9 +250,7 @@ export default async function RdoDetailPage({
                   <input type="hidden" name="rdoId" value={rdoId} />
                   <input type="hidden" name="siteId" value={id} />
                   <input type="hidden" name="status" value="approved" />
-                  <button type="submit" className="chip" style={{ background: "var(--st-done-soft, #dcf5e8)", color: "var(--st-done, #137a4d)", border: "1px solid var(--st-done, #137a4d)", cursor: "pointer" }}>
-                    ✓ Aprovar
-                  </button>
+                  <button type="submit" className="diario-blue-button">✓ Aprovar</button>
                 </form>
               )}
               {canEdit && rdo.status === "approved" && (
@@ -185,402 +258,405 @@ export default async function RdoDetailPage({
                   <input type="hidden" name="rdoId" value={rdoId} />
                   <input type="hidden" name="siteId" value={id} />
                   <input type="hidden" name="status" value="draft" />
-                  <button type="submit" className="chip" style={{ cursor: "pointer" }}>
-                    ↺ Reabrir
-                  </button>
+                  <button type="submit" className="diario-gray-button">↺ Reabrir</button>
                 </form>
               )}
               {canEdit && (
-                <form action={deleteRdo} style={{ display: "inline" }}>
+                <form action={deleteRdo} style={{ display: "inline", marginLeft: "auto" }}>
                   <input type="hidden" name="rdoId" value={rdoId} />
                   <input type="hidden" name="siteId" value={id} />
-                  <button
-                    type="submit"
-                    className="chip"
-                    style={{ color: "#b3261e", borderColor: "#f5c6c2", cursor: "pointer" }}
-                  >
-                    Excluir
-                  </button>
+                  <button type="submit" className="diario-red-button" title="Excluir relatório">✕ Excluir</button>
                 </form>
               )}
             </div>
-          </div>
-        </div>
-      </div>
 
-      <div style={{ padding: "0 24px 32px", maxWidth: 1280, margin: "0 auto" }}>
-        {/* Clima */}
-        <div style={{ display: "grid", gap: 14, gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", marginBottom: 20 }}>
-          <Block title="☀ Clima · Manhã">
-            <KV label="Tempo" value={rdo.weather_morning ?? "—"} />
-            <KV label="Condição" value={rdo.condition_morning ?? "—"} last />
-          </Block>
-          <Block title="🌅 Clima · Tarde">
-            <KV label="Tempo" value={rdo.weather_afternoon ?? "—"} />
-            <KV label="Condição" value={rdo.condition_afternoon ?? "—"} last />
-          </Block>
-        </div>
-
-        {rdo.general_notes && (
-          <Block title="📝 Observações gerais" style={{ marginBottom: 20 }}>
-            <div style={{ fontSize: 14, color: "var(--o-text-1)", whiteSpace: "pre-wrap", lineHeight: 1.6 }}>
-              {rdo.general_notes}
-            </div>
-          </Block>
-        )}
-
-        {/* Resumo IA para o cliente */}
-        {(canEdit || rdo.client_summary) && (
-          <Block title="💬 Resumo para o cliente" style={{ marginBottom: 20 }}>
-            {rdo.client_summary ? (
-              <>
-                <div style={{ fontSize: 14, color: "var(--o-text-1)", whiteSpace: "pre-wrap", lineHeight: 1.65 }}>
-                  {rdo.client_summary}
+            {/* Resumo IA pro cliente */}
+            {(canEdit || rdo.client_summary) && (
+              <div style={{ borderTop: "1px solid #e6e6e6", paddingTop: 12 }}>
+                <div style={{ fontSize: 12, fontWeight: 700, color: "#555", marginBottom: 6 }}>
+                  Resumo para o cliente (IA)
                 </div>
-                <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 12, flexWrap: "wrap" }}>
-                  {rdo.client_summary_generated_at && (
-                    <span style={{ fontSize: 11, color: "var(--o-text-3)" }}>
-                      Gerado com IA em {new Date(rdo.client_summary_generated_at).toLocaleString("pt-BR", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })}
+                {rdo.client_summary ? (
+                  <>
+                    <div style={{ fontSize: 13, color: "#333", whiteSpace: "pre-wrap", lineHeight: 1.6 }}>
+                      {rdo.client_summary}
+                    </div>
+                    <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 8, flexWrap: "wrap" }}>
+                      {rdo.client_summary_generated_at && (
+                        <span style={{ fontSize: 11, color: "#999" }}>
+                          Gerado com IA em {fmtDateTime(rdo.client_summary_generated_at)}
+                        </span>
+                      )}
+                      {canEdit && (
+                        <form action={generateClientSummary} style={{ display: "inline" }}>
+                          <input type="hidden" name="rdoId" value={rdoId} />
+                          <input type="hidden" name="siteId" value={id} />
+                          <button type="submit" className="diario-gray-button" style={{ height: 28 }}>↺ Regenerar</button>
+                        </form>
+                      )}
+                    </div>
+                  </>
+                ) : (
+                  <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+                    <span style={{ fontSize: 12, color: "#777" }}>
+                      Gere um resumo do dia em linguagem simples para enviar ao cliente.
                     </span>
-                  )}
-                  {canEdit && (
                     <form action={generateClientSummary} style={{ display: "inline" }}>
                       <input type="hidden" name="rdoId" value={rdoId} />
                       <input type="hidden" name="siteId" value={id} />
-                      <button type="submit" className="chip" style={{ cursor: "pointer" }}>
-                        ↺ Regenerar
-                      </button>
+                      <button type="submit" className="diario-blue-button" style={{ height: 28 }}>✨ Gerar resumo com IA</button>
                     </form>
-                  )}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {canEdit && (
+              <div style={{ borderTop: "1px solid #e6e6e6", paddingTop: 12, display: "grid", gap: 12 }}>
+                {/* Upload de fotos/vídeos */}
+                <div>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: "#555", marginBottom: 6 }}>
+                    Adicionar fotos / vídeos
+                  </div>
+                  <PhotoUploader siteId={id} rdoId={rdoId} />
                 </div>
-              </>
-            ) : (
-              <div style={{ display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap" }}>
-                <span style={{ fontSize: 13, color: "var(--o-text-3)" }}>
-                  Gere um resumo do dia em linguagem simples para enviar ao cliente.
-                </span>
-                <form action={generateClientSummary} style={{ display: "inline" }}>
+
+                {/* Anexos */}
+                <form action={uploadAttachments} style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
                   <input type="hidden" name="rdoId" value={rdoId} />
                   <input type="hidden" name="siteId" value={id} />
-                  <button type="submit" className="chip" style={{ background: "var(--t-brand-soft)", color: "var(--t-brand)", border: "1px solid var(--t-brand)", cursor: "pointer" }}>
-                    ✨ Gerar resumo com IA
-                  </button>
-                </form>
-              </div>
-            )}
-          </Block>
-        )}
-
-        {/* Mão de obra */}
-        {workforce.length > 0 && (
-          <Section title={`Mão de obra · ${totalWorkers} pessoas`}>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: 8 }}>
-              {workforce.map((w) => (
-                <div key={w.id} className="card" style={{ padding: "12px 16px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                  <span style={{ fontSize: 13, color: "var(--o-text-1)" }}>{w.role}</span>
-                  <span className="tnum" style={{ fontSize: 16, fontWeight: 700, color: "var(--t-brand)" }}>{w.count}</span>
-                </div>
-              ))}
-            </div>
-          </Section>
-        )}
-
-        {/* Equipamentos */}
-        {equipment.length > 0 && (
-          <Section title={`Equipamentos · ${equipment.length}`}>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: 8 }}>
-              {equipment.map((e) => (
-                <div key={e.id} className="card" style={{ padding: "12px 16px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                  <span style={{ fontSize: 13, color: "var(--o-text-1)" }}>{e.name}</span>
-                  {e.hours != null && (
-                    <span className="tnum" style={{ fontSize: 12, color: "var(--o-text-2)", fontWeight: 500 }}>{e.hours}h</span>
-                  )}
-                </div>
-              ))}
-            </div>
-          </Section>
-        )}
-
-        {/* Materiais */}
-        <Section title={`📦 Materiais · ${materials.length}`}>
-          {canEdit && (
-            <form action={addMaterial} className="card" style={{ padding: "14px 16px", marginBottom: 10 }}>
-              <input type="hidden" name="rdoId" value={rdoId} />
-              <input type="hidden" name="siteId" value={id} />
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 100px 80px auto", gap: 8, alignItems: "center" }}>
-                <input name="name" required placeholder="Material (ex: cimento)" style={inlineInput} />
-                <input name="unit" placeholder="Unid (sc, kg)" style={inlineInput} />
-                <input name="quantity" type="number" step="0.01" placeholder="Qtde" style={inlineInput} className="tnum" />
-                <button type="submit" className="btn-brand" style={{ padding: "8px 14px", fontSize: 12 }}>+ Adicionar</button>
-              </div>
-            </form>
-          )}
-          {materials.length > 0 && (
-            <div className="card" style={{ overflow: "hidden", padding: 0 }}>
-              {materials.map((m, i) => (
-                <div key={m.id} style={{
-                  display: "flex", alignItems: "center", gap: 12,
-                  padding: "10px 18px", fontSize: 14,
-                  borderTop: i === 0 ? "none" : "1px solid var(--o-border)",
-                }}>
-                  <span style={{ flex: 1, color: "var(--o-text-1)" }}>{m.name}</span>
-                  <span className="tnum" style={{ fontSize: 12, color: "var(--o-text-2)" }}>
-                    {m.quantity != null ? `${m.quantity} ${m.unit ?? ""}`.trim() : (m.unit ?? "")}
-                  </span>
-                  {canEdit && (
-                    <form action={deleteMaterial} style={{ display: "inline" }}>
-                      <input type="hidden" name="id" value={m.id} />
-                      <input type="hidden" name="rdoId" value={rdoId} />
-                      <input type="hidden" name="siteId" value={id} />
-                      <button type="submit" title="Remover" style={{
-                        width: 22, height: 22, borderRadius: 5, border: "1px solid var(--o-border)",
-                        background: "transparent", color: "var(--o-text-3)", fontSize: 12,
-                        cursor: "pointer", lineHeight: 1, display: "grid", placeItems: "center",
-                      }}>×</button>
-                    </form>
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
-        </Section>
-
-        {/* Atividades */}
-        {activities.length > 0 && (
-          <Section title={`Atividades · ${activities.length}`}>
-            <div className="card" style={{ overflow: "hidden", padding: 0 }}>
-              {activities.map((a, i) => {
-                const pct = a.progress_pct ?? 0;
-                const done = pct >= 100;
-                return (
-                  <div key={a.id} style={{
-                    display: "flex", alignItems: "center", gap: 14,
-                    padding: "14px 22px",
-                    borderTop: i === 0 ? "none" : "1px solid var(--o-border)",
-                    fontSize: 14,
-                  }}>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontWeight: 500, marginBottom: a.notes ? 2 : 0, color: "var(--o-text-1)" }}>{a.description}</div>
-                      {a.notes && <div style={{ fontSize: 12, color: "var(--o-text-3)" }}>{a.notes}</div>}
-                    </div>
-                    <div style={{ width: 80 }}>
-                      <div style={{ height: 6, background: "var(--o-mist)", borderRadius: 999, overflow: "hidden" }}>
-                        <div style={{ width: `${pct}%`, height: "100%", background: done ? "var(--st-done)" : "var(--t-brand)", borderRadius: 999 }} />
-                      </div>
-                    </div>
-                    <span className="tnum" style={{
-                      fontSize: 13, fontWeight: 600,
-                      minWidth: 42, textAlign: "right",
-                      color: done ? "var(--st-done)" : "var(--t-brand)",
-                    }}>
-                      {pct}%
-                    </span>
-                  </div>
-                );
-              })}
-            </div>
-          </Section>
-        )}
-
-        {/* Fotos */}
-        <Section title={`Fotos · ${photos.length}`}>
-          <div className="card" style={{ padding: "16px 20px", marginBottom: photos.length > 0 ? 14 : 0 }}>
-            <div style={{ fontSize: 12, color: "var(--o-text-2)", marginBottom: 10, fontWeight: 500 }}>
-              Adicionar fotos / vídeos
-            </div>
-            <PhotoUploader siteId={id} rdoId={rdoId} />
-          </div>
-          {photos.length > 0 && (
-            <>
-              <PhotoGrid photos={photos} />
-              {/* Botões de remover ficam só no edit do RDO; PhotoGrid abre o lightbox */}
-            </>
-          )}
-        </Section>
-
-        {/* Vídeos */}
-        {videos.length > 0 && (
-          <Section title={`Vídeos · ${videos.length}`}>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 12 }}>
-              {videos.map((v) => (
-                <a key={v.id} href={mediaUrl(v.storage_path) || "#"} target="_blank" rel="noreferrer"
-                  className="card card-hover"
-                  style={{ display: "flex", alignItems: "center", gap: 12, padding: "14px 18px", fontSize: 13.5, color: "var(--o-text-1)", textDecoration: "none" }}>
-                  <span style={{
-                    width: 40, height: 40, borderRadius: 8,
-                    background: "var(--t-brand-soft)",
-                    display: "grid", placeItems: "center",
-                    fontSize: 18,
-                  }}>🎬</span>
-                  <span style={{ flex: 1, fontWeight: 500 }}>{v.caption ?? "Vídeo"}</span>
-                </a>
-              ))}
-            </div>
-          </Section>
-        )}
-
-        {/* Anexos */}
-        {(canEdit || files.length > 0) && (
-          <Section title={`📎 Anexos · ${files.length}`}>
-            {canEdit && (
-              <form action={uploadAttachments} className="card" style={{ padding: "14px 16px", marginBottom: files.length > 0 ? 10 : 0 }}>
-                <input type="hidden" name="rdoId" value={rdoId} />
-                <input type="hidden" name="siteId" value={id} />
-                <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+                  <span style={{ fontSize: 12, fontWeight: 700, color: "#555" }}>Anexos:</span>
                   <input type="file" name="attachments" multiple required
-                    style={{ font: "400 13px var(--font-inter)", color: "var(--o-text-2)", maxWidth: 320 }} />
-                  <button type="submit" className="btn-brand" style={{ padding: "8px 16px", fontSize: 13 }}>
-                    Anexar
-                  </button>
-                  <span style={{ fontSize: 11, color: "var(--o-text-3)" }}>
-                    Documentos, planilhas, PDFs · até 25MB por arquivo
-                  </span>
-                </div>
-              </form>
-            )}
-            {files.length > 0 && (
-              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                {files.map((f) => (
-                  <div key={f.id} className="card card-hover"
-                    style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 16px", fontSize: 14, color: "var(--o-text-1)" }}>
-                    <span style={{ fontSize: 18 }}>📎</span>
-                    <a href={mediaUrl(f.storage_path) || "#"} target="_blank" rel="noreferrer" download
-                      style={{ flex: 1, fontWeight: 500, color: "var(--o-text-1)", textDecoration: "none" }}>
-                      {f.caption ?? "Anexo"}
-                    </a>
-                    <a href={mediaUrl(f.storage_path) || "#"} target="_blank" rel="noreferrer"
-                      style={{ fontSize: 12, color: "var(--t-brand)", fontWeight: 500, textDecoration: "none" }}>
-                      baixar →
-                    </a>
-                    {canEdit && (
-                      <form action={deletePhoto} style={{ display: "inline" }}>
-                        <input type="hidden" name="photoId" value={f.id} />
-                        <input type="hidden" name="rdoId" value={rdoId} />
-                        <input type="hidden" name="siteId" value={id} />
-                        <button type="submit" title="Remover anexo" style={{
-                          width: 22, height: 22, borderRadius: 5, border: "1px solid var(--o-border)",
-                          background: "transparent", color: "var(--o-text-3)", fontSize: 12,
-                          cursor: "pointer", lineHeight: 1, display: "grid", placeItems: "center",
-                        }}>×</button>
-                      </form>
-                    )}
+                    style={{ font: "400 12px var(--font-inter)", color: "#555", maxWidth: 320 }} />
+                  <button type="submit" className="diario-blue-button" style={{ height: 28 }}>Anexar</button>
+                </form>
+
+                {/* Materiais */}
+                <form action={addMaterial} style={{ display: "grid", gridTemplateColumns: "1fr 90px 70px auto", gap: 8, alignItems: "center", maxWidth: 560 }}>
+                  <input type="hidden" name="rdoId" value={rdoId} />
+                  <input type="hidden" name="siteId" value={id} />
+                  <input name="name" required placeholder="Material (ex: cimento)" className="diario-input" style={{ minWidth: 0 }} />
+                  <input name="unit" placeholder="Unid" className="diario-input" style={{ minWidth: 0 }} />
+                  <input name="quantity" type="number" step="0.01" placeholder="Qtde" className="diario-input tnum" style={{ minWidth: 0 }} />
+                  <button type="submit" className="diario-blue-button" style={{ height: 34 }}>+ Material</button>
+                </form>
+
+                {/* Comentar */}
+                <form action={postComment} style={{ display: "grid", gap: 8 }}>
+                  <input type="hidden" name="target_table" value="daily_reports" />
+                  <input type="hidden" name="target_id" value={rdoId} />
+                  <input type="hidden" name="redirect_to" value={`/obras/${id}/rdos/${rdoId}`} />
+                  <textarea name="body" rows={2} required placeholder="Adicione um comentário ou ocorrência…"
+                    style={{
+                      width: "100%", border: "1px solid #d8d8d8", borderRadius: 2,
+                      padding: "8px 10px", font: "400 12px var(--font-inter)", color: "#333",
+                      background: "#fff", outline: "none", resize: "vertical",
+                    }} />
+                  <div style={{ display: "flex", justifyContent: "flex-end" }}>
+                    <button type="submit" className="diario-blue-button" style={{ height: 28 }}>Comentar</button>
                   </div>
-                ))}
+                </form>
+
+                {/* Assinatura digital */}
+                {!rdo.signature_data_url && (
+                  <div>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: "#555", marginBottom: 6 }}>
+                      Assinatura digital
+                    </div>
+                    <SignaturePad rdoId={rdoId} siteId={id} />
+                  </div>
+                )}
               </div>
             )}
-          </Section>
-        )}
+          </div>
+        </section>
 
-        {/* Assinatura digital */}
-        {(canEdit || rdo.signature_data_url) && (
-          <Section title={`✍ Assinatura digital${rdo.signature_signer_name ? ` · ${rdo.signature_signer_name}` : ""}`}>
-            <div className="card" style={{ padding: "16px 20px" }}>
-              {rdo.signature_data_url ? (
-                <SignaturePad rdoId={rdoId} siteId={id} existing={rdo.signature_data_url} />
-              ) : canEdit ? (
-                <SignaturePad rdoId={rdoId} siteId={id} />
+        {/* ============ DOCUMENTO (cópia fiel do Diário de Obra) ============ */}
+        <div className="do-doc">
+          <div className="do-doc-status">
+            <span className={`diario-status-badge ${meta.cls}`}>{meta.label}</span>
+          </div>
+
+          <table className="do-doc-table">
+            <tbody>
+              {/* 1. Cabeçalho */}
+              <tr>
+                <td className="do-doc-logo" colSpan={4}>
+                  {org?.logo_url ? (
+                    /* eslint-disable-next-line @next/next/no-img-element */
+                    <img src={mediaUrl(org.logo_url) || org.logo_url} alt={org.name} />
+                  ) : (
+                    <strong>{org?.name ?? "MEU VIVER CONSTRUTORA E INCORPORADORA LTDA"}</strong>
+                  )}
+                </td>
+              </tr>
+              <tr>
+                <td className="do-doc-kv"><span>Relatório n°</span><strong className="tnum">{rdo.number}</strong></td>
+                <td className="do-doc-kv"><span>Data</span><strong className="tnum">{dateShort}</strong></td>
+                <td className="do-doc-kv"><span>Dia da semana</span><strong>{weekday}</strong></td>
+                <td className="do-doc-kv"><span>N° do contrato</span><strong>{site.contract_number || "—"}</strong></td>
+              </tr>
+              <tr>
+                <td className="do-doc-kv"><span>Obra</span><strong>{site.name}</strong></td>
+                <td className="do-doc-kv" colSpan={2}><span>Endereço</span><strong>{site.address || "—"}</strong></td>
+                <td className="do-doc-kv"><span>Cliente</span><strong>{site.client_name || "—"}</strong></td>
+              </tr>
+              <tr>
+                <td className="do-doc-kv"><span>Responsável</span><strong>{responsibleName}</strong></td>
+                <td className="do-doc-kv"><span>Prazo contratual</span><strong className="tnum">{contractDays != null ? `${contractDays} dias` : "—"}</strong></td>
+                <td className="do-doc-kv"><span>Prazo decorrido</span><strong className="tnum">{schedule.elapsed != null ? `${schedule.elapsed} dias` : "—"}</strong></td>
+                <td className="do-doc-kv"><span>Prazo a vencer</span><strong className="tnum">{schedule.remaining != null ? `${schedule.remaining} dias` : "—"}</strong></td>
+              </tr>
+
+              {/* 2. Clima */}
+              <tr><td className="do-doc-section" colSpan={4}>Clima</td></tr>
+              <tr>
+                <th style={{ width: "20%" }}> </th>
+                <th>Tempo</th>
+                <th colSpan={2}>Condição</th>
+              </tr>
+              <tr>
+                <td><strong>Manhã</strong></td>
+                <td>{rdo.weather_morning ?? "—"}</td>
+                <td colSpan={2}>{rdo.condition_morning ?? "—"}</td>
+              </tr>
+              <tr>
+                <td><strong>Tarde</strong></td>
+                <td>{rdo.weather_afternoon ?? "—"}</td>
+                <td colSpan={2}>{rdo.condition_afternoon ?? "—"}</td>
+              </tr>
+
+              {/* 3. Mão de obra */}
+              <tr><td className="do-doc-section" colSpan={4}>Mão de obra ({totalWorkers})</td></tr>
+              {workforce.length > 0 ? (
+                workforce.map((w) => (
+                  <tr key={w.id}>
+                    <td colSpan={3}>{w.role}</td>
+                    <td className="tnum" style={{ textAlign: "right" }}>{w.count}</td>
+                  </tr>
+                ))
               ) : (
-                <div style={{ fontSize: 13, color: "var(--o-text-3)" }}>RDO ainda não assinado.</div>
+                <tr><td colSpan={4} style={{ color: "#999" }}>—</td></tr>
               )}
-              {rdo.signature_signed_at && (
-                <div style={{ fontSize: 11, color: "var(--o-text-3)", marginTop: 8 }}>
-                  Assinado em {new Date(rdo.signature_signed_at).toLocaleString("pt-BR")}
-                </div>
-              )}
-            </div>
-          </Section>
-        )}
 
-        {/* Comentários e ocorrências */}
-        <Section title={`Comentários e ocorrências · ${comments.length}`}>
-          <form action={postComment} className="card" style={{ padding: "14px 16px", marginBottom: 12 }}>
-            <input type="hidden" name="target_table" value="daily_reports" />
-            <input type="hidden" name="target_id" value={rdoId} />
-            <input type="hidden" name="redirect_to" value={`/obras/${id}/rdos/${rdoId}`} />
-            <textarea name="body" rows={2} required placeholder="Adicione um comentário ou ocorrência…"
-              style={{
-                width: "100%", border: "1px solid var(--o-border)", borderRadius: 8,
-                padding: "10px 12px", font: "400 14px var(--font-inter)", color: "var(--o-text-1)",
-                background: "var(--o-paper)", outline: "none", resize: "vertical",
-              }} />
-            <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 10 }}>
-              <button type="submit" className="btn-brand" style={{ padding: "8px 16px", fontSize: 13 }}>
-                Comentar
-              </button>
+              {/* 4. Equipamentos */}
+              <tr><td className="do-doc-section" colSpan={4}>Equipamentos ({equipment.length})</td></tr>
+              {equipment.length > 0 ? (
+                equipment.map((e) => (
+                  <tr key={e.id}>
+                    <td colSpan={3}>{e.name}</td>
+                    <td className="tnum" style={{ textAlign: "right" }}>{e.hours != null ? `${e.hours}h` : "—"}</td>
+                  </tr>
+                ))
+              ) : (
+                <tr><td colSpan={4} style={{ color: "#999" }}>—</td></tr>
+              )}
+
+              {/* Extra Obralia: Materiais */}
+              {materials.length > 0 && (
+                <>
+                  <tr><td className="do-doc-section" colSpan={4}>Materiais ({materials.length})</td></tr>
+                  {materials.map((m) => (
+                    <tr key={m.id}>
+                      <td colSpan={3}>
+                        {m.name}
+                        {m.notes ? <span style={{ color: "#999" }}> · {m.notes}</span> : null}
+                      </td>
+                      <td className="tnum" style={{ textAlign: "right" }}>
+                        {m.quantity != null ? `${m.quantity} ${m.unit ?? ""}`.trim() : (m.unit ?? "—")}
+                        {canEdit && (
+                          <form action={deleteMaterial} style={{ display: "inline", marginLeft: 8 }}>
+                            <input type="hidden" name="id" value={m.id} />
+                            <input type="hidden" name="rdoId" value={rdoId} />
+                            <input type="hidden" name="siteId" value={id} />
+                            <button type="submit" title="Remover" style={{
+                              border: 0, background: "transparent", color: "#2196f3",
+                              cursor: "pointer", font: "700 12px var(--font-inter)", padding: 0,
+                            }}>✕</button>
+                          </form>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </>
+              )}
+
+              {/* 5. Atividades */}
+              <tr><td className="do-doc-section" colSpan={4}>Atividades ({activities.length})</td></tr>
+              {activities.length > 0 ? (
+                activities.map((a) => {
+                  const pct = a.progress_pct ?? 0;
+                  return (
+                    <tr key={a.id}>
+                      <td colSpan={3}>
+                        {a.description}
+                        {a.notes ? <span style={{ color: "#999" }}> · {a.notes}</span> : null}
+                      </td>
+                      <td className="tnum" style={{ textAlign: "right", whiteSpace: "nowrap" }}>
+                        {pct}% Concluída
+                      </td>
+                    </tr>
+                  );
+                })
+              ) : (
+                <tr><td colSpan={4} style={{ color: "#999" }}>—</td></tr>
+              )}
+
+              {/* 6. Ocorrências */}
+              <tr><td className="do-doc-section" colSpan={4}>Ocorrências ({occurrences.length})</td></tr>
+              {occurrences.length > 0 ? (
+                occurrences.map((c) => (
+                  <tr key={c.id}>
+                    <td colSpan={3} style={{ whiteSpace: "pre-wrap" }}>{c.body.replace("[OCORRÊNCIA] ", "")}</td>
+                    <td className="tnum" style={{ textAlign: "right", color: "#777" }}>{fmtDateTime(c.created_at)}</td>
+                  </tr>
+                ))
+              ) : (
+                <tr><td colSpan={4} style={{ color: "#999" }}>—</td></tr>
+              )}
+
+              {/* 7. Comentários */}
+              <tr><td className="do-doc-section" colSpan={4}>Comentários ({comments.length + (rdo.general_notes ? 1 : 0)})</td></tr>
+              {rdo.general_notes && (
+                <tr>
+                  <td colSpan={4} style={{ whiteSpace: "pre-wrap" }}>{rdo.general_notes}</td>
+                </tr>
+              )}
+              {comments.length > 0 ? (
+                comments.map((c) => (
+                  <tr key={c.id}>
+                    <td colSpan={3} style={{ whiteSpace: "pre-wrap" }}>{c.body}</td>
+                    <td className="tnum" style={{ textAlign: "right", color: "#777" }}>{fmtDateTime(c.created_at)}</td>
+                  </tr>
+                ))
+              ) : !rdo.general_notes ? (
+                <tr><td colSpan={4} style={{ color: "#999" }}>—</td></tr>
+              ) : null}
+
+              {/* 8. Fotos */}
+              <tr><td className="do-doc-section" colSpan={4}>Fotos ({photos.length})</td></tr>
+              <tr>
+                <td colSpan={4}>
+                  {photos.length > 0 ? (
+                    <div className="do-doc-photos">
+                      {photos.map((p) => (
+                        <a key={p.id} href={mediaUrl(p.storage_path) || "#"} target="_blank" rel="noreferrer">
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img src={mediaUrl(p.thumbnail_path ?? p.storage_path)} alt={p.caption ?? "Foto"} loading="lazy" />
+                        </a>
+                      ))}
+                    </div>
+                  ) : (
+                    <span style={{ color: "#999" }}>—</span>
+                  )}
+                </td>
+              </tr>
+
+              {/* 9. Vídeos */}
+              <tr><td className="do-doc-section" colSpan={4}>Vídeos ({videos.length})</td></tr>
+              {videos.length > 0 ? (
+                videos.map((v) => (
+                  <tr key={v.id}>
+                    <td colSpan={4}>
+                      <a href={mediaUrl(v.storage_path) || "#"} target="_blank" rel="noreferrer" style={{ color: "#2196f3", textDecoration: "none" }}>
+                        ▶ {v.caption ?? "Vídeo"}
+                      </a>
+                    </td>
+                  </tr>
+                ))
+              ) : (
+                <tr><td colSpan={4} style={{ color: "#999" }}>—</td></tr>
+              )}
+
+              {/* 10. Anexos */}
+              <tr><td className="do-doc-section" colSpan={4}>Anexos ({files.length})</td></tr>
+              {files.length > 0 ? (
+                files.map((f) => (
+                  <tr key={f.id}>
+                    <td colSpan={3}>
+                      <a href={mediaUrl(f.storage_path) || "#"} target="_blank" rel="noreferrer" download style={{ color: "#2196f3", textDecoration: "none" }}>
+                        📎 {f.caption ?? "Anexo"}
+                      </a>
+                    </td>
+                    <td style={{ textAlign: "right" }}>
+                      {canEdit ? (
+                        <form action={deletePhoto} style={{ display: "inline" }}>
+                          <input type="hidden" name="photoId" value={f.id} />
+                          <input type="hidden" name="rdoId" value={rdoId} />
+                          <input type="hidden" name="siteId" value={id} />
+                          <button type="submit" title="Remover anexo" style={{
+                            border: 0, background: "transparent", color: "#2196f3",
+                            cursor: "pointer", font: "700 12px var(--font-inter)", padding: 0,
+                          }}>✕</button>
+                        </form>
+                      ) : null}
+                    </td>
+                  </tr>
+                ))
+              ) : (
+                <tr><td colSpan={4} style={{ color: "#999" }}>—</td></tr>
+              )}
+
+              {/* 11. Assinatura ×2 lado a lado */}
+              <tr><td className="do-doc-section" colSpan={4}>Assinatura</td></tr>
+              <tr>
+                <td className="do-doc-sign" colSpan={2}>
+                  {rdo.signature_data_url ? (
+                    /* eslint-disable-next-line @next/next/no-img-element */
+                    <img src={rdo.signature_data_url} alt="Assinatura" />
+                  ) : null}
+                  <small>
+                    {rdo.signature_signer_name ?? "Responsável"}
+                    {rdo.signature_signed_at ? ` · ${fmtDateTime(rdo.signature_signed_at)}` : ""}
+                  </small>
+                </td>
+                <td className="do-doc-sign" colSpan={2}>
+                  <small>Cliente</small>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        {/* Rodapé do documento */}
+        <div className="do-doc-footer">
+          <div className="do-doc-footer-nav">
+            {prevRdo ? (
+              <Link href={`/obras/${id}/rdos/${prevRdo.id}`}>
+                ← Anterior <span className="tnum">{fmtDate(prevRdo.date)}</span>
+              </Link>
+            ) : (
+              <span className="is-disabled">← Anterior</span>
+            )}
+          </div>
+          <div className="do-doc-footer-meta">
+            <div>
+              Criado por: {createdByName} ({fmtDateTime(rdo.created_at)})
+              {" · "}
+              Última modificação: {approvedByName ?? createdByName} ({fmtDateTime(rdo.approved_at ?? rdo.created_at)})
             </div>
-          </form>
-          {comments.length > 0 && (
-            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-              {comments.map((c) => {
-                const isOcorrencia = c.body.startsWith("[OCORRÊNCIA]");
-                const display = isOcorrencia ? c.body.replace("[OCORRÊNCIA] ", "") : c.body;
-                const accent = isOcorrencia ? "var(--st-late)" : "var(--t-brand)";
-                return (
-                  <div key={c.id} className="card" style={{
-                    padding: "14px 18px",
-                    borderLeft: `3px solid ${accent}`,
-                  }}>
-                    {isOcorrencia && (
-                      <div style={{ marginBottom: 6 }}>
-                        <span className="status status-late">Ocorrência</span>
-                      </div>
-                    )}
-                    <div style={{ fontSize: 14, lineHeight: 1.55, whiteSpace: "pre-wrap", color: "var(--o-text-1)" }}>{display}</div>
-                    {c.created_at && (
-                      <div style={{ fontSize: 11, color: "var(--o-text-3)", marginTop: 8 }}>
-                        {new Date(c.created_at).toLocaleString("pt-BR", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })}
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
+            <div>
+              <a href="#" title="Em breve">Log de edições (0)</a>
+              {" "}
+              <a href="#" title="Em breve">Visualizações (0)</a>
             </div>
-          )}
-        </Section>
+          </div>
+          <div className="do-doc-footer-nav">
+            {nextRdo ? (
+              <Link href={`/obras/${id}/rdos/${nextRdo.id}`}>
+                Próximo <span className="tnum">{fmtDate(nextRdo.date)}</span> →
+              </Link>
+            ) : (
+              <span className="is-disabled">Próximo →</span>
+            )}
+          </div>
+        </div>
+
+        <div className="diario-toolbar" style={{ marginTop: 12 }}>
+          {grayBtn}
+          {redBtn}
+        </div>
       </div>
-    </div>
-  );
-}
-
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
-  return (
-    <div style={{ marginBottom: 28 }}>
-      <h3 className="section-title">{title}</h3>
-      {children}
-    </div>
-  );
-}
-
-function Block({ title, children, style }: { title: string; children: React.ReactNode; style?: React.CSSProperties }) {
-  return (
-    <div className="card" style={{ padding: "18px 20px", ...style }}>
-      <h3 className="section-title" style={{ marginBottom: 10 }}>{title}</h3>
-      {children}
-    </div>
-  );
-}
-
-const inlineInput: React.CSSProperties = {
-  width: "100%",
-  background: "var(--o-paper)",
-  border: "1px solid var(--o-border)",
-  borderRadius: 8,
-  padding: "8px 12px",
-  font: "400 13px var(--font-inter)",
-  color: "var(--o-text-1)",
-  outline: "none",
-};
-
-function KV({ label, value, last }: { label: string; value: string; last?: boolean }) {
-  return (
-    <div style={{
-      display: "flex", justifyContent: "space-between",
-      padding: "8px 0",
-      fontSize: 14,
-      borderBottom: last ? "none" : "1px solid var(--o-border)",
-    }}>
-      <span style={{ color: "var(--o-text-2)" }}>{label}</span>
-      <span style={{ fontWeight: 500, color: "var(--o-text-1)" }}>{value}</span>
     </div>
   );
 }

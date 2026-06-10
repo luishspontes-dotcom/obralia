@@ -432,7 +432,10 @@ export async function createOrUpdateTask(formData: FormData) {
   }
 
   revalidatePath("/tarefas");
-  if (siteId) revalidatePath(`/obras/${siteId}`);
+  if (siteId) {
+    revalidatePath(`/obras/${siteId}`);
+    revalidatePath(`/obras/${siteId}/tarefas`);
+  }
 }
 
 export async function logTaskTime(formData: FormData) {
@@ -452,10 +455,15 @@ export async function deleteTask(formData: FormData) {
   const { supabase } = await requireUser();
   const admin = supabase;
   const id = asString(formData.get("id"));
+  const siteId = asString(formData.get("site_id")) || null;
   if (!id) throw new Error("id obrigatório");
   const { error } = await admin.from("wbs_items").delete().eq("id", id);
   if (error) throw new Error(error.message);
   revalidatePath("/tarefas");
+  if (siteId) {
+    revalidatePath(`/obras/${siteId}`);
+    revalidatePath(`/obras/${siteId}/tarefas`);
+  }
 }
 
 /* ───────── Membros da organização ───────── */
@@ -474,6 +482,7 @@ export async function updateMemberRole(formData: FormData) {
     .eq("organization_id", orgId);
   if (error) throw new Error(error.message);
   revalidatePath("/usuarios");
+  revalidatePath("/cadastros/usuarios-empresas-acesso");
 }
 
 export async function removeMember(formData: FormData) {
@@ -488,6 +497,7 @@ export async function removeMember(formData: FormData) {
     .eq("organization_id", orgId);
   if (error) throw new Error(error.message);
   revalidatePath("/usuarios");
+  revalidatePath("/cadastros/usuarios-empresas-acesso");
 }
 
 /* ───────── Atividade individual ───────── */

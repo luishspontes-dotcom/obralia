@@ -2,7 +2,10 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Camera, FileText, Pencil, Printer, Search } from "lucide-react";
 import { ObraSidebar } from "@/components/layout/ObraSidebar";
+import { PrintButton } from "@/components/PrintButton";
 import { createServerSupabase } from "@/lib/supabase/server";
+import { deleteRdo } from "@/lib/rdo-actions";
+import { getCurrentRole, canWrite } from "@/lib/permissions";
 import { VISIBLE_SOURCE_PROVIDERS } from "@/lib/rdo-source-scope";
 
 type Site = {
@@ -31,19 +34,25 @@ function fmtDate(value: string): string {
   return new Date(`${value}T00:00:00`).toLocaleDateString("pt-BR");
 }
 
+function isIsoDate(value: string | undefined): value is string {
+  return typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value);
+}
+
 export default async function ObraRdosPage({
   params,
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ status?: string; q?: string; order?: string; page?: string }>;
+  searchParams: Promise<{ status?: string; q?: string; order?: string; page?: string; de?: string; ate?: string }>;
 }) {
   const { id } = await params;
-  const { status: rawFilter, q, order, page } = await searchParams;
+  const { status: rawFilter, q, order, page, de, ate } = await searchParams;
   const filter =
     rawFilter && ["draft", "submitted", "review", "approved"].includes(rawFilter)
       ? rawFilter
       : undefined;
+  const dateFrom = isIsoDate(de) ? de : undefined;
+  const dateTo = isIsoDate(ate) ? ate : undefined;
   const queryText = (q ?? "").trim().toLowerCase();
   const pageNum = Math.max(1, parseInt(page ?? "1", 10) || 1);
   const offset = (pageNum - 1) * PER_PAGE;
@@ -68,13 +77,16 @@ export default async function ObraRdosPage({
 
   // Contador do filtro ativo (pra calcular as páginas)
   let filteredTotal = totalAll;
-  if (filter) {
-    const { count } = await supabase
+  if (filter || dateFrom || dateTo) {
+    let filteredCountQuery = supabase
       .from("daily_reports")
       .select("*", { count: "exact", head: true })
       .eq("site_id", id)
-      .in("external_provider", VISIBLE_SOURCE_PROVIDERS)
-      .eq("status", filter);
+      .in("external_provider", VISIBLE_SOURCE_PROVIDERS);
+    if (filter) filteredCountQuery = filteredCountQuery.eq("status", filter);
+    if (dateFrom) filteredCountQuery = filteredCountQuery.gte("date", dateFrom);
+    if (dateTo) filteredCountQuery = filteredCountQuery.lte("date", dateTo);
+    const { count } = await filteredCountQuery;
     filteredTotal = count ?? 0;
   }
   const totalPages = Math.max(1, Math.ceil(filteredTotal / PER_PAGE));
@@ -88,6 +100,12 @@ export default async function ObraRdosPage({
 
   if (filter) {
     rdoQuery = rdoQuery.eq("status", filter);
+  }
+  if (dateFrom) {
+    rdoQuery = rdoQuery.gte("date", dateFrom);
+  }
+  if (dateTo) {
+    rdoQuery = rdoQuery.lte("date", dateTo);
   }
 
   const { data: reportsRaw } = await rdoQuery.range(offset, offset + PER_PAGE - 1);
@@ -156,10 +174,15 @@ export default async function ObraRdosPage({
     if (filter) sp.set("status", filter);
     if (q) sp.set("q", q);
     if (order) sp.set("order", order);
+    if (dateFrom) sp.set("de", dateFrom);
+    if (dateTo) sp.set("ate", dateTo);
     if (p > 1) sp.set("page", String(p));
     const qs = sp.toString();
     return `/obras/${id}/rdos${qs ? `?${qs}` : ""}`;
   };
+
+  const role = await getCurrentRole();
+  const canEdit = canWrite(role);
 
   return (
     <div className="do-obra-layout">
@@ -188,17 +211,17 @@ export default async function ObraRdosPage({
               </p>
             </div>
             <form method="get" action={`/obras/${id}/rdos`} className="diario-toolbar">
+              {q ? <input type="hidden" name="q" value={q} /> : null}
+              {order ? <input type="hidden" name="order" value={order} /> : null}
               <select className="diario-select" name="status" defaultValue={filter ?? ""}>
                 <option value="">Todos os relatórios</option>
                 <option value="approved">Aprovados</option>
                 <option value="review">Em revisão</option>
                 <option value="draft">Rascunhos</option>
               </select>
-              <input className="diario-input" name="q" defaultValue={q ?? ""} placeholder="Pesquisa" />
-              <select className="diario-select" name="order" defaultValue={order ?? "desc"}>
-                <option value="desc">Ordem decrescente</option>
-                <option value="asc">Ordem crescente</option>
-              </select>
+              <input className="diario-input" name="de" type="date" defaultValue={dateFrom ?? ""} title="De (dd/mm/aaaa)" style={{ minWidth: 130 }} />
+              <span style={{ color: "#555", fontSize: 12 }}>até</span>
+              <input className="diario-input" name="ate" type="date" defaultValue={dateTo ?? ""} title="Até (dd/mm/aaaa)" style={{ minWidth: 130 }} />
               <button className="diario-blue-button" type="submit" title="Pesquisar">
                 <Search size={16} />
               </button>
@@ -209,6 +232,26 @@ export default async function ObraRdosPage({
           </div>
 
           <section className="do-panel">
+            <form
+              method="get"
+              action={`/obras/${id}/rdos`}
+              style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", padding: "10px 12px", borderBottom: "1px solid #e6e6e6" }}
+            >
+              {filter ? <input type="hidden" name="status" value={filter} /> : null}
+              {dateFrom ? <input type="hidden" name="de" value={dateFrom} /> : null}
+              {dateTo ? <input type="hidden" name="ate" value={dateTo} /> : null}
+              <input className="diario-input" type="search" name="q" defaultValue={q ?? ""} placeholder="Pesquisa" />
+              <select className="diario-select" name="order" defaultValue={order ?? "desc"}>
+                <option value="desc">Ordem decrescente</option>
+                <option value="asc">Ordem crescente</option>
+              </select>
+              <button className="diario-blue-button" type="submit" title="Pesquisar">
+                <Search size={16} />
+              </button>
+              <span style={{ marginLeft: "auto" }}>
+                <PrintButton label="🖨 Imprimir" className="diario-gray-button" />
+              </span>
+            </form>
             <div className="do-table-wrap">
               <table className="do-table">
                 <thead>
@@ -253,6 +296,13 @@ export default async function ObraRdosPage({
                             <Link href={`/obras/${id}/rdos/${report.id}/editar`} title="Editar">
                               <Pencil size={15} />
                             </Link>
+                            {canEdit ? (
+                              <form action={deleteRdo} style={{ display: "inline" }}>
+                                <input type="hidden" name="rdoId" value={report.id} />
+                                <input type="hidden" name="siteId" value={id} />
+                                <button type="submit" title="Excluir">✕</button>
+                              </form>
+                            ) : null}
                           </span>
                         </td>
                       </tr>

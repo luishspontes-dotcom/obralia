@@ -24,9 +24,17 @@ function asString(v: FormDataEntryValue | null): string {
   return typeof v === "string" ? v.trim() : "";
 }
 
-function back(params: Record<string, string>): never {
+const DEFAULT_BACK_PATH = "/usuarios";
+
+/** Caminho de retorno seguro: só aceita path interno (ex.: /cadastros/...). */
+function sanitizeNext(v: FormDataEntryValue | null): string {
+  const s = typeof v === "string" ? v.trim() : "";
+  return s.startsWith("/") && !s.startsWith("//") ? s.split("?")[0] : DEFAULT_BACK_PATH;
+}
+
+function back(next: string, params: Record<string, string>): never {
   const qs = new URLSearchParams(params).toString();
-  redirect(`/usuarios${qs ? `?${qs}` : ""}`);
+  redirect(`${next}${qs ? `?${qs}` : ""}`);
 }
 
 type Guard = {
@@ -42,25 +50,25 @@ type Guard = {
  * alvo não é o próprio ator e (se o alvo for owner) o ator precisa ser owner.
  * Em caso de bloqueio, redireciona para /usuarios?err=... (nunca lança pro client).
  */
-async function guardTarget(targetProfileId: string): Promise<Guard> {
+async function guardTarget(targetProfileId: string, next: string): Promise<Guard> {
   const supabase = await createServerSupabase();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
   const actorRole = await getCurrentRole();
   if (!canManageUsers(actorRole)) {
-    back({ err: "Apenas owners e administradores podem gerenciar usuários." });
+    back(next, { err: "Apenas owners e administradores podem gerenciar usuários." });
   }
 
-  if (!targetProfileId) back({ err: "Usuário inválido." });
+  if (!targetProfileId) back(next, { err: "Usuário inválido." });
   if (targetProfileId === user.id) {
-    back({ err: "Você não pode executar esta ação na sua própria conta. Use Configurações para trocar sua senha." });
+    back(next, { err: "Você não pode executar esta ação na sua própria conta. Use Configurações para trocar sua senha." });
   }
 
   const { data: profR } = await supabase
     .from("profiles").select("default_org_id").eq("id", user.id).maybeSingle();
   const orgId = (profR as { default_org_id?: string | null } | null)?.default_org_id ?? null;
-  if (!orgId) back({ err: "Organização ativa não encontrada." });
+  if (!orgId) back(next, { err: "Organização ativa não encontrada." });
 
   const db = untypedDb(supabase);
   const { data: memberR } = await db
@@ -70,11 +78,11 @@ async function guardTarget(targetProfileId: string): Promise<Guard> {
     .eq("profile_id", targetProfileId)
     .maybeSingle();
   if (!memberR) {
-    back({ err: "Usuário não encontrado na sua organização." });
+    back(next, { err: "Usuário não encontrado na sua organização." });
   }
   const targetRole = memberR.role as OrgRole;
   if (targetRole === "owner" && actorRole !== "owner") {
-    back({ err: "Apenas o owner pode gerenciar a conta de outro owner." });
+    back(next, { err: "Apenas o owner pode gerenciar a conta de outro owner." });
   }
 
   return {
@@ -89,12 +97,13 @@ async function guardTarget(targetProfileId: string): Promise<Guard> {
 /* ───────── 1. E-mail de redefinição de senha ───────── */
 
 export async function adminResetPasswordEmail(formData: FormData) {
+  const next = sanitizeNext(formData.get("next"));
   const profileId = asString(formData.get("profile_id"));
   const email = asString(formData.get("email"));
-  const { targetName } = await guardTarget(profileId);
+  const { targetName } = await guardTarget(profileId, next);
 
   if (!email) {
-    back({ err: `Não foi possível localizar o e-mail de ${targetName}.` });
+    back(next, { err: `Não foi possível localizar o e-mail de ${targetName}.` });
   }
 
   const supabase = await createServerSupabase();
@@ -102,9 +111,9 @@ export async function adminResetPasswordEmail(formData: FormData) {
     redirectTo: `${APP_URL}/auth/callback?next=/configuracoes`,
   });
   if (error) {
-    back({ err: `Falha ao enviar e-mail de redefinição: ${error.message}` });
+    back(next, { err: `Falha ao enviar e-mail de redefinição: ${error.message}` });
   }
-  back({ msg: `E-mail de redefinição de senha enviado para ${email}.` });
+  back(next, { msg: `E-mail de redefinição de senha enviado para ${email}.` });
 }
 
 /* ───────── 2. Senha temporária ───────── */
@@ -130,18 +139,20 @@ function generateTempPassword(): string {
 }
 
 export async function adminSetTemporaryPassword(formData: FormData) {
+  const next = sanitizeNext(formData.get("next"));
   const profileId = asString(formData.get("profile_id"));
-  const { targetName } = await guardTarget(profileId);
+  const { targetName } = await guardTarget(profileId, next);
 
   const password = generateTempPassword();
   const admin = createAdminSupabase();
   const { error } = await admin.auth.admin.updateUserById(profileId, { password });
   if (error) {
-    back({ err: `Falha ao definir senha temporária: ${error.message}` });
+    back(next, { err: `Falha ao definir senha temporária: ${error.message}` });
   }
 
   revalidatePath("/usuarios");
-  back({ temp_pw: password, temp_user: targetName });
+  if (next !== DEFAULT_BACK_PATH) revalidatePath(next);
+  back(next, { temp_pw: password, temp_user: targetName });
 }
 
 /* ───────── 3. Exclusão definitiva ───────── */
@@ -183,8 +194,9 @@ function isNotNullViolation(message: string): boolean {
 }
 
 export async function adminDeleteUser(formData: FormData) {
+  const next = sanitizeNext(formData.get("next"));
   const profileId = asString(formData.get("profile_id"));
-  const { targetName } = await guardTarget(profileId);
+  const { targetName } = await guardTarget(profileId, next);
 
   const admin = createAdminSupabase();
   const adb = untypedDb(admin);
@@ -249,6 +261,7 @@ export async function adminDeleteUser(formData: FormData) {
   }
 
   revalidatePath("/usuarios");
-  if (err) back({ err });
-  back({ msg: `${targetName} foi excluído. O acesso e o login foram removidos; o histórico de RDOs foi preservado sem autor.` });
+  if (next !== DEFAULT_BACK_PATH) revalidatePath(next);
+  if (err) back(next, { err });
+  back(next, { msg: `${targetName} foi excluído. O acesso e o login foram removidos; o histórico de RDOs foi preservado sem autor.` });
 }

@@ -2,10 +2,22 @@
 
 import { useState, FormEvent } from "react";
 
-export function InviteForm({ orgId }: { orgId: string }) {
-  const [email, setEmail] = useState("");
-  const [name, setName] = useState("");
-  const [role, setRole] = useState<"admin" | "engineer" | "viewer">("engineer");
+type InviteRole = "admin" | "engineer" | "viewer";
+
+export function InviteForm({
+  orgId,
+  initialEmail = "",
+  initialName = "",
+  initialRole = "engineer",
+}: {
+  orgId: string;
+  initialEmail?: string;
+  initialName?: string;
+  initialRole?: InviteRole;
+}) {
+  const [email, setEmail] = useState(initialEmail);
+  const [name, setName] = useState(initialName);
+  const [role, setRole] = useState<InviteRole>(initialRole);
   const [status, setStatus] = useState<"idle" | "sending" | "ok" | "err">("idle");
   const [msg, setMsg] = useState("");
 
@@ -74,7 +86,7 @@ export function InviteForm({ orgId }: { orgId: string }) {
       />
       <select
         value={role}
-        onChange={(e) => setRole(e.target.value as "admin" | "engineer" | "viewer")}
+        onChange={(e) => setRole(e.target.value as InviteRole)}
         style={inputStyle}
       >
         <option value="admin">Admin</option>

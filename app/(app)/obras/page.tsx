@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Camera, ClipboardList, FileText, Search } from "lucide-react";
+import { Camera, FileText, LayoutGrid, List, Search, Video } from "lucide-react";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { fetchAllPages } from "@/lib/supabase/fetch-all";
 import { VISIBLE_SOURCE_PROVIDERS } from "@/lib/rdo-source-scope";
@@ -35,11 +35,21 @@ const STATUS_META: Record<string, { label: string; cls: string }> = {
 export default async function ObrasPage({
   searchParams,
 }: {
-  searchParams: Promise<{ status?: string; q?: string }>;
+  searchParams: Promise<{ status?: string; q?: string; view?: string }>;
 }) {
   const supabase = await createServerSupabase();
-  const { status: filterStatus, q } = await searchParams;
+  const { status: filterStatus, q, view } = await searchParams;
   const query = (q ?? "").trim().toLowerCase();
+  const isListView = view === "lista";
+
+  const viewQs = (target: "grid" | "lista") => {
+    const params = new URLSearchParams();
+    if (q) params.set("q", q);
+    if (filterStatus) params.set("status", filterStatus);
+    if (target === "lista") params.set("view", "lista");
+    const qs = params.toString();
+    return `/obras${qs ? `?${qs}` : ""}`;
+  };
 
   const { data: sitesRaw } = await supabase
     .from("sites")
@@ -116,6 +126,7 @@ export default async function ObrasPage({
           </div>
 
           <form method="get" action="/obras" className="diario-toolbar">
+            {isListView ? <input type="hidden" name="view" value="lista" /> : null}
             <input
               className="diario-input"
               type="search"
@@ -134,6 +145,22 @@ export default async function ObrasPage({
             <button className="diario-blue-button" type="submit" title="Pesquisar">
               <Search size={16} />
             </button>
+            <span className="diario-view-toggle" role="group" aria-label="Modo de visualização">
+              <Link
+                href={viewQs("lista")}
+                className={isListView ? "is-active" : undefined}
+                title="Visualizar em lista"
+              >
+                <List size={16} />
+              </Link>
+              <Link
+                href={viewQs("grid")}
+                className={!isListView ? "is-active" : undefined}
+                title="Visualizar em grade"
+              >
+                <LayoutGrid size={16} />
+              </Link>
+            </span>
           </form>
         </div>
 
@@ -141,11 +168,46 @@ export default async function ObrasPage({
           <div className="do-panel" style={{ padding: 24, color: "#666" }}>
             Nenhuma obra encontrada com este filtro.
           </div>
+        ) : isListView ? (
+          <div className="do-panel">
+            <div className="do-table-wrap">
+              <table className="do-table">
+                <thead>
+                  <tr>
+                    <th>Obra</th>
+                    <th>Status</th>
+                    <th>Relatórios</th>
+                    <th>Fotos</th>
+                    <th>Vídeos</th>
+                    <th>Cliente</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {visibleSites.map((site) => {
+                    const status = STATUS_META[site.status] ?? STATUS_META.in_progress;
+                    return (
+                      <tr key={site.id}>
+                        <td>
+                          <Link href={`/obras/${site.id}`}>{site.name}</Link>
+                        </td>
+                        <td>
+                          <span className={`diario-status-badge ${status.cls}`}>{status.label}</span>
+                        </td>
+                        <td className="tnum">{rdoCount.get(site.id) ?? 0}</td>
+                        <td className="tnum">{photoCount.get(site.id) ?? 0}</td>
+                        <td className="tnum">{videoCount.get(site.id) ?? 0}</td>
+                        <td>{site.client_name ?? "—"}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
         ) : (
           <div className="diario-obra-grid">
             {visibleSites.map((site, cardIdx) => {
               const status = STATUS_META[site.status] ?? STATUS_META.in_progress;
-              const stats = perSite.get(site.id) ?? { total: 0, done: 0, late: 0, in_progress: 0, progressAvg: 0 };
               return (
                 <Link key={site.id} href={`/obras/${site.id}`} className="diario-obra-card">
                   <div className="diario-obra-card__cover">
@@ -171,13 +233,10 @@ export default async function ObrasPage({
                         <Camera size={13} />
                         {photoCount.get(site.id) ?? 0}
                       </span>
-                      <span title="Atividades">
-                        <ClipboardList size={13} />
-                        {stats.total}
+                      <span title="Vídeos">
+                        <Video size={13} />
+                        {videoCount.get(site.id) ?? 0}
                       </span>
-                      {(videoCount.get(site.id) ?? 0) > 0 ? (
-                        <span title="Vídeos">{videoCount.get(site.id)}</span>
-                      ) : null}
                     </div>
                     <div className="diario-obra-card__title">{site.name}</div>
                   </div>

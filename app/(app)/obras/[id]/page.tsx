@@ -23,6 +23,8 @@ type Site = {
   address: string | null;
   cover_url: string | null;
   contract_number: string | null;
+  contract_days: number | null;
+  responsible_id: string | null;
 };
 
 type WbsItem = {
@@ -107,7 +109,7 @@ export default async function ObraDetailPage({
 
   const { data: siteRaw } = await supabase
     .from("sites")
-    .select("id, name, status, client_name, start_date, end_date, address, cover_url, contract_number")
+    .select("id, name, status, client_name, start_date, end_date, address, cover_url, contract_number, contract_days, responsible_id")
     .eq("id", id)
     .in("external_provider", VISIBLE_SOURCE_PROVIDERS)
     .maybeSingle();
@@ -146,6 +148,7 @@ export default async function ObraDetailPage({
     .select("id, number, date, status")
     .eq("site_id", id)
     .in("external_provider", VISIBLE_SOURCE_PROVIDERS)
+    .order("date", { ascending: false })
     .order("number", { ascending: false });
   const reports = (reportsRaw ?? []) as DailyReport[];
 
@@ -173,14 +176,35 @@ export default async function ObraDetailPage({
     .select("*", { count: "exact", head: true })
     .eq("target_id", id);
 
+  const db = untypedDb(supabase);
+
+  // Ocorrências — atividades de RDO com anotações (não há tabela própria de ocorrências)
+  const { count: occurrenceCountRaw } = await db
+    .from("report_activities")
+    .select("id, daily_reports!inner(site_id)", { count: "exact", head: true })
+    .eq("daily_reports.site_id", id)
+    .not("notes", "is", null);
+  const occurrenceCount = occurrenceCountRaw ?? 0;
+
+  // Responsável pela obra (sites.responsible_id → profiles)
+  let responsibleName: string | null = null;
+  if (site.responsible_id) {
+    const { data: responsibleRaw } = await supabase
+      .from("profiles")
+      .select("full_name")
+      .eq("id", site.responsible_id)
+      .maybeSingle();
+    responsibleName = (responsibleRaw as { full_name: string | null } | null)?.full_name ?? null;
+  }
+
   const siteStatus = SITE_STATUS[site.status] ?? SITE_STATUS.in_progress;
   const schedule = daysBetween(site.start_date, site.end_date);
+  const contractDays = schedule.total ?? site.contract_days;
 
   // Portal do cliente — apenas administradores gerenciam links públicos
   const role = await getCurrentRole();
   const isAdmin = canManageUsers(role);
   const writer = canWrite(role);
-  const db = untypedDb(supabase);
 
   // Risco de atraso — pré-calculado em sites.risk_* (lib/risk.ts)
   const { data: riskRaw } = await db
@@ -228,8 +252,8 @@ export default async function ObraDetailPage({
 
           <div className="do-metric-grid">
             <Metric href={`/obras/${id}/rdos`} value={reports.length} label="Relatórios" icon={<FileText size={24} />} />
-            <Metric href="#lista-de-tarefas" value={taskStats.total} label="Atividades" icon={<ClipboardList size={24} />} />
-            <Metric href="#lista-de-tarefas" value={taskStats.late} label="Ocorrências" icon={<AlertTriangle size={24} />} />
+            <Metric href={`/obras/${id}/tarefas`} value={taskStats.total} label="Atividades" icon={<ClipboardList size={24} />} />
+            <Metric href={`/obras/${id}/rdos`} value={occurrenceCount} label="Ocorrências" icon={<AlertTriangle size={24} />} />
             <Metric href="/comentarios" value={commentCount ?? 0} label="Comentários" icon={<MessageSquare size={24} />} />
             <Metric href={`/obras/${id}/fotos`} value={photos.length} label="Fotos" icon={<Camera size={24} />} />
             <Metric href={`/obras/${id}/fotos?tipo=video`} value={videos.length} label="Vídeos" icon={<Video size={24} />} />
@@ -318,7 +342,7 @@ export default async function ObraDetailPage({
                 <span className={`diario-status-badge ${siteStatus.cls}`}>{siteStatus.label}</span>
               </Info>
               <Info label="N° do contrato">
-                <strong>{site.contract_number || ""}</strong>
+                <strong>{site.contract_number || "—"}</strong>
               </Info>
               <Info label="Prazo decorrido">
                 <div className="do-progress">
@@ -326,28 +350,28 @@ export default async function ObraDetailPage({
                 </div>
               </Info>
               <Info label="Endereço">
-                <p>{site.address || ""}</p>
+                <p>{site.address || "—"}</p>
               </Info>
               <Info label="Prazo contratual">
-                <strong>{schedule.total != null ? `${schedule.total} dias` : ""}</strong>
+                <strong>{contractDays != null ? `${contractDays} dias` : "—"}</strong>
               </Info>
               <Info label="Prazo decorrido">
-                <strong>{schedule.elapsed != null ? `${schedule.elapsed} dias` : ""}</strong>
+                <strong>{schedule.elapsed != null ? `${schedule.elapsed} dias` : "—"}</strong>
               </Info>
               <Info label="Prazo a vencer">
-                <strong>{schedule.remaining != null ? `${schedule.remaining} dias` : ""}</strong>
+                <strong>{schedule.remaining != null ? `${schedule.remaining} dias` : "—"}</strong>
+              </Info>
+              <Info label="Responsável">
+                <strong>{responsibleName ?? "—"}</strong>
               </Info>
               <Info label="Cliente">
                 <strong>{site.client_name || site.name}</strong>
               </Info>
               <Info label="Data início">
-                <strong>{fmtDate(site.start_date)}</strong>
+                <strong>{fmtDate(site.start_date) || "—"}</strong>
               </Info>
               <Info label="Previsão de término">
-                <strong>{fmtDate(site.end_date)}</strong>
-              </Info>
-              <Info label="Observação">
-                <p>{site.address || ""}</p>
+                <strong>{fmtDate(site.end_date) || "—"}</strong>
               </Info>
             </div>
           </section>
@@ -425,7 +449,7 @@ export default async function ObraDetailPage({
           <section id="lista-de-tarefas" className="do-panel" style={{ marginBottom: 18 }}>
             <div className="do-panel__header">
               <h2>Lista de tarefas</h2>
-              <Link href="/tarefas">Ver todas</Link>
+              <Link href={`/obras/${id}/tarefas`}>Ver todas</Link>
             </div>
             <div className="do-table-wrap">
               <table className="do-table">

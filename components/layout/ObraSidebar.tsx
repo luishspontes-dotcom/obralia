@@ -4,6 +4,7 @@ import {
   Camera,
   ClipboardList,
   Calculator,
+  Crosshair,
   FileText,
   Folder,
   LayoutDashboard,
@@ -57,7 +58,7 @@ export function ObraSidebar({ site, counts, active }: ObraSidebarProps) {
           label="Visão geral"
         />
         <SideLink
-          href={`/obras/${site.id}#lista-de-tarefas`}
+          href={`/obras/${site.id}/tarefas`}
           active={active === "tasks"}
           icon={<ListChecks size={16} />}
           label="Lista de tarefas"
@@ -69,6 +70,13 @@ export function ObraSidebar({ site, counts, active }: ObraSidebarProps) {
           icon={<FileText size={16} />}
           label="Relatórios"
           count={counts.reports}
+        />
+        <SideLink
+          href={`/obras/${site.id}/fotos`}
+          active={active === "photos"}
+          icon={<Camera size={16} />}
+          label="Fotos"
+          count={counts.photos}
         />
         <SideLink
           href={`/obras/${site.id}/medicoes`}
@@ -83,6 +91,12 @@ export function ObraSidebar({ site, counts, active }: ObraSidebarProps) {
           icon={<Calculator size={16} />}
           label="Orçamento IA"
           count={counts.estimates}
+        />
+        <SideLink
+          href={`/obras/${site.id}#risco-de-atraso`}
+          active={false}
+          icon={<Crosshair size={16} />}
+          label="Risco de atraso"
         />
         <div className="do-side-group">
           <div className="do-side-group__label">
@@ -106,7 +120,7 @@ export function ObraSidebar({ site, counts, active }: ObraSidebarProps) {
             nested
           />
           <SideLink
-            href={`/obras/${site.id}#lista-de-tarefas`}
+            href={`/obras/${site.id}/tarefas`}
             active={false}
             icon={<ClipboardList size={16} />}
             label="Atividades"
