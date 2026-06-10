@@ -2,6 +2,11 @@
 
 import { useState } from "react";
 import { updateMemberRole, removeMember } from "@/lib/rdo-actions";
+import {
+  adminResetPasswordEmail,
+  adminSetTemporaryPassword,
+  adminDeleteUser,
+} from "@/lib/user-admin-actions";
 
 const ROLE_OPTIONS: { value: string; label: string }[] = [
   { value: "owner",    label: "Owner" },
@@ -10,8 +15,16 @@ const ROLE_OPTIONS: { value: string; label: string }[] = [
   { value: "viewer",   label: "Visualizador" },
 ];
 
+type ConfirmAction = "remove" | "temp" | "delete" | null;
+
+const iconBtnStyle: React.CSSProperties = {
+  width: 28, height: 28, borderRadius: 6, border: "1px solid var(--o-border)",
+  background: "transparent", color: "var(--o-text-3)", fontSize: 13,
+  cursor: "pointer", display: "grid", placeItems: "center",
+};
+
 export function MemberRow({
-  profileId, organizationId, name, initials, role, isMe, canManage,
+  profileId, organizationId, name, initials, role, isMe, canManage, email,
 }: {
   profileId: string;
   organizationId: string;
@@ -20,15 +33,17 @@ export function MemberRow({
   role: string;
   isMe: boolean;
   canManage: boolean;
+  email?: string | null;
 }) {
   const [editing, setEditing] = useState(false);
-  const [confirmRemove, setConfirmRemove] = useState(false);
+  const [confirm, setConfirm] = useState<ConfirmAction>(null);
 
   return (
     <div style={{
       display: "flex", alignItems: "center", gap: 14,
       padding: "14px 20px",
       borderTop: "1px solid var(--o-border)",
+      flexWrap: "wrap",
     }}>
       <div style={{
         width: 40, height: 40, borderRadius: 999,
@@ -48,6 +63,11 @@ export function MemberRow({
             </span>
           )}
         </div>
+        {email && (
+          <div style={{ fontSize: 12, color: "var(--o-text-3)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+            {email}
+          </div>
+        )}
       </div>
 
       {editing && canManage ? (
@@ -69,30 +89,57 @@ export function MemberRow({
         </span>
       )}
 
-      {canManage && !isMe && !editing && (
+      {canManage && !isMe && !editing && confirm === null && (
         <>
-          <button type="button" onClick={() => setEditing(true)} title="Editar"
-            style={{
-              width: 28, height: 28, borderRadius: 6, border: "1px solid var(--o-border)",
-              background: "transparent", color: "var(--o-text-3)", fontSize: 13,
-              cursor: "pointer", display: "grid", placeItems: "center",
-            }}>✎</button>
-          {confirmRemove ? (
-            <form action={removeMember} style={{ display: "flex", gap: 4 }}>
-              <input type="hidden" name="profile_id" value={profileId} />
-              <input type="hidden" name="organization_id" value={organizationId} />
-              <button type="submit" className="chip" style={{ padding: "4px 10px", fontSize: 11, color: "#b3261e", borderColor: "#f5c6c2" }}>Confirmar</button>
-              <button type="button" onClick={() => setConfirmRemove(false)} className="chip" style={{ padding: "4px 10px", fontSize: 11 }}>×</button>
-            </form>
-          ) : (
-            <button type="button" onClick={() => setConfirmRemove(true)} title="Remover"
-              style={{
-                width: 28, height: 28, borderRadius: 6, border: "1px solid var(--o-border)",
-                background: "transparent", color: "var(--o-text-3)", fontSize: 14,
-                cursor: "pointer", display: "grid", placeItems: "center",
-              }}>×</button>
-          )}
+          <button type="button" onClick={() => setEditing(true)} title="Editar papel"
+            style={iconBtnStyle}>✎</button>
+          <form action={adminResetPasswordEmail} style={{ display: "contents" }}>
+            <input type="hidden" name="profile_id" value={profileId} />
+            <input type="hidden" name="email" value={email ?? ""} />
+            <button type="submit" disabled={!email}
+              title={email ? "Enviar e-mail de redefinição de senha" : "E-mail do usuário não disponível"}
+              style={{ ...iconBtnStyle, opacity: email ? 1 : 0.4, cursor: email ? "pointer" : "not-allowed" }}>🔑</button>
+          </form>
+          <button type="button" onClick={() => setConfirm("temp")}
+            title="Gerar senha temporária (mostrada uma única vez)"
+            style={iconBtnStyle}>🔐</button>
+          <button type="button" onClick={() => setConfirm("remove")}
+            title="Remover da organização (só desvincula; não apaga o login)"
+            style={iconBtnStyle}>×</button>
+          <button type="button" onClick={() => setConfirm("delete")}
+            title="Excluir usuário (apaga o acesso e o login de verdade)"
+            style={{ ...iconBtnStyle, fontSize: 12 }}>🗑</button>
         </>
+      )}
+
+      {canManage && !isMe && !editing && confirm === "remove" && (
+        <form action={removeMember} style={{ display: "flex", alignItems: "center", gap: 4 }}>
+          <input type="hidden" name="profile_id" value={profileId} />
+          <input type="hidden" name="organization_id" value={organizationId} />
+          <span style={{ fontSize: 11, color: "var(--o-text-3)" }}>Remover da organização? O login continua existindo.</span>
+          <button type="submit" className="chip" style={{ padding: "4px 10px", fontSize: 11, color: "#b3261e", borderColor: "#f5c6c2" }}>Confirmar</button>
+          <button type="button" onClick={() => setConfirm(null)} className="chip" style={{ padding: "4px 10px", fontSize: 11 }}>×</button>
+        </form>
+      )}
+
+      {canManage && !isMe && !editing && confirm === "temp" && (
+        <form action={adminSetTemporaryPassword} style={{ display: "flex", alignItems: "center", gap: 4 }}>
+          <input type="hidden" name="profile_id" value={profileId} />
+          <span style={{ fontSize: 11, color: "var(--o-text-3)" }}>Gerar senha temporária? A senha atual deixa de funcionar.</span>
+          <button type="submit" className="chip" style={{ padding: "4px 10px", fontSize: 11, color: "var(--t-brand)", borderColor: "var(--t-brand-soft)" }}>Confirmar</button>
+          <button type="button" onClick={() => setConfirm(null)} className="chip" style={{ padding: "4px 10px", fontSize: 11 }}>×</button>
+        </form>
+      )}
+
+      {canManage && !isMe && !editing && confirm === "delete" && (
+        <form action={adminDeleteUser} style={{ display: "flex", alignItems: "center", gap: 4 }}>
+          <input type="hidden" name="profile_id" value={profileId} />
+          <span style={{ fontSize: 11, color: "#b3261e" }}>
+            Excluir de verdade? Remove o acesso e o login; o histórico de RDOs fica preservado sem autor.
+          </span>
+          <button type="submit" className="chip" style={{ padding: "4px 10px", fontSize: 11, color: "white", background: "#b3261e", borderColor: "#b3261e" }}>Excluir</button>
+          <button type="button" onClick={() => setConfirm(null)} className="chip" style={{ padding: "4px 10px", fontSize: 11 }}>×</button>
+        </form>
       )}
     </div>
   );

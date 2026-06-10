@@ -1,6 +1,8 @@
 import { createServerSupabase } from "@/lib/supabase/server";
+import { createAdminSupabase } from "@/lib/supabase/admin";
 import { InviteForm } from "./InviteForm";
 import { MemberRow } from "@/components/MemberRow";
+import { TempPasswordBanner } from "./TempPasswordBanner";
 
 type Member = {
   profile_id: string;
@@ -18,10 +20,15 @@ type PendingInvite = {
   created_at: string;
 };
 
-export default async function UsuariosPage() {
+export default async function UsuariosPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ msg?: string; err?: string; temp_pw?: string; temp_user?: string }>;
+}) {
   const supabase = await createServerSupabase();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return null;
+  const { msg, err, temp_pw: tempPw, temp_user: tempUser } = await searchParams;
 
   const { data: profileRaw } = await supabase
     .from("profiles").select("default_org_id").eq("id", user.id).maybeSingle();
@@ -38,6 +45,23 @@ export default async function UsuariosPage() {
   const members = (membersRaw ?? []) as unknown as Member[];
   const currentMember = members.find((member) => member.profile_id === user.id);
   const canInvite = ["owner", "admin"].includes(currentMember?.role ?? "");
+
+  // E-mails vivem no auth (profiles não tem coluna email) — só busca
+  // via service role quando o viewer é admin/owner, e só server-side.
+  const emailById = new Map<string, string>();
+  if (canInvite && members.length > 0) {
+    const admin = createAdminSupabase();
+    const memberIds = new Set(members.map((m) => m.profile_id));
+    const perPage = 1000;
+    for (let page = 1; page <= 10; page++) {
+      const { data, error } = await admin.auth.admin.listUsers({ page, perPage });
+      if (error || !data?.users?.length) break;
+      for (const u of data.users) {
+        if (u.email && memberIds.has(u.id)) emailById.set(u.id, u.email);
+      }
+      if (data.users.length < perPage || emailById.size === memberIds.size) break;
+    }
+  }
   const { data: invitesRaw } = await supabase
     .from("pending_invites")
     .select("id, email, full_name, role, consumed_at, created_at")
@@ -57,6 +81,24 @@ export default async function UsuariosPage() {
             </p>
           </div>
         </div>
+
+        {msg && (
+          <div style={{
+            padding: "12px 16px", marginBottom: 16, borderRadius: 10, fontSize: 13,
+            color: "var(--st-done)", background: "rgba(90, 141, 140, 0.10)",
+            border: "1px solid rgba(90, 141, 140, 0.35)",
+          }}>{msg}</div>
+        )}
+        {err && (
+          <div style={{
+            padding: "12px 16px", marginBottom: 16, borderRadius: 10, fontSize: 13,
+            color: "var(--st-late)", background: "rgba(180, 61, 61, 0.10)",
+            border: "1px solid rgba(180, 61, 61, 0.35)",
+          }}>{err}</div>
+        )}
+        {tempPw && tempUser && (
+          <TempPasswordBanner name={tempUser} password={tempPw} />
+        )}
 
         <div className="do-dashboard-grid" style={{ alignItems: "start" }}>
           <section className="do-panel">
@@ -79,6 +121,7 @@ export default async function UsuariosPage() {
                     role={m.role}
                     isMe={isMe}
                     canManage={canInvite}
+                    email={emailById.get(m.profile_id) ?? null}
                   />
                 );
               })}

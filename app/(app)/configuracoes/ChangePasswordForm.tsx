@@ -3,6 +3,23 @@
 import { useState, FormEvent } from "react";
 import { createBrowserSupabase } from "@/lib/supabase/client";
 
+/** Traduz os erros mais comuns do Supabase Auth para pt-BR. */
+function translateAuthError(message: string): string {
+  const m = message.toLowerCase();
+  if (m.includes("compromised") || m.includes("pwned") || m.includes("weak")) {
+    return "Esta senha apareceu em vazamentos conhecidos e foi bloqueada por segurança. Use uma senha mais forte (dica: 3 palavras + números).";
+  }
+  if (m.includes("same password") || m.includes("different from the old")) {
+    return "A nova senha não pode ser igual à atual.";
+  }
+  if (m.includes("should be at least")) {
+    const match = message.match(/at least (\d+)/i);
+    const min = match ? match[1] : "8";
+    return `A senha precisa ter ao menos ${min} caracteres.`;
+  }
+  return message;
+}
+
 export function ChangePasswordForm() {
   const [pw, setPw] = useState("");
   const [pw2, setPw2] = useState("");
@@ -18,7 +35,7 @@ export function ChangePasswordForm() {
     const sb = createBrowserSupabase();
     const { error } = await sb.auth.updateUser({ password: pw });
     if (error) {
-      setStatus("err"); setMsg(error.message);
+      setStatus("err"); setMsg(translateAuthError(error.message));
       return;
     }
     setStatus("ok"); setMsg("Senha trocada. Use a nova no próximo login.");
