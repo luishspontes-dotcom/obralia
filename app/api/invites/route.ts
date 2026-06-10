@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabase } from "@/lib/supabase/server";
+import { isInviteRole, sendOrgInvite } from "@/lib/invite-core";
 
-const INVITE_ROLES = new Set(["admin", "engineer", "viewer"]);
 const ADMIN_ROLES = new Set(["owner", "admin"]);
 
 type InviteBody = {
@@ -62,7 +62,7 @@ export async function POST(request: NextRequest) {
   if (!email || !email.includes("@")) {
     return json(400, "Informe um e-mail válido.");
   }
-  if (!INVITE_ROLES.has(role)) {
+  if (!isInviteRole(role)) {
     return json(400, "Papel inválido.");
   }
   if (!organizationId) {
@@ -100,43 +100,20 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  // Save pending invite (RLS allows admins of org to insert)
-  const { error: pendingErr } = await supabase
-    .from("pending_invites")
-    .upsert(
-      {
-        email,
-        organization_id: organizationId,
-        role,
-        full_name: fullName,
-        invited_by: user.id,
-        consumed_at: null,
-      } as never,
-      { onConflict: "email,organization_id" }
-    );
-
-  if (pendingErr) {
-    return json(500, `Falha ao registrar convite: ${pendingErr.message}`);
-  }
-
-  // Send magic link with shouldCreateUser=true. The handle_new_user trigger consumes
-  // pending_invites on first login and links the user to the org with the chosen role.
-  const redirectTo =
-    (process.env.NEXT_PUBLIC_APP_URL ?? request.nextUrl.origin) +
-    "/auth/callback?next=" +
-    encodeURIComponent("/inicio");
-
-  const { error: otpErr } = await supabase.auth.signInWithOtp({
+  // Lógica compartilhada (lib/invite-core.ts): upsert em pending_invites +
+  // magic link com shouldCreateUser=true. O /auth/callback consome o invite
+  // no primeiro login e vincula o usuário à org com o papel escolhido.
+  const result = await sendOrgInvite(supabase, {
     email,
-    options: {
-      emailRedirectTo: redirectTo,
-      shouldCreateUser: true,
-      data: fullName ? { full_name: fullName } : undefined,
-    },
+    fullName,
+    role,
+    organizationId,
+    invitedBy: user.id,
+    redirectBase: process.env.NEXT_PUBLIC_APP_URL ?? request.nextUrl.origin,
   });
 
-  if (otpErr) {
-    return json(500, `Falha ao enviar link: ${otpErr.message}`);
+  if (!result.ok) {
+    return json(500, result.error);
   }
 
   return NextResponse.json({ ok: true });

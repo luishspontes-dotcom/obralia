@@ -1,8 +1,7 @@
-import Link from "next/link";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { createAdminSupabase } from "@/lib/supabase/admin";
-import { untypedDb } from "@/lib/supabase/untyped";
-import { toggleContactActive, type ContactRow, type ContactCategory } from "@/lib/contacts-actions";
+import { untypedDb, type UntypedSupabase } from "@/lib/supabase/untyped";
+import { conviteContato, type ContactRow } from "@/lib/contacts-actions";
 import { InviteForm } from "./InviteForm";
 import { MemberRow } from "@/components/MemberRow";
 import { TempPasswordBanner } from "./TempPasswordBanner";
@@ -86,13 +85,13 @@ export default async function UsuariosPage({
   const members = (membersRaw ?? []) as unknown as Member[];
   const currentMember = members.find((member) => member.profile_id === user.id);
   const canInvite = ["owner", "admin"].includes(currentMember?.role ?? "");
+  const memberIds = new Set(members.map((m) => m.profile_id));
 
   // E-mails vivem no auth (profiles não tem coluna email) — só busca
   // via service role quando o viewer é admin/owner, e só server-side.
   const emailById = new Map<string, string>();
   if (canInvite && members.length > 0) {
     const admin = createAdminSupabase();
-    const memberIds = new Set(members.map((m) => m.profile_id));
     const perPage = 1000;
     for (let page = 1; page <= 10; page++) {
       const { data, error } = await admin.auth.admin.listUsers({ page, perPage });
@@ -103,7 +102,8 @@ export default async function UsuariosPage({
       if (data.users.length < perPage || emailById.size === memberIds.size) break;
     }
   }
-  // Contatos importados do Diário (public.contacts) — agrupados por categoria
+
+  // Contatos importados do Diário (public.contacts).
   const db = untypedDb(supabase);
   const { data: contactsRaw } = await db
     .from<ContactRow[]>("contacts")
@@ -111,11 +111,40 @@ export default async function UsuariosPage({
     .eq("organization_id", activeOrg?.id ?? "")
     .order("name");
   const contacts = (contactsRaw ?? []) as ContactRow[];
-  const contactGroups: Array<{ title: string; category: ContactCategory }> = [
-    { title: "Administradores", category: "admin" },
-    { title: "Personalizados", category: "equipe" },
-    { title: "Cliente Obra", category: "cliente" },
-  ];
+
+  // ── Dedup: contato cujo e-mail já tem login NÃO aparece nas seções de
+  // contatos — a linha dele vira a própria linha de membro, enriquecida
+  // com o cargo (role_label). Matching por profile_id e por e-mail
+  // (case-insensitive). Aproveita pra gravar contacts.profile_id quando
+  // dá match (admin client, fire-and-forget).
+  const memberIdByEmail = new Map<string, string>();
+  for (const [pid, em] of emailById) memberIdByEmail.set(em.trim().toLowerCase(), pid);
+
+  const contactByProfileId = new Map<string, ContactRow>();
+  const contactsSemLogin: ContactRow[] = [];
+  let linkDb: UntypedSupabase | null = null;
+  for (const contact of contacts) {
+    const byProfile =
+      contact.profile_id && memberIds.has(contact.profile_id) ? contact.profile_id : null;
+    const byEmail = contact.email
+      ? memberIdByEmail.get(contact.email.trim().toLowerCase()) ?? null
+      : null;
+    const matchId = byProfile ?? byEmail;
+    if (matchId) {
+      if (!contactByProfileId.has(matchId)) contactByProfileId.set(matchId, contact);
+      if (!contact.profile_id) {
+        linkDb ??= untypedDb(createAdminSupabase());
+        // fire-and-forget: persiste o vínculo pra próxima leitura ser direta
+        void linkDb
+          .from("contacts")
+          .update({ profile_id: matchId })
+          .eq("id", contact.id)
+          .then(() => undefined, () => undefined);
+      }
+    } else {
+      contactsSemLogin.push(contact);
+    }
+  }
 
   const { data: invitesRaw } = await supabase
     .from("pending_invites")
@@ -124,6 +153,32 @@ export default async function UsuariosPage({
     .order("role")
     .order("full_name");
   const pendingInvites = ((invitesRaw ?? []) as PendingInvite[]).filter((invite) => !invite.consumed_at);
+  const pendingEmails = new Set(pendingInvites.map((invite) => invite.email.trim().toLowerCase()));
+
+  const hasPendingInvite = (contact: ContactRow): boolean =>
+    !!contact.email && pendingEmails.has(contact.email.trim().toLowerCase());
+
+  const aguardandoGroups: Array<{ title: string; rows: ContactRow[] }> = [
+    {
+      title: "Aguardando convite — Equipe",
+      rows: contactsSemLogin.filter((c) => c.category === "admin" || c.category === "equipe"),
+    },
+    {
+      title: "Aguardando convite — Clientes",
+      rows: contactsSemLogin.filter((c) => c.category === "cliente"),
+    },
+  ];
+
+  // Convites manuais (feitos pelo formulário) cujo e-mail não está na agenda —
+  // sem isso eles ficariam invisíveis depois do envio.
+  const contactEmails = new Set(
+    contacts
+      .map((c) => c.email?.trim().toLowerCase() ?? "")
+      .filter((e) => e.length > 0)
+  );
+  const manualInvites = pendingInvites.filter(
+    (invite) => !contactEmails.has(invite.email.trim().toLowerCase())
+  );
 
   return (
     <div className="diario-page">
@@ -132,7 +187,7 @@ export default async function UsuariosPage({
           <div>
             <h1>Usuários</h1>
             <p>
-              {members.length} membros ativos · {pendingInvites.length} acessos importados/pendentes em {activeOrg?.name ?? "—"}
+              {members.length} com acesso · {contactsSemLogin.length} aguardando convite em {activeOrg?.name ?? "—"}
             </p>
           </div>
         </div>
@@ -155,41 +210,15 @@ export default async function UsuariosPage({
           <TempPasswordBanner name={tempUser} password={tempPw} />
         )}
 
-        {contactGroups.map(({ title, category }) => {
-          const group = contacts.filter((contact) => contact.category === category);
-          return (
-            <section key={category} className="do-panel" style={{ marginBottom: 18 }}>
-              <div className="do-panel__header">
-                <h2>{title} ({group.length})</h2>
-              </div>
-              {group.length === 0 ? (
-                <div style={{ padding: 18, color: "#777", fontSize: 12 }}>
-                  Nenhum contato nesta categoria.
-                </div>
-              ) : (
-                <div>
-                  {group.map((contact) => (
-                    <ContactLine
-                      key={contact.id}
-                      contact={contact}
-                      canManage={canInvite}
-                    />
-                  ))}
-                </div>
-              )}
-            </section>
-          );
-        })}
-
-        <div className="do-dashboard-grid" style={{ alignItems: "start" }}>
+        <div className="do-dashboard-grid" style={{ alignItems: "start", marginBottom: 18 }}>
           <section className="do-panel">
             <div className="do-panel__header">
-              <h2>Membros do Obrália</h2>
-              <span style={{ color: "#777", fontSize: 12 }}>{members.length}</span>
+              <h2>Com acesso ({members.length})</h2>
             </div>
             <div>
               {members.map((m) => {
-                const name = m.profiles?.full_name ?? "Sem nome";
+                const contact = contactByProfileId.get(m.profile_id);
+                const name = m.profiles?.full_name ?? contact?.name ?? "Sem nome";
                 const initials = name.split(" ").map((s: string) => s[0]).slice(0, 2).join("").toUpperCase();
                 const isMe = m.profile_id === user.id;
                 return (
@@ -203,6 +232,7 @@ export default async function UsuariosPage({
                     isMe={isMe}
                     canManage={canInvite}
                     email={emailById.get(m.profile_id) ?? null}
+                    subtitle={contact?.role_label ?? null}
                     accessCount={canInvite ? m.profiles?.access_count ?? 0 : undefined}
                     lastAccessLabel={canInvite ? lastAccessLabel(m.profiles?.last_access_at) : undefined}
                   />
@@ -241,16 +271,36 @@ export default async function UsuariosPage({
           </aside>
         </div>
 
-        <section className="do-panel" style={{ marginTop: 18 }}>
-          <div className="do-panel__header">
-            <h2>Usuários importados do Diário</h2>
-            <span style={{ color: "#777", fontSize: 12 }}>{pendingInvites.length}</span>
-          </div>
-          {pendingInvites.length === 0 ? (
-            <div style={{ padding: 18, color: "#777", fontSize: 12 }}>
-              Nenhum acesso pendente importado.
+        {aguardandoGroups.map(({ title, rows }) => (
+          <section key={title} className="do-panel" style={{ marginBottom: 18 }}>
+            <div className="do-panel__header">
+              <h2>{title} ({rows.length})</h2>
             </div>
-          ) : (
+            {rows.length === 0 ? (
+              <div style={{ padding: 18, color: "#777", fontSize: 12 }}>
+                Todo mundo daqui já tem acesso. Nada pendente.
+              </div>
+            ) : (
+              <div>
+                {rows.map((contact) => (
+                  <ContactLine
+                    key={contact.id}
+                    contact={contact}
+                    canManage={canInvite}
+                    inviteSent={hasPendingInvite(contact)}
+                  />
+                ))}
+              </div>
+            )}
+          </section>
+        ))}
+
+        {manualInvites.length > 0 && (
+          <section className="do-panel" style={{ marginTop: 18 }}>
+            <div className="do-panel__header">
+              <h2>Convites manuais aguardando primeiro acesso</h2>
+              <span style={{ color: "#777", fontSize: 12 }}>{manualInvites.length}</span>
+            </div>
             <div className="do-table-wrap">
               <table className="do-table">
                 <thead>
@@ -262,7 +312,7 @@ export default async function UsuariosPage({
                   </tr>
                 </thead>
                 <tbody>
-                  {pendingInvites.map((invite) => (
+                  {manualInvites.map((invite) => (
                     <tr key={invite.id}>
                       <td>{invite.full_name ?? "Sem nome"}</td>
                       <td>{invite.email}</td>
@@ -273,8 +323,8 @@ export default async function UsuariosPage({
                 </tbody>
               </table>
             </div>
-          )}
-        </section>
+          </section>
+        )}
       </div>
     </div>
   );
@@ -297,8 +347,15 @@ function contactInitials(name: string): string {
     .toUpperCase() || "?";
 }
 
-function ContactLine({ contact, canManage }: { contact: ContactRow; canManage: boolean }) {
-  const inviteHref = `/usuarios?email=${encodeURIComponent(contact.email ?? "")}&nome=${encodeURIComponent(contact.name)}&role=viewer#convidar`;
+function ContactLine({
+  contact,
+  canManage,
+  inviteSent,
+}: {
+  contact: ContactRow;
+  canManage: boolean;
+  inviteSent: boolean;
+}) {
   return (
     <div
       style={{
@@ -328,38 +385,37 @@ function ContactLine({ contact, canManage }: { contact: ContactRow; canManage: b
           <div style={{ fontSize: 12, color: "var(--o-text-3)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
             {contact.email}
           </div>
-        ) : null}
+        ) : (
+          <div style={{ fontSize: 12, color: "var(--st-late)" }}>Sem e-mail cadastrado</div>
+        )}
       </div>
 
       <span style={{ fontSize: 12, color: "var(--o-text-2)", minWidth: 0 }}>
         {contact.role_label ?? ""}
       </span>
 
-      <span className={`diario-status-badge ${contact.active ? "is-done" : "is-paused"}`}>
-        {contact.active ? "Ativo" : "Inativo"}
-      </span>
+      {!contact.active ? (
+        <span className="diario-status-badge is-paused">Inativo</span>
+      ) : inviteSent ? (
+        <span className="diario-status-badge is-done">Convite enviado</span>
+      ) : (
+        <span className="diario-status-badge is-planned">Sem acesso</span>
+      )}
 
-      {canManage && !contact.profile_id && contact.email ? (
-        <Link
-          href={inviteHref}
-          className="chip"
-          style={{ fontSize: 12, textDecoration: "none" }}
-          title={`Convidar ${contact.name} para acessar o Obralia`}
-        >
-          Convidar
-        </Link>
-      ) : null}
-
-      {canManage ? (
-        <form action={toggleContactActive} style={{ display: "inline" }}>
+      {canManage && contact.email ? (
+        <form action={conviteContato} style={{ display: "inline" }}>
           <input type="hidden" name="contact_id" value={contact.id} />
-          <input type="hidden" name="next_active" value={contact.active ? "false" : "true"} />
           <button
             type="submit"
             className="chip"
-            style={{ cursor: "pointer", fontSize: 12, color: contact.active ? "#b3261e" : undefined }}
+            style={{ cursor: "pointer", fontSize: 12 }}
+            title={
+              inviteSent
+                ? `Reenviar o link de acesso para ${contact.email}`
+                : `Enviar link de acesso ao Obralia para ${contact.email}`
+            }
           >
-            {contact.active ? "Desativar" : "Reativar"}
+            {inviteSent ? "↻ Reenviar" : "✉ Convidar"}
           </button>
         </form>
       ) : null}
