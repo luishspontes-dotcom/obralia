@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createServerSupabase } from "@/lib/supabase/server";
-import { VISIBLE_SOURCE_PROVIDERS } from "@/lib/rdo-source-scope";
+import { VISIBLE_SOURCE_PROVIDERS, WBS_SOURCE_PROVIDERS } from "@/lib/rdo-source-scope";
 import { canManageUsers, canWrite, getCurrentRole } from "@/lib/permissions";
 
 /**
@@ -152,12 +152,12 @@ async function computeRisk(db: RiskDb, siteId: string): Promise<SiteRiskResult> 
       .eq("daily_reports.site_id", siteId).in("daily_reports.external_provider", VISIBLE_SOURCE_PROVIDERS)
       .gte("daily_reports.date", d28).lt("daily_reports.date", d14).limit(1000)),
     rowsOf(db.from<ProgRow>("wbs_items").select("progress_pct")
-      .eq("site_id", siteId).in("external_provider", VISIBLE_SOURCE_PROVIDERS)
+      .eq("site_id", siteId).in("external_provider", WBS_SOURCE_PROVIDERS)
       .not("progress_pct", "is", null).limit(2000)),
     countOf(db.from<never>("wbs_items").select("id", { count: "exact", head: true })
-      .eq("site_id", siteId).in("external_provider", VISIBLE_SOURCE_PROVIDERS)),
+      .eq("site_id", siteId).in("external_provider", WBS_SOURCE_PROVIDERS)),
     countOf(db.from<never>("wbs_items").select("id", { count: "exact", head: true })
-      .eq("site_id", siteId).in("external_provider", VISIBLE_SOURCE_PROVIDERS)
+      .eq("site_id", siteId).in("external_provider", WBS_SOURCE_PROVIDERS)
       .lt("due_date", today).neq("status", "done")),
   ]);
 

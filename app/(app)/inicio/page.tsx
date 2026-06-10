@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { createServerSupabase } from "@/lib/supabase/server";
-import { VISIBLE_SOURCE_PROVIDERS } from "@/lib/rdo-source-scope";
+import { VISIBLE_SOURCE_PROVIDERS, WBS_SOURCE_PROVIDERS } from "@/lib/rdo-source-scope";
 import { mediaUrl } from "@/lib/storage";
 import { OnboardingBanner } from "@/components/OnboardingBanner";
 import { RiskBadge } from "@/components/RiskBadge";
@@ -56,7 +56,7 @@ export default async function InicioPage() {
   const { count: obrasCount } = await supabase
     .from("sites").select("*", { count: "exact", head: true }).in("external_provider", VISIBLE_SOURCE_PROVIDERS);
   const { count: tasksInProgressCount } = await supabase
-    .from("wbs_items").select("*", { count: "exact", head: true }).in("external_provider", VISIBLE_SOURCE_PROVIDERS).eq("status", "in_progress");
+    .from("wbs_items").select("*", { count: "exact", head: true }).in("external_provider", WBS_SOURCE_PROVIDERS).eq("status", "in_progress");
   const { count: rdosCount } = await supabase
     .from("daily_reports").select("*", { count: "exact", head: true }).in("external_provider", VISIBLE_SOURCE_PROVIDERS);
 

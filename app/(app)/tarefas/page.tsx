@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { createOrUpdateTask } from "@/lib/rdo-actions";
-import { VISIBLE_SOURCE_PROVIDERS } from "@/lib/rdo-source-scope";
+import { WBS_SOURCE_PROVIDERS } from "@/lib/rdo-source-scope";
 import { TaskRow } from "@/components/TaskRow";
 import { ExportButton } from "@/components/ExportButton";
 
@@ -36,7 +36,7 @@ export default async function TarefasPage({
   let countQuery = supabase
     .from("wbs_items")
     .select("*", { count: "exact", head: true })
-    .in("external_provider", VISIBLE_SOURCE_PROVIDERS)
+    .in("external_provider", WBS_SOURCE_PROVIDERS)
     .not("parent_id", "is", null);
   if (statusFilter) {
     countQuery = countQuery.eq("status", statusFilter);
@@ -50,7 +50,7 @@ export default async function TarefasPage({
   let query = supabase
     .from("wbs_items")
     .select("id, name, code, status, due_date, site_id, parent_id, time_spent_ms")
-    .in("external_provider", VISIBLE_SOURCE_PROVIDERS)
+    .in("external_provider", WBS_SOURCE_PROVIDERS)
     .not("parent_id", "is", null)
     .order("due_date", { ascending: true, nullsFirst: false });
 
@@ -75,7 +75,7 @@ export default async function TarefasPage({
   const { data: sitesRaw } = await supabase
     .from("sites")
     .select("id, name")
-    .in("external_provider", VISIBLE_SOURCE_PROVIDERS);
+    .in("external_provider", WBS_SOURCE_PROVIDERS);
   const sites = (sitesRaw ?? []) as Site[];
   const siteMap = new Map(sites.map((s) => [s.id, s.name]));
 
