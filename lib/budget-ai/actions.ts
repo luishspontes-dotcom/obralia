@@ -6,8 +6,11 @@ import { createServerSupabase } from "@/lib/supabase/server";
 import {
   type BudgetTemplateItem,
   type EstimateInput,
+  type GeneratedEstimate,
+  generateEstimateFromEtapas,
   generateEstimateFromTemplate,
 } from "@/lib/budget-ai/estimate-engine";
+import { buildHistoricalPriceIndex } from "@/lib/budget-ai/historical-prices";
 import {
   analyzePlanFilesFromStorage,
   type PlanAnalysis,
@@ -543,21 +546,32 @@ async function regenerateEstimateRows(
   templateId: string,
   input: EstimateInput
 ) {
-  const { data: templateItemsRaw, error: templateError } = await db
-    .from("budget_template_items")
-    .select(
-      "id, code, group_name, description, unit, unit_cost, default_quantity, quantity_rule, confidence_baseline, needs_review_default, source_notes, sort_order"
-    )
-    .eq("template_id", templateId)
-    .order("sort_order", { ascending: true });
+  const etapas = input.planAnalysis?.etapas ?? [];
+  let generated: GeneratedEstimate;
 
-  if (templateError) throw new Error(templateError.message);
-  const templateItems = (templateItemsRaw ?? []) as BudgetTemplateItem[];
-  if (templateItems.length === 0) {
-    throw new Error("Template de orcamento sem itens cadastrados.");
+  if (etapas.length > 0) {
+    // Fluxo principal (Claude): etapas lidas da planta no formato historico,
+    // precificadas pelo indice {etapa -> R$/m2 mediano} do historico real.
+    const priceIndex = await buildHistoricalPriceIndex(db, organizationId);
+    generated = generateEstimateFromEtapas(input, etapas, priceIndex);
+  } else {
+    // Fallback: template detalhado parametrico (fluxo anterior/OpenAI).
+    const { data: templateItemsRaw, error: templateError } = await db
+      .from("budget_template_items")
+      .select(
+        "id, code, group_name, description, unit, unit_cost, default_quantity, quantity_rule, confidence_baseline, needs_review_default, source_notes, sort_order"
+      )
+      .eq("template_id", templateId)
+      .order("sort_order", { ascending: true });
+
+    if (templateError) throw new Error(templateError.message);
+    const templateItems = (templateItemsRaw ?? []) as BudgetTemplateItem[];
+    if (templateItems.length === 0) {
+      throw new Error("Template de orcamento sem itens cadastrados.");
+    }
+
+    generated = generateEstimateFromTemplate(input, templateItems);
   }
-
-  const generated = generateEstimateFromTemplate(input, templateItems);
 
   await db.from("ai_extracted_facts").delete().eq("estimate_id", estimateId);
   await db.from("ai_estimate_items").delete().eq("estimate_id", estimateId);

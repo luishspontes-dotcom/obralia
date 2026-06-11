@@ -1,3 +1,11 @@
+import {
+  callClaudeWithDocuments,
+  type ClaudeDocumentInput,
+  extractJsonObject,
+  isClaudeConfigured,
+} from "@/lib/budget-ai/claude";
+import { HISTORICAL_ETAPAS, findHistoricalEtapa } from "@/lib/budget-ai/historical-prices";
+
 type StorageDownloadClient = {
   storage: {
     from(bucket: string): {
@@ -24,6 +32,19 @@ export type PlanAnalysisFact = {
   evidence: string | null;
 };
 
+export type PlanEtapaItem = {
+  descricao: string;
+  qtdeEstimada: number | null;
+  unidade: string;
+  observacao: string | null;
+};
+
+export type PlanEtapa = {
+  numero: number;
+  nome: string;
+  itens: PlanEtapaItem[];
+};
+
 export type PlanAnalysis = {
   status: "analyzed" | "missing_key" | "no_plan_file" | "failed";
   model: string | null;
@@ -42,6 +63,11 @@ export type PlanAnalysis = {
   facts: PlanAnalysisFact[];
   memorialSections: Array<{ title: string; body: string; evidence: string | null }>;
   risks: string[];
+  /** Campos novos do fluxo Claude (formato dos orcamentos historicos). */
+  resumoObra: string | null;
+  areaTotalM2: number | null;
+  etapas: PlanEtapa[];
+  memorialDescritivo: string | null;
 };
 
 const MAX_TOTAL_FILE_BYTES = 18 * 1024 * 1024;
@@ -55,86 +81,387 @@ export async function analyzePlanFilesFromStorage(
     return emptyAnalysis("no_plan_file", "Nenhuma planta foi anexada para leitura visual.");
   }
 
-  const apiKey = process.env.OPENAI_API_KEY;
-  if (!apiKey) {
+  const hasClaude = isClaudeConfigured();
+  const openaiKey = process.env.OPENAI_API_KEY;
+  if (!hasClaude && !openaiKey) {
     return emptyAnalysis(
       "missing_key",
-      "Leitura visual pendente: OPENAI_API_KEY nao esta configurada no ambiente do servidor."
+      "Leitura visual pendente: configure ANTHROPIC_API_KEY (preferencial) ou OPENAI_API_KEY no ambiente do servidor."
     );
   }
 
-  const model = process.env.OPENAI_MODEL || "gpt-5.5";
-
+  let documents: ClaudeDocumentInput[];
   try {
-    const fileInputs = [];
-    let totalBytes = 0;
-
-    for (const file of planFiles) {
-      if (totalBytes + file.size_bytes > MAX_TOTAL_FILE_BYTES) break;
-      const { data, error } = await supabase.storage.from(file.storage_bucket).download(file.storage_path);
-      if (error || !data) throw new Error(error?.message ?? `Nao foi possivel baixar ${file.file_name}.`);
-      const bytes = Buffer.from(await data.arrayBuffer());
-      totalBytes += bytes.byteLength;
-      const mimeType = file.content_type || "application/pdf";
-      fileInputs.push({
-        type: "input_file",
-        filename: file.file_name,
-        file_data: `data:${mimeType};base64,${bytes.toString("base64")}`,
-      });
-    }
-
-    if (fileInputs.length === 0) {
-      return emptyAnalysis("failed", "A planta excede o limite operacional de leitura visual.");
-    }
-
-    const response = await fetch("https://api.openai.com/v1/responses", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model,
-        input: [
-          {
-            role: "user",
-            content: [
-              ...fileInputs,
-              {
-                type: "input_text",
-                text: buildPlanPrompt(),
-              },
-            ],
-          },
-        ],
-        text: {
-          format: {
-            type: "json_schema",
-            name: "obralia_plan_analysis",
-            strict: false,
-            schema: planAnalysisSchema,
-          },
-        },
-      }),
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`OpenAI ${response.status}: ${errorText.slice(0, 500)}`);
-    }
-
-    const payload = await response.json();
-    const outputText = extractOutputText(payload);
-    if (!outputText) throw new Error("Resposta sem JSON estruturado.");
-
-    const parsed = JSON.parse(outputText) as Partial<PlanAnalysis>;
-    return normalizePlanAnalysis(parsed, model);
+    documents = await downloadPlanDocuments(supabase, planFiles);
   } catch (error) {
     return emptyAnalysis(
       "failed",
       `Leitura visual falhou: ${error instanceof Error ? error.message : "erro desconhecido"}.`
     );
   }
+  if (documents.length === 0) {
+    return emptyAnalysis("failed", "A planta excede o limite operacional de leitura visual.");
+  }
+
+  if (hasClaude) {
+    try {
+      return await analyzeWithClaude(documents);
+    } catch (claudeError) {
+      if (!openaiKey) {
+        return emptyAnalysis(
+          "failed",
+          `Leitura visual (Claude) falhou: ${claudeError instanceof Error ? claudeError.message : "erro desconhecido"}.`
+        );
+      }
+      // Claude indisponivel mas OpenAI configurada: segue para o fallback abaixo.
+    }
+  }
+
+  try {
+    return await analyzeWithOpenAi(documents, openaiKey as string);
+  } catch (error) {
+    return emptyAnalysis(
+      "failed",
+      `Leitura visual falhou: ${error instanceof Error ? error.message : "erro desconhecido"}.`
+    );
+  }
+}
+
+async function downloadPlanDocuments(
+  supabase: StorageDownloadClient,
+  planFiles: UploadedEstimateFileForAnalysis[]
+): Promise<ClaudeDocumentInput[]> {
+  const documents: ClaudeDocumentInput[] = [];
+  let totalBytes = 0;
+
+  for (const file of planFiles) {
+    if (totalBytes + file.size_bytes > MAX_TOTAL_FILE_BYTES) break;
+    const { data, error } = await supabase.storage.from(file.storage_bucket).download(file.storage_path);
+    if (error || !data) throw new Error(error?.message ?? `Nao foi possivel baixar ${file.file_name}.`);
+    const bytes = Buffer.from(await data.arrayBuffer());
+    totalBytes += bytes.byteLength;
+    documents.push({
+      filename: file.file_name,
+      base64: bytes.toString("base64"),
+      mediaType: file.content_type || "application/pdf",
+    });
+  }
+
+  return documents;
+}
+
+// ---------------------------------------------------------------------------
+// Caminho principal: Claude (Anthropic) com PDF nativo + taxonomia historica
+// ---------------------------------------------------------------------------
+
+async function analyzeWithClaude(documents: ClaudeDocumentInput[]): Promise<PlanAnalysis> {
+  const { text, model } = await callClaudeWithDocuments({
+    system: buildClaudeSystemPrompt(),
+    prompt: buildClaudeUserPrompt(),
+    documents,
+    maxTokens: 20000,
+    temperature: 0.2,
+  });
+
+  const json = extractJsonObject(text);
+  if (!json) throw new Error("Resposta da Claude sem JSON estruturado.");
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(json);
+  } catch {
+    throw new Error("JSON invalido na resposta da Claude.");
+  }
+
+  return normalizeClaudeAnalysis(parsed, model);
+}
+
+function buildClaudeSystemPrompt(): string {
+  return [
+    "Voce e o engenheiro orcamentista senior da Meu Viver Construtora (obras residenciais de alto padrao).",
+    "Sua funcao: ler plantas arquitetonicas em PDF e produzir a base de um orcamento no FORMATO EXATO das planilhas historicas da empresa, alem de um memorial descritivo em tom de proposta comercial.",
+    "Regras inegociaveis:",
+    "1. NUNCA invente medidas. O que a planta nao mostrar com clareza vira null e entra em risks.",
+    "2. NUNCA invente precos. Voce NAO preenche custo unitario nem custo total - precos vem do historico da empresa, fora desta etapa.",
+    "3. Responda APENAS com um objeto JSON valido, sem texto antes ou depois, sem cercas de codigo.",
+  ].join("\n");
+}
+
+function buildClaudeUserPrompt(): string {
+  const taxonomy = HISTORICAL_ETAPAS.map((etapa) => `${etapa.numero}. ${etapa.nome}`).join("\n");
+  return [
+    "Analise a(s) planta(s) arquitetonica(s) em anexo e extraia:",
+    "- Carimbo/selo da prancha: titulo do projeto, cliente/proprietario, endereco/lote/condominio, responsavel tecnico, escala, revisao.",
+    "- Areas por pavimento e area total construida (quadro de areas, quando existir).",
+    "- Ambientes de cada pavimento (nome e area quando escrita).",
+    "- Esquadrias (portas e janelas: quantidades e dimensoes quando indicadas).",
+    "- Acabamentos ESCRITOS na planta (pisos, revestimentos, forros, pintura, bancadas, cobertura).",
+    "- Piscina, subsolo, terreno, numero de pavimentos.",
+    "",
+    "Com base no que foi extraido, monte as ETAPAS do orcamento usando EXATAMENTE a taxonomia historica abaixo (mesma grafia do nome; use o mesmo numero da lista; inclua somente etapas pertinentes a esta obra):",
+    taxonomy,
+    "",
+    "Dentro de cada etapa, liste os SERVICOS/COMPOSICOES como nos orcamentos historicos (ex.: itens 8.1, 8.2 dentro da etapa 8). Estime quantidades apenas quando defensaveis a partir da planta (areas, perimetros, contagens de esquadrias/pontos); caso contrario use qtde_estimada null e explique na observacao.",
+    "Unidades preferidas: M2, ML, UNID, VB, KG, SC, M3, PONTO, DIARIA.",
+    "",
+    "Tambem escreva o MEMORIAL DESCRITIVO em markdown, no tom da proposta comercial da Meu Viver Construtora: introducao com identificacao da obra (cliente, endereco, area), depois uma secao '## N. NOME DA ETAPA' para cada etapa pertinente descrevendo o escopo, materiais e premissas, e fechamento com condicoes gerais e itens nao inclusos. Linguagem profissional, direta, em portugues do Brasil.",
+    "",
+    "Responda SOMENTE com JSON neste formato:",
+    JSON.stringify(
+      {
+        resumo_obra: "string - 2 a 4 frases resumindo a obra lida na planta",
+        confidence: "number 0..1",
+        area_total_m2: "number | null",
+        projeto: {
+          titulo: "string | null",
+          cliente: "string | null",
+          endereco: "string | null",
+          area_terreno_m2: "number | null",
+          area_piscina_m2: "number | null",
+          pavimentos: "integer | null",
+          subsolo: "boolean | null",
+          padrao: "alto_padrao | medio_alto | economico | null",
+          areas_por_pavimento: [{ pavimento: "string", area_m2: "number | null" }],
+        },
+        measurements: {
+          built_area_m2: "number opcional",
+          floor_area_m2: "number opcional",
+          wet_wall_area_m2: "number opcional",
+          roof_area_m2: "number opcional",
+          ceiling_area_m2: "number opcional",
+          structure_kg_estimate: "number opcional",
+          concrete_m3_estimate: "number opcional",
+          foundation_meter_estimate: "number opcional",
+          block_unit_estimate: "number opcional",
+          masonry_bag_estimate: "number opcional",
+          render_m3_estimate: "number opcional",
+          ac_points_estimate: "number opcional",
+        },
+        etapas: [
+          {
+            numero: "integer da taxonomia",
+            nome: "string exatamente igual a taxonomia",
+            itens: [
+              {
+                descricao: "string",
+                qtde_estimada: "number | null",
+                unidade: "string",
+                observacao: "string | null",
+              },
+            ],
+          },
+        ],
+        memorial_descritivo: "string markdown completo",
+        facts: [
+          {
+            key: "string snake_case",
+            label: "string",
+            value: "string | number | boolean | null",
+            unit: "string | null",
+            confidence: "number 0..1",
+            evidence: "string | null - prancha/quadro onde foi lido",
+          },
+        ],
+        risks: ["string - pendencias e limites da leitura"],
+      },
+      null,
+      2
+    ),
+  ].join("\n");
+}
+
+type ClaudeProjectPayload = {
+  titulo?: unknown;
+  cliente?: unknown;
+  endereco?: unknown;
+  area_terreno_m2?: unknown;
+  area_piscina_m2?: unknown;
+  pavimentos?: unknown;
+  subsolo?: unknown;
+  padrao?: unknown;
+  areas_por_pavimento?: unknown;
+};
+
+type ClaudeAnalysisPayload = {
+  resumo_obra?: unknown;
+  confidence?: unknown;
+  area_total_m2?: unknown;
+  projeto?: unknown;
+  measurements?: unknown;
+  etapas?: unknown;
+  memorial_descritivo?: unknown;
+  facts?: unknown;
+  risks?: unknown;
+};
+
+function normalizeClaudeAnalysis(value: unknown, model: string): PlanAnalysis {
+  const payload = (value && typeof value === "object" ? value : {}) as ClaudeAnalysisPayload;
+  const projeto = (payload.projeto && typeof payload.projeto === "object"
+    ? payload.projeto
+    : {}) as ClaudeProjectPayload;
+
+  const confidence = clamp(asNumber(payload.confidence, 0.7), 0.1, 0.96);
+  const measurements = normalizeMeasurements(payload.measurements);
+  const etapas = normalizeEtapas(payload.etapas);
+  const areaTotal = asNullableNumber(payload.area_total_m2) ?? asNullableNumber(measurements.built_area_m2);
+
+  const facts: PlanAnalysisFact[] = Array.isArray(payload.facts)
+    ? payload.facts.slice(0, 60).map((factRaw) => {
+        const fact = (factRaw && typeof factRaw === "object" ? factRaw : {}) as Record<string, unknown>;
+        return {
+          key: cleanText(fact.key) || "fact",
+          label: cleanText(fact.label) || "Fato extraido",
+          value: normalizeFactValue(fact.value),
+          unit: cleanText(fact.unit),
+          confidence: clamp(asNumber(fact.confidence, confidence), 0.1, 0.98),
+          evidence: cleanText(fact.evidence),
+        };
+      })
+    : [];
+
+  const floorAreas = Array.isArray(projeto.areas_por_pavimento) ? projeto.areas_por_pavimento : [];
+  for (const [index, floorRaw] of floorAreas.slice(0, 8).entries()) {
+    const floor = (floorRaw && typeof floorRaw === "object" ? floorRaw : {}) as Record<string, unknown>;
+    const label = cleanText(floor.pavimento) ?? `Pavimento ${index + 1}`;
+    const area = asNullableNumber(floor.area_m2);
+    facts.push({
+      key: `area_pavimento_${index + 1}`,
+      label: `Area - ${label}`,
+      value: area,
+      unit: "m2",
+      confidence,
+      evidence: "Quadro de areas da planta",
+    });
+  }
+
+  const memorial = cleanLongText(payload.memorial_descritivo);
+
+  return {
+    status: "analyzed",
+    model,
+    summary: cleanLongText(payload.resumo_obra) || "Planta lida pela IA (Claude).",
+    confidence,
+    projectTitle: cleanText(projeto.titulo),
+    clientName: cleanText(projeto.cliente),
+    address: cleanText(projeto.endereco),
+    builtAreaM2: areaTotal,
+    terrainAreaM2: asNullableNumber(projeto.area_terreno_m2),
+    poolAreaM2: asNullableNumber(projeto.area_piscina_m2 ?? measurements.pool_area_m2),
+    floorsCount: asNullableInteger(projeto.pavimentos),
+    hasBasement: typeof projeto.subsolo === "boolean" ? projeto.subsolo : null,
+    qualityStandard: normalizeStandard(projeto.padrao),
+    measurements,
+    facts,
+    memorialSections: [],
+    risks: normalizeRisks(payload.risks),
+    resumoObra: cleanLongText(payload.resumo_obra),
+    areaTotalM2: areaTotal,
+    etapas,
+    memorialDescritivo: memorial,
+  };
+}
+
+function normalizeEtapas(value: unknown): PlanEtapa[] {
+  if (!Array.isArray(value)) return [];
+  const etapas: PlanEtapa[] = [];
+
+  for (const etapaRaw of value.slice(0, 60)) {
+    const etapa = (etapaRaw && typeof etapaRaw === "object" ? etapaRaw : {}) as Record<string, unknown>;
+    const nomeRaw = cleanText(etapa.nome);
+    if (!nomeRaw) continue;
+
+    // Reancora na taxonomia historica quando possivel (grafia e numero oficiais).
+    const historical = findHistoricalEtapa(nomeRaw);
+    const numero = historical?.numero ?? asNullableInteger(etapa.numero) ?? etapas.length + 1;
+    const nome = historical?.nome ?? nomeRaw;
+
+    const itensRaw = Array.isArray(etapa.itens) ? etapa.itens : [];
+    const itens: PlanEtapaItem[] = [];
+    for (const itemRaw of itensRaw.slice(0, 40)) {
+      const item = (itemRaw && typeof itemRaw === "object" ? itemRaw : {}) as Record<string, unknown>;
+      const descricao = cleanText(item.descricao);
+      if (!descricao) continue;
+      itens.push({
+        descricao,
+        qtdeEstimada: asNullableNumber(item.qtde_estimada),
+        unidade: (cleanText(item.unidade) || "VB").toUpperCase().slice(0, 12),
+        observacao: cleanText(item.observacao),
+      });
+    }
+    if (itens.length === 0) continue;
+
+    etapas.push({ numero, nome, itens });
+  }
+
+  return etapas.sort((a, b) => a.numero - b.numero);
+}
+
+function normalizeRisks(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map((risk) => cleanText(risk))
+    .filter((risk): risk is string => Boolean(risk))
+    .slice(0, 20);
+}
+
+// ---------------------------------------------------------------------------
+// Fallback: OpenAI (mantido para ambientes sem ANTHROPIC_API_KEY)
+// ---------------------------------------------------------------------------
+
+async function analyzeWithOpenAi(
+  documents: ClaudeDocumentInput[],
+  apiKey: string
+): Promise<PlanAnalysis> {
+  const model = process.env.OPENAI_MODEL || "gpt-5.5";
+
+  const fileInputs = documents.map((document) => ({
+    type: "input_file",
+    filename: document.filename,
+    file_data: `data:${document.mediaType};base64,${document.base64}`,
+  }));
+
+  const response = await fetch("https://api.openai.com/v1/responses", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      model,
+      input: [
+        {
+          role: "user",
+          content: [
+            ...fileInputs,
+            {
+              type: "input_text",
+              text: buildPlanPrompt(),
+            },
+          ],
+        },
+      ],
+      text: {
+        format: {
+          type: "json_schema",
+          name: "obralia_plan_analysis",
+          strict: false,
+          schema: planAnalysisSchema,
+        },
+      },
+    }),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`OpenAI ${response.status}: ${errorText.slice(0, 500)}`);
+  }
+
+  const payload = await response.json();
+  const outputText = extractOutputText(payload);
+  if (!outputText) throw new Error("Resposta sem JSON estruturado.");
+
+  const parsed = JSON.parse(outputText) as Partial<PlanAnalysis>;
+  return normalizePlanAnalysis(parsed, model);
 }
 
 function buildPlanPrompt(): string {
@@ -185,12 +512,11 @@ function normalizePlanAnalysis(value: Partial<PlanAnalysis>, model: string): Pla
           evidence: cleanText(section.evidence),
         }))
       : [],
-    risks: Array.isArray(value.risks)
-      ? value.risks
-          .map((risk) => cleanText(risk))
-          .filter((risk): risk is string => Boolean(risk))
-          .slice(0, 20)
-      : [],
+    risks: normalizeRisks(value.risks),
+    resumoObra: cleanText(value.summary),
+    areaTotalM2: asNullableNumber(value.builtAreaM2 ?? measurements.built_area_m2),
+    etapas: [],
+    memorialDescritivo: null,
   };
 }
 
@@ -213,6 +539,10 @@ function emptyAnalysis(status: PlanAnalysis["status"], summary: string): PlanAna
     facts: [],
     memorialSections: [],
     risks: [summary],
+    resumoObra: null,
+    areaTotalM2: null,
+    etapas: [],
+    memorialDescritivo: null,
   };
 }
 
@@ -248,6 +578,10 @@ function normalizeMeasurements(value: unknown): Record<string, number> {
 
 function cleanText(value: unknown): string | null {
   return typeof value === "string" && value.trim() ? value.trim().slice(0, 3000) : null;
+}
+
+function cleanLongText(value: unknown): string | null {
+  return typeof value === "string" && value.trim() ? value.trim().slice(0, 60000) : null;
 }
 
 function asNullableNumber(value: unknown): number | null {

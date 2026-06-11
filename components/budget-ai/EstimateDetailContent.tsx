@@ -13,6 +13,7 @@ import { createServerSupabase } from "@/lib/supabase/server";
 import { untypedDb } from "@/lib/supabase/untyped";
 import { ExportButton } from "@/components/ExportButton";
 import { DeleteEstimateButton } from "@/components/budget-ai/DeleteEstimateButton";
+import { MemorialViewer } from "@/components/budget-ai/MemorialViewer";
 
 type Estimate = {
   id: string;
@@ -237,19 +238,31 @@ export async function EstimateDetailContent({
             </Section>
 
             <Section title="Memorial descritivo">
-              <form action={saveEstimateMemorial} style={{ display: "grid", gap: 12 }}>
-                <input type="hidden" name="estimate_id" value={estimate.id} />
-                <textarea
-                  name="memorial_text"
-                  defaultValue={estimate.memorial_text ?? ""}
-                  rows={24}
-                  style={editorTextareaStyle}
-                  placeholder="Memorial descritivo do orçamento..."
-                />
-                <button className="btn-brand" type="submit" style={{ justifySelf: "start", display: "inline-flex", alignItems: "center", gap: 8 }}>
-                  <Save size={15} /> Salvar memorial
-                </button>
-              </form>
+              {estimate.memorial_text ? (
+                <MemorialViewer memorial={estimate.memorial_text} title={estimate.title} />
+              ) : (
+                <p style={{ margin: 0, color: "var(--o-text-2)", fontSize: 13 }}>
+                  Nenhum memorial gerado ainda. Reprocesse o estudo com uma planta anexada ou escreva abaixo.
+                </p>
+              )}
+              <details style={{ marginTop: 14 }}>
+                <summary style={{ cursor: "pointer", color: "var(--t-brand)", fontSize: 13, fontWeight: 700 }}>
+                  Editar memorial
+                </summary>
+                <form action={saveEstimateMemorial} style={{ display: "grid", gap: 12, marginTop: 12 }}>
+                  <input type="hidden" name="estimate_id" value={estimate.id} />
+                  <textarea
+                    name="memorial_text"
+                    defaultValue={estimate.memorial_text ?? ""}
+                    rows={24}
+                    style={editorTextareaStyle}
+                    placeholder="Memorial descritivo do orçamento..."
+                  />
+                  <button className="btn-brand" type="submit" style={{ justifySelf: "start", display: "inline-flex", alignItems: "center", gap: 8 }}>
+                    <Save size={15} /> Salvar memorial
+                  </button>
+                </form>
+              </details>
             </Section>
           </div>
 
@@ -526,6 +539,9 @@ function sourceLabel(source: string): string {
 
 function itemReviewLabel(item: Item): string {
   if (!item.needs_review) return "base validada";
+  if (item.source === "planta_ia" && Number(item.unit_cost ?? 0) === 0) {
+    return "definir preço";
+  }
   if (item.source === "template_parametrico" && item.unit.toUpperCase() === "VB") {
     return "verba de referencia";
   }

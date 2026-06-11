@@ -1,4 +1,9 @@
-import type { PlanAnalysis } from "@/lib/budget-ai/plan-analysis";
+import type { PlanAnalysis, PlanEtapa } from "@/lib/budget-ai/plan-analysis";
+import {
+  etapaCostPerM2,
+  etapaSampleCount,
+  type HistoricalPriceIndex,
+} from "@/lib/budget-ai/historical-prices";
 
 export type EstimateInput = {
   title: string;
@@ -165,6 +170,120 @@ export function generateEstimateFromTemplate(
     confidenceScore,
     sourceSummary,
     memorialText: buildMemorial(input, builtArea, poolArea, subtotal),
+  };
+}
+
+/**
+ * Gera o orcamento a partir das ETAPAS lidas pela Claude na planta,
+ * no formato exato das planilhas historicas (numero, descricao, qtde,
+ * unidade, custo unit, custo total). Precos NUNCA sao inventados:
+ * vem do indice historico {etapa -> R$/m2 mediano} aplicado a area total.
+ * Itens de etapas sem referencia historica ficam com custo 0 e flag
+ * "definir preço" (metadata.definir_preco = true).
+ */
+export function generateEstimateFromEtapas(
+  input: EstimateInput,
+  etapas: PlanEtapa[],
+  priceIndex: HistoricalPriceIndex
+): GeneratedEstimate {
+  const planAnalysis = input.planAnalysis ?? null;
+  const builtArea = firstNumber(
+    input.builtAreaM2,
+    planAnalysis?.areaTotalM2,
+    planAnalysis?.builtAreaM2,
+    planAnalysis?.measurements.built_area_m2,
+    0
+  );
+  const poolArea = firstNumber(
+    input.poolAreaM2,
+    planAnalysis?.poolAreaM2,
+    planAnalysis?.measurements.pool_area_m2,
+    0
+  );
+  const facts = buildFacts(input, builtArea, poolArea);
+  const items: GeneratedItem[] = [];
+  let sortOrder = 10;
+
+  for (const etapa of etapas) {
+    const groupName = `${etapa.numero}. ${etapa.nome}`;
+    const costPerM2 = etapaCostPerM2(priceIndex, etapa.nome);
+    const sampleCount = etapaSampleCount(priceIndex, etapa.nome);
+    const etapaBudget = costPerM2 !== null && builtArea > 0 ? costPerM2 * builtArea : null;
+    const itemCount = etapa.itens.length;
+
+    for (const [index, etapaItem] of etapa.itens.entries()) {
+      const quantity = roundQuantity(
+        etapaItem.qtdeEstimada !== null && etapaItem.qtdeEstimada > 0 ? etapaItem.qtdeEstimada : 1,
+        etapaItem.unidade
+      );
+      const hasHistoricalPrice = etapaBudget !== null && itemCount > 0;
+      const itemBudget = hasHistoricalPrice ? etapaBudget / itemCount : 0;
+      const unitCost = hasHistoricalPrice && quantity > 0 ? roundMoney(itemBudget / quantity) : 0;
+      const total = roundMoney(quantity * unitCost);
+      const confidence = clampConfidence(
+        hasHistoricalPrice
+          ? 0.5 + 0.03 * Math.min(3, sampleCount) + 0.2 * (planAnalysis?.confidence ?? 0.65)
+          : 0.4
+      );
+
+      items.push({
+        template_item_id: null,
+        code: `${etapa.numero}.${index + 1}`,
+        group_name: groupName,
+        description: etapaItem.descricao,
+        quantity,
+        unit: etapaItem.unidade || "VB",
+        unit_cost: unitCost,
+        total,
+        confidence,
+        source: "planta_ia",
+        needs_review: true,
+        sort_order: sortOrder,
+        metadata: {
+          etapa_numero: etapa.numero,
+          etapa_nome: etapa.nome,
+          qtde_estimada_planta: etapaItem.qtdeEstimada,
+          observacao: etapaItem.observacao,
+          definir_preco: !hasHistoricalPrice,
+          price_source: hasHistoricalPrice ? "historico_mediana_r$_m2" : "sem_referencia_historica",
+          etapa_custo_m2_historico: costPerM2,
+          etapa_amostras_historico: sampleCount,
+          area_base_m2: builtArea,
+        },
+      });
+      sortOrder += 10;
+    }
+  }
+
+  const subtotal = roundMoney(items.reduce((sum, item) => sum + item.total, 0));
+  const confidenceScore = weightedConfidence(items, facts);
+  const pendingPriceCount = items.filter(
+    (item) => item.metadata.definir_preco === true
+  ).length;
+
+  const sourceSummary = {
+    mode: "claude_planta_etapas_historico",
+    template: "Taxonomia historica Meu Viver (planilha FER E MACIEL)",
+    generated_at: new Date().toISOString(),
+    file_names: input.fileNames,
+    plan_analysis: planAnalysis,
+    historical_price_sources: priceIndex.sources,
+    pending_price_items: pendingPriceCount,
+    warning:
+      pendingPriceCount > 0
+        ? `Pre-orcamento gerado pela leitura da planta (Claude) com precos do historico por etapa. ${pendingPriceCount} item(ns) sem referencia historica estao com custo 0 e flag "definir preço".`
+        : "Pre-orcamento gerado pela leitura da planta (Claude) com precos medianos do historico por etapa. Revise antes da proposta final.",
+  };
+
+  return {
+    facts,
+    items,
+    subtotal,
+    total: subtotal,
+    confidenceScore,
+    sourceSummary,
+    memorialText:
+      planAnalysis?.memorialDescritivo ?? buildMemorial(input, builtArea, poolArea, subtotal),
   };
 }
 

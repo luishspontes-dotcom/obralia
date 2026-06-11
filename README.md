@@ -79,8 +79,10 @@ Configure no Vercel (Production + Preview + Development):
 | `ASANA_ACCESS_TOKEN` | Personal Access Token/OAuth token do Asana para auditoria/backfill de projetos e tarefas |
 | `DIARIO_API_TOKEN` / `DIARIO_AUTH_TOKEN` | Token do Diário de Obras, quando disponível |
 | `DIARIO_EMAIL` / `DIARIO_PASSWORD` | Fallback para sessão autenticada do Diário de Obras |
-| `OPENAI_API_KEY` | Chave server-only para leitura visual de plantas no Orçamento IA |
-| `OPENAI_MODEL` | Modelo de leitura visual; padrão atual `gpt-5.5` |
+| `ANTHROPIC_API_KEY` | Chave server-only da Anthropic (Claude) — caminho principal de leitura de plantas no Orçamento IA |
+| `ANTHROPIC_MODEL` | Modelo Claude da leitura de plantas; padrão `claude-sonnet-4-6` |
+| `OPENAI_API_KEY` | Fallback automático da leitura visual quando `ANTHROPIC_API_KEY` está ausente |
+| `OPENAI_MODEL` | Modelo do fallback OpenAI; padrão atual `gpt-5.5` |
 | `SENTRY_DSN` / `NEXT_PUBLIC_SENTRY_DSN` | Sentry project settings (opcional; ativa captura de erros server/client) |
 | `SENTRY_TRACES_SAMPLE_RATE` / `NEXT_PUBLIC_SENTRY_TRACES_SAMPLE_RATE` | Amostragem de performance do Sentry; padrão recomendado inicial `0.05` |
 

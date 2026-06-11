@@ -16,6 +16,7 @@ export type DbQuery<T = unknown> = PromiseLike<DbResult<T>> & {
   gte(column: string, value: unknown): DbQuery<T>;
   is(column: string, value: unknown): DbQuery<T>;
   in(column: string, values: unknown[]): DbQuery<T>;
+  or(filters: string): DbQuery<T>;
   not(column: string, operator: string, value: unknown): DbQuery<T>;
   order(column: string, options?: Record<string, unknown>): DbQuery<T>;
   limit(count: number): DbQuery<T>;
