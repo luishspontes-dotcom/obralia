@@ -5,6 +5,7 @@ import {
   addEstimateItem,
   approveAiEstimate,
   deleteEstimateItem,
+  generateMemorialValidado,
   reprocessAiEstimate,
   saveEstimateMemorial,
   updateEstimateItem,
@@ -71,6 +72,13 @@ type EstimateFile = {
   created_at: string | null;
 };
 
+type MemorialValidadoMeta = {
+  generated_at?: string;
+  model?: string | null;
+  item_count?: number;
+  base?: string;
+};
+
 type PlanAnalysisSummary = {
   status?: string;
   model?: string | null;
@@ -132,6 +140,8 @@ export async function EstimateDetailContent({
   const reviewItems = items.filter((item) => item.needs_review).length;
   const grouped = groupItems(items);
   const planAnalysis = extractPlanAnalysis(estimate.source_summary);
+  const memorialValidado = extractMemorialValidado(estimate.source_summary);
+  const generateMemorialAction = generateMemorialValidado.bind(null, estimate.id);
   const backHref = backHrefOverride ?? (estimate.site_id ? `/obras/${estimate.site_id}/orcamento-ia` : "/orcamento-ia");
   const backLabel = backLabelOverride ?? (estimate.site_id ? `← Orçamento IA · ${estimate.sites?.name ?? "Obra"}` : "← Orçamento IA");
 
@@ -238,11 +248,49 @@ export async function EstimateDetailContent({
             </Section>
 
             <Section title="Memorial descritivo">
+              <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "flex-start", flexWrap: "wrap", marginBottom: 14 }}>
+                <div style={{ flex: "1 1 280px", minWidth: 0 }}>
+                  {memorialValidado ? (
+                    <>
+                      <p style={{ margin: 0, color: "var(--st-done)", fontSize: 13, fontWeight: 600 }}>
+                        Memorial do orçamento validado gerado em {formatGeneratedAt(memorialValidado.generated_at)}.
+                      </p>
+                      <p style={{ margin: "4px 0 0", color: "var(--o-text-2)", fontSize: 12 }}>
+                        Se alterar itens do orçamento, regere o memorial para manter escopo e quantidades alinhados.
+                      </p>
+                    </>
+                  ) : (
+                    <p style={{ margin: 0, color: "var(--o-text-2)", fontSize: 13 }}>
+                      O memorial definitivo é redigido a partir dos itens do orçamento validado.
+                      <strong style={{ color: "var(--o-accent)" }}> Revise e ajuste os itens antes de gerar.</strong>
+                    </p>
+                  )}
+                </div>
+                <form action={generateMemorialAction}>
+                  {memorialValidado ? (
+                    <button className="chip" type="submit" style={{ cursor: "pointer" }}>
+                      ↻ Regerar memorial do orçamento validado
+                    </button>
+                  ) : (
+                    <button className="btn-brand" type="submit" style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+                      📄 Gerar memorial do orçamento validado
+                    </button>
+                  )}
+                </form>
+              </div>
+
               {estimate.memorial_text ? (
-                <MemorialViewer memorial={estimate.memorial_text} title={estimate.title} />
+                <div style={{ display: "grid", gap: 10 }}>
+                  {!memorialValidado && (
+                    <span style={{ justifySelf: "start", color: "var(--o-accent)", background: "var(--o-accent-soft)", borderRadius: 999, padding: "6px 10px", font: "700 11px var(--font-inter)" }}>
+                      Rascunho automático da planta — será substituído pelo memorial do orçamento validado
+                    </span>
+                  )}
+                  <MemorialViewer memorial={estimate.memorial_text} title={estimate.title} />
+                </div>
               ) : (
                 <p style={{ margin: 0, color: "var(--o-text-2)", fontSize: 13 }}>
-                  Nenhum memorial gerado ainda. Reprocesse o estudo com uma planta anexada ou escreva abaixo.
+                  Nenhum memorial gerado ainda. Valide os itens do orçamento e use o botão acima, ou escreva abaixo.
                 </p>
               )}
               <details style={{ marginTop: 14 }}>
@@ -514,6 +562,25 @@ function extractPlanAnalysis(value: unknown): PlanAnalysisSummary | null {
   const planAnalysis = (value as { plan_analysis?: unknown }).plan_analysis;
   if (!planAnalysis || typeof planAnalysis !== "object") return null;
   return planAnalysis as PlanAnalysisSummary;
+}
+
+function extractMemorialValidado(value: unknown): MemorialValidadoMeta | null {
+  if (!value || typeof value !== "object") return null;
+  const meta = (value as { memorial_validado?: unknown }).memorial_validado;
+  if (!meta || typeof meta !== "object") return null;
+  return meta as MemorialValidadoMeta;
+}
+
+const DATE_TIME = new Intl.DateTimeFormat("pt-BR", {
+  dateStyle: "short",
+  timeStyle: "short",
+  timeZone: "America/Sao_Paulo",
+});
+
+function formatGeneratedAt(iso: string | undefined): string {
+  if (!iso) return "data não registrada";
+  const date = new Date(iso);
+  return Number.isNaN(date.getTime()) ? "data não registrada" : DATE_TIME.format(date);
 }
 
 function planStatusLabel(status: string): string {

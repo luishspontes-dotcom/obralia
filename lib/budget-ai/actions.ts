@@ -11,6 +11,7 @@ import {
   generateEstimateFromTemplate,
 } from "@/lib/budget-ai/estimate-engine";
 import { buildHistoricalPriceIndex } from "@/lib/budget-ai/historical-prices";
+import { callClaudeWithDocuments, isClaudeConfigured } from "@/lib/budget-ai/claude";
 import {
   analyzePlanFilesFromStorage,
   type PlanAnalysis,
@@ -50,6 +51,24 @@ type UploadedEstimateFile = {
   storage_path: string;
   content_type: string | null;
   size_bytes: number;
+};
+
+type MemorialItemRow = {
+  code: string | null;
+  group_name: string;
+  description: string;
+  quantity: unknown;
+  unit: string;
+  needs_review: boolean;
+  sort_order: number;
+  metadata: Record<string, unknown> | null;
+};
+
+type StoredPlanAnalysisSummary = {
+  summary?: unknown;
+  resumoObra?: unknown;
+  areaTotalM2?: unknown;
+  builtAreaM2?: unknown;
 };
 
 async function requireContext() {
@@ -290,6 +309,93 @@ export async function saveEstimateMemorial(formData: FormData) {
       memorial_text: memorialText || null,
       status: "review",
       review_notes: "Memorial editado manualmente.",
+    })
+    .eq("id", estimateId)
+    .eq("organization_id", activeOrg.id);
+  if (error) throw new Error(error.message);
+
+  revalidatePath(`/orcamento-ia/${estimateId}`);
+  if (estimate.site_id) {
+    revalidatePath(`/obras/${estimate.site_id}/orcamento-ia`);
+    revalidatePath(`/obras/${estimate.site_id}/orcamento-ia/${estimateId}`);
+  }
+}
+
+/**
+ * Gera o MEMORIAL DESCRITIVO DEFINITIVO a partir do orcamento JA VALIDADO
+ * pelo engenheiro: usa os ai_estimate_items atuais (com edicoes manuais),
+ * os dados da obra e o resumo/area da leitura da planta. O memorial vindo
+ * da analise da planta e apenas rascunho; este substitui memorial_text e
+ * registra em source_summary.memorial_validado que foi gerado pos-validacao.
+ */
+export async function generateMemorialValidado(estimateId: string) {
+  const { db, activeOrg } = await requireContext();
+  if (!estimateId) throw new Error("estimate_id obrigatorio.");
+
+  const estimate = await fetchEstimate(db, estimateId);
+  if (!estimate || estimate.organization_id !== activeOrg.id) {
+    throw new Error("Estudo nao encontrado.");
+  }
+  if (!isClaudeConfigured()) {
+    throw new Error(
+      "ANTHROPIC_API_KEY nao esta configurada no ambiente do servidor para gerar o memorial validado."
+    );
+  }
+
+  const [{ data: summaryRaw, error: summaryError }, { data: itemsRaw, error: itemsError }] =
+    await Promise.all([
+      db
+        .from("ai_estimates")
+        .select("source_summary")
+        .eq("id", estimateId)
+        .eq("organization_id", activeOrg.id)
+        .maybeSingle(),
+      db
+        .from("ai_estimate_items")
+        .select("code, group_name, description, quantity, unit, needs_review, sort_order, metadata")
+        .eq("estimate_id", estimateId)
+        .eq("organization_id", activeOrg.id)
+        .order("sort_order", { ascending: true }),
+    ]);
+  if (summaryError) throw new Error(summaryError.message);
+  if (itemsError) throw new Error(itemsError.message);
+
+  const items = (itemsRaw ?? []) as MemorialItemRow[];
+  if (items.length === 0) {
+    throw new Error("O orcamento nao possui itens para gerar o memorial validado.");
+  }
+
+  const sourceSummaryValue = (summaryRaw as { source_summary?: unknown } | null)?.source_summary;
+  const sourceSummary: Record<string, unknown> =
+    sourceSummaryValue && typeof sourceSummaryValue === "object" && !Array.isArray(sourceSummaryValue)
+      ? { ...(sourceSummaryValue as Record<string, unknown>) }
+      : {};
+
+  const { text, model } = await callClaudeWithDocuments({
+    system: buildMemorialValidadoSystemPrompt(),
+    prompt: buildMemorialValidadoPrompt(estimate, items, extractStoredPlanAnalysis(sourceSummary)),
+    maxTokens: 16000,
+    temperature: 0.3,
+  });
+
+  const memorialText = stripMarkdownFences(text);
+  if (!memorialText) {
+    throw new Error("A IA nao retornou um memorial descritivo valido.");
+  }
+
+  const generatedAt = new Date().toISOString();
+  sourceSummary.memorial_validado = {
+    generated_at: generatedAt,
+    model,
+    item_count: items.length,
+    base: "ai_estimate_items_revisados_pelo_engenheiro",
+  };
+
+  const { error } = await db
+    .from("ai_estimates")
+    .update({
+      memorial_text: memorialText,
+      source_summary: sourceSummary,
     })
     .eq("id", estimateId)
     .eq("organization_id", activeOrg.id);
@@ -688,6 +794,109 @@ async function fetchEstimate(db: UntypedSupabase, estimateId: string): Promise<E
     .maybeSingle();
   if (error) throw new Error(error.message);
   return data as EstimateRow | null;
+}
+
+const MEMORIAL_NUM = new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 2 });
+
+function extractStoredPlanAnalysis(sourceSummary: Record<string, unknown>): StoredPlanAnalysisSummary | null {
+  const planAnalysis = sourceSummary.plan_analysis;
+  if (!planAnalysis || typeof planAnalysis !== "object" || Array.isArray(planAnalysis)) return null;
+  return planAnalysis as StoredPlanAnalysisSummary;
+}
+
+function buildMemorialValidadoSystemPrompt(): string {
+  return [
+    "Voce e o engenheiro orcamentista senior e redator tecnico da Meu Viver Construtora (obras residenciais de alto padrao).",
+    "Sua funcao agora: redigir o MEMORIAL DESCRITIVO DEFINITIVO de uma obra, baseado no orcamento JA VALIDADO pelo engenheiro responsavel.",
+    "Regras inegociaveis:",
+    "1. NUNCA cite precos, custos unitarios, totais ou qualquer valor monetario. Memorial descreve escopo e especificacao, nao custo.",
+    "2. Use as quantidades e unidades reais dos itens validados quando forem relevantes para descrever o escopo.",
+    "3. Nao invente servicos que nao estejam nas etapas do orcamento validado.",
+    "4. Escreva em portugues do Brasil, tom de proposta comercial de construtora de alto padrao: profissional, direto, confiante e acolhedor (tom da Meu Viver).",
+    "5. Responda SOMENTE com o memorial em markdown, sem comentarios antes ou depois e sem cercas de codigo.",
+  ].join("\n");
+}
+
+function buildMemorialValidadoPrompt(
+  estimate: EstimateRow,
+  items: MemorialItemRow[],
+  planAnalysis: StoredPlanAnalysisSummary | null
+): string {
+  const builtArea = toNullableNumber(estimate.built_area_m2);
+  const poolArea = toNullableNumber(estimate.pool_area_m2);
+  const terrainArea = toNullableNumber(estimate.terrain_area_m2);
+  const floors = toNullableInteger(estimate.floors_count);
+  const planAreaTotal =
+    planAnalysis === null
+      ? null
+      : toNullableNumber(planAnalysis.areaTotalM2) ?? toNullableNumber(planAnalysis.builtAreaM2);
+  const planSummary =
+    planAnalysis === null
+      ? null
+      : typeof planAnalysis.resumoObra === "string" && planAnalysis.resumoObra.trim()
+        ? planAnalysis.resumoObra.trim()
+        : typeof planAnalysis.summary === "string" && planAnalysis.summary.trim()
+          ? planAnalysis.summary.trim()
+          : null;
+
+  const obraLines = [
+    `Titulo do projeto: ${estimate.title}`,
+    `Cliente: ${estimate.client_name ?? "a definir"}`,
+    `Endereco: ${estimate.address ?? "a confirmar"}`,
+    `Area construida: ${builtArea !== null ? `${MEMORIAL_NUM.format(builtArea)} m2` : planAreaTotal !== null ? `${MEMORIAL_NUM.format(planAreaTotal)} m2 (leitura da planta)` : "nao informada"}`,
+    `Area do terreno: ${terrainArea !== null ? `${MEMORIAL_NUM.format(terrainArea)} m2` : "nao informada"}`,
+    `Area de piscina: ${poolArea !== null && poolArea > 0 ? `${MEMORIAL_NUM.format(poolArea)} m2` : "sem piscina informada"}`,
+    `Pavimentos: ${floors !== null ? String(floors) : "nao informado"}`,
+    `Subsolo: ${estimate.has_basement ? "sim" : "nao informado"}`,
+    `Padrao de acabamento: ${estimate.quality_standard}`,
+  ];
+
+  const groups = new Map<string, MemorialItemRow[]>();
+  for (const item of items) {
+    const list = groups.get(item.group_name) ?? [];
+    list.push(item);
+    groups.set(item.group_name, list);
+  }
+  const etapasText = [...groups.entries()]
+    .map(([groupName, groupItems]) => {
+      const lines = groupItems.map((item) => {
+        const quantity = toNullableNumber(item.quantity);
+        const quantityText =
+          quantity !== null && quantity > 0 ? `${MEMORIAL_NUM.format(quantity)} ${item.unit}` : item.unit;
+        const observacao =
+          item.metadata && typeof item.metadata.observacao === "string" && item.metadata.observacao.trim()
+            ? ` (obs.: ${item.metadata.observacao.trim()})`
+            : "";
+        return `- ${item.description} — ${quantityText}${observacao}`;
+      });
+      return [`Etapa: ${groupName}`, ...lines].join("\n");
+    })
+    .join("\n\n");
+
+  return [
+    "Redija o MEMORIAL DESCRITIVO DEFINITIVO desta obra, no formato de proposta comercial da Meu Viver Construtora.",
+    "Este memorial substitui o rascunho automatico gerado na leitura da planta: a base agora e o ORCAMENTO VALIDADO pelo engenheiro, listado abaixo com quantidades e unidades reais.",
+    "",
+    "DADOS DA OBRA:",
+    ...obraLines,
+    "",
+    planSummary ? `RESUMO DA LEITURA DA PLANTA (contexto): ${planSummary}` : "RESUMO DA LEITURA DA PLANTA: nao disponivel.",
+    "",
+    "ETAPAS E ITENS DO ORCAMENTO VALIDADO (escopo definitivo):",
+    etapasText,
+    "",
+    "ESTRUTURA OBRIGATORIA do memorial (markdown):",
+    "1. Titulo 'MEMORIAL DESCRITIVO' com identificacao da obra, e introducao com cliente, endereco e areas.",
+    "2. Uma secao '## NOME DA ETAPA' para CADA etapa do orcamento validado acima, na mesma ordem, mantendo a numeracao da etapa quando presente no nome. Em cada secao descreva escopo, materiais, especificacoes e premissas dos itens daquela etapa, citando quantidades/unidades reais quando agregarem clareza.",
+    "3. Fechamento com '## Condicoes gerais' e '## Itens nao inclusos' coerentes com o escopo descrito.",
+    "Lembrete final: NENHUM preco, custo ou valor monetario pode aparecer no texto.",
+  ].join("\n");
+}
+
+function stripMarkdownFences(text: string): string {
+  const trimmed = text.trim();
+  const fenced = /^```(?:markdown|md)?\s*\n([\s\S]*?)\n```$/i.exec(trimmed);
+  return (fenced ? fenced[1] : trimmed).trim();
 }
 
 function asString(value: FormDataEntryValue | null): string {
