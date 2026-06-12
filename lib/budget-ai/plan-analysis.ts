@@ -1,5 +1,6 @@
 import {
   callClaudeWithDocuments,
+  ClaudeTimeoutError,
   type ClaudeDocumentInput,
   extractJsonObject,
   isClaudeConfigured,
@@ -123,6 +124,10 @@ export async function analyzePlanFilesFromStorage(
     try {
       return await analyzeWithClaude(documents);
     } catch (claudeError) {
+      // Timeout na Claude vira erro propagado: o orquestrador grava status
+      // 'failed' com mensagem amigável em vez de cair no fallback (que
+      // estouraria o restante do tempo da função) ou ficar preso em processing.
+      if (claudeError instanceof ClaudeTimeoutError) throw claudeError;
       if (!openaiKey) {
         return emptyAnalysis(
           "failed",
@@ -143,6 +148,14 @@ export async function analyzePlanFilesFromStorage(
   }
 }
 
+/**
+ * Máximo de páginas enviadas à IA por PDF de planta.
+ * PDFs de planta têm carimbo/implantação/plantas baixas no início — as
+ * primeiras pranchas concentram o que o orçamento precisa. Cortar acelera
+ * MUITO a leitura (menos tokens de entrada) e evita estourar o maxDuration.
+ */
+const MAX_PAGES_SENT_TO_CLAUDE = 12;
+
 async function downloadPlanDocuments(
   supabase: StorageDownloadClient,
   planFiles: UploadedEstimateFileForAnalysis[]
@@ -154,19 +167,21 @@ async function downloadPlanDocuments(
     if (totalBytes + file.size_bytes > MAX_PLAN_TOTAL_BYTES) {
       throw new PlanFilesTooLargeError();
     }
+    const downloadStartedAt = Date.now();
     const { data, error } = await supabase.storage.from(file.storage_bucket).download(file.storage_path);
     if (error || !data) throw new Error(error?.message ?? `Nao foi possivel baixar ${file.file_name}.`);
-    const bytes = Buffer.from(await data.arrayBuffer());
+    let bytes = Buffer.from(await data.arrayBuffer());
+    console.log(
+      `[budget-ai] download: "${file.file_name}" ${bytes.byteLength} bytes em ${Date.now() - downloadStartedAt}ms`
+    );
     totalBytes += bytes.byteLength;
     if (totalBytes > MAX_PLAN_TOTAL_BYTES) {
       throw new PlanFilesTooLargeError();
     }
 
     const mediaType = file.content_type || "application/pdf";
-    if (mediaType.includes("pdf") && countPdfPagesHeuristic(bytes) > MAX_PLAN_PAGES) {
-      throw new PlanFilesTooLargeError(
-        `A planta "${file.file_name}" tem mais de ${MAX_PLAN_PAGES} páginas. ${PLAN_LIMIT_MESSAGE}`
-      );
+    if (mediaType.includes("pdf")) {
+      bytes = await trimPdfToFirstPages(bytes, file.file_name);
     }
 
     documents.push({
@@ -177,6 +192,50 @@ async function downloadPlanDocuments(
   }
 
   return documents;
+}
+
+/**
+ * Corta o PDF para as primeiras MAX_PAGES_SENT_TO_CLAUDE páginas usando
+ * pdf-lib (puro JS, sem binário nativo). Fail-open: se o pdf-lib não
+ * conseguir ler o arquivo (PDF corrompido/cifrado), mantém o original e
+ * cai na checagem heurística de limite de páginas (~80) de antes.
+ */
+async function trimPdfToFirstPages(bytes: Buffer, fileName: string): Promise<Buffer> {
+  const trimStartedAt = Date.now();
+  try {
+    const { PDFDocument } = await import("pdf-lib");
+    const source = await PDFDocument.load(bytes, { ignoreEncryption: true });
+    const totalPages = source.getPageCount();
+
+    if (totalPages <= MAX_PAGES_SENT_TO_CLAUDE) {
+      console.log(
+        `[budget-ai] corte: "${fileName}" tem ${totalPages} pagina(s), enviado integral (${Date.now() - trimStartedAt}ms)`
+      );
+      return bytes;
+    }
+
+    const trimmed = await PDFDocument.create();
+    const pageIndexes = Array.from({ length: MAX_PAGES_SENT_TO_CLAUDE }, (_, index) => index);
+    const pages = await trimmed.copyPages(source, pageIndexes);
+    for (const page of pages) trimmed.addPage(page);
+    const output = Buffer.from(await trimmed.save());
+
+    console.log(
+      `[budget-ai] corte: "${fileName}" ${totalPages} -> ${MAX_PAGES_SENT_TO_CLAUDE} paginas, ` +
+        `${bytes.byteLength} -> ${output.byteLength} bytes em ${Date.now() - trimStartedAt}ms`
+    );
+    return output;
+  } catch (error) {
+    console.log(
+      `[budget-ai] corte: falhou para "${fileName}" (${error instanceof Error ? error.message : "erro desconhecido"}); usando PDF original`
+    );
+    if (countPdfPagesHeuristic(bytes) > MAX_PLAN_PAGES) {
+      throw new PlanFilesTooLargeError(
+        `A planta "${fileName}" tem mais de ${MAX_PLAN_PAGES} páginas. ${PLAN_LIMIT_MESSAGE}`
+      );
+    }
+    return bytes;
+  }
 }
 
 /**
@@ -199,7 +258,9 @@ async function analyzeWithClaude(documents: ClaudeDocumentInput[]): Promise<Plan
     system: buildClaudeSystemPrompt(),
     prompt: buildClaudeUserPrompt(),
     documents,
-    maxTokens: 20000,
+    // 8192 é o teto: suficiente para o JSON do orçamento e bem mais rápido
+    // de gerar que os 20k anteriores (que estouravam o runtime da Vercel).
+    maxTokens: 8192,
     temperature: 0.2,
   });
 

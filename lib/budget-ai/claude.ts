@@ -9,6 +9,27 @@ const ANTHROPIC_VERSION = "2023-06-01";
 
 export const CLAUDE_DEFAULT_MODEL = "claude-sonnet-4-6";
 
+/**
+ * Teto de saída: 8192 tokens é mais que suficiente para o JSON do orçamento
+ * e reduz MUITO o tempo de geração (era 16k-20k, que estourava o runtime).
+ */
+export const CLAUDE_MAX_OUTPUT_TOKENS = 8192;
+
+/** Aborta o fetch à Anthropic antes do limite de 300s da função (folga p/ persistir o erro). */
+export const CLAUDE_FETCH_TIMEOUT_MS = 240_000;
+
+/** Mensagem amigável gravada no estudo quando a chamada à Claude estoura o tempo. */
+export const CLAUDE_TIMEOUT_FRIENDLY_MESSAGE =
+  "A leitura demorou demais — tente uma planta com menos pranchas ou reprocesse";
+
+/** Erro específico de timeout na chamada à Claude (propagado até o status 'failed'). */
+export class ClaudeTimeoutError extends Error {
+  constructor(message: string = CLAUDE_TIMEOUT_FRIENDLY_MESSAGE) {
+    super(message);
+    this.name = "ClaudeTimeoutError";
+  }
+}
+
 export type ClaudeDocumentInput = {
   filename: string;
   base64: string;
@@ -101,7 +122,9 @@ export async function callClaudeWithDocuments(options: ClaudeCallOptions): Promi
 
   const body: Record<string, unknown> = {
     model,
-    max_tokens: options.maxTokens ?? 16000,
+    // Nunca pede mais que 8192 tokens de saída: acelera a geração e evita
+    // estourar o maxDuration da rota (300s) com respostas longas demais.
+    max_tokens: Math.min(options.maxTokens ?? CLAUDE_MAX_OUTPUT_TOKENS, CLAUDE_MAX_OUTPUT_TOKENS),
     temperature: options.temperature ?? 0.2,
     messages: [
       {
@@ -112,20 +135,38 @@ export async function callClaudeWithDocuments(options: ClaudeCallOptions): Promi
   };
   if (options.system) body.system = options.system;
 
-  const response = await fetch(ANTHROPIC_API_URL, {
-    method: "POST",
-    headers: {
-      "x-api-key": apiKey,
-      "anthropic-version": ANTHROPIC_VERSION,
-      "content-type": "application/json",
-    },
-    body: JSON.stringify(body),
-  });
+  const claudeStartedAt = Date.now();
+  let response: Response;
+  try {
+    response = await fetch(ANTHROPIC_API_URL, {
+      method: "POST",
+      headers: {
+        "x-api-key": apiKey,
+        "anthropic-version": ANTHROPIC_VERSION,
+        "content-type": "application/json",
+      },
+      body: JSON.stringify(body),
+      // Aborta antes do limite da função, deixando folga para gravar 'failed'.
+      signal: AbortSignal.timeout(CLAUDE_FETCH_TIMEOUT_MS),
+    });
+  } catch (error) {
+    if (isAbortOrTimeoutError(error)) {
+      console.log(
+        `[budget-ai] claude: ABORT por timeout apos ${Date.now() - claudeStartedAt}ms (limite ${CLAUDE_FETCH_TIMEOUT_MS}ms)`
+      );
+      throw new ClaudeTimeoutError();
+    }
+    throw error;
+  }
 
   if (!response.ok) {
     const errorText = await response.text();
+    console.log(
+      `[budget-ai] claude: erro HTTP ${response.status} apos ${Date.now() - claudeStartedAt}ms`
+    );
     throw new Error(`Anthropic ${response.status}: ${errorText.slice(0, 500)}`);
   }
+  console.log(`[budget-ai] claude: resposta ${model} em ${Date.now() - claudeStartedAt}ms`);
 
   const payload = (await response.json()) as unknown;
   const text = extractClaudeText(payload);
@@ -134,6 +175,15 @@ export async function callClaudeWithDocuments(options: ClaudeCallOptions): Promi
   }
 
   return { text, model };
+}
+
+/** Detecta abort/timeout do undici/WebAPI (AbortError ou TimeoutError do AbortSignal.timeout). */
+function isAbortOrTimeoutError(error: unknown): boolean {
+  if (!(error instanceof Error)) return false;
+  if (error.name === "AbortError" || error.name === "TimeoutError") return true;
+  // fetch do Node embrulha o abort em TypeError("fetch failed") com cause.
+  const cause = (error as { cause?: unknown }).cause;
+  return cause instanceof Error && (cause.name === "AbortError" || cause.name === "TimeoutError");
 }
 
 function extractClaudeText(payload: unknown): string | null {

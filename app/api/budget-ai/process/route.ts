@@ -19,6 +19,7 @@ import { processAiEstimate } from "@/lib/budget-ai/process";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
+export const dynamic = "force-dynamic";
 
 type ProcessRequestBody = {
   estimateId?: unknown;
@@ -46,7 +47,12 @@ export async function POST(request: NextRequest) {
   // Processa com o client admin: o trabalho pesado roda fora da sessão
   // (storage + escrita de status), independente de cookie expirar no meio.
   const admin = createAdminSupabase();
+  const startedAt = Date.now();
+  console.log(`[budget-ai] processamento iniciado estimateId=${estimateId}`);
   const result = await processAiEstimate(untypedDb(admin), admin, estimateId);
+  console.log(
+    `[budget-ai] processamento concluido estimateId=${estimateId} ok=${result.ok} em ${Date.now() - startedAt}ms`
+  );
 
   revalidatePath("/orcamento-ia");
   revalidatePath(`/orcamento-ia/${estimateId}`);

@@ -57,8 +57,13 @@ export type ProcessEstimateResult =
   | { ok: true; alreadyRunning?: boolean }
   | { ok: false; message: string };
 
-/** Janela em que uma execução em andamento bloqueia disparos duplicados. */
-const PROCESSING_LOCK_MS = 6 * 60 * 1000;
+/**
+ * Janela em que uma execução em andamento bloqueia disparos duplicados.
+ * 7 minutos: maior que o maxDuration da rota (300s) + timeout do fetch à
+ * Claude (240s de teto), então um lock mais velho que isso é com certeza
+ * uma execução morta — o watcher/rota PODE reprocessar a partir daí.
+ */
+const PROCESSING_LOCK_MS = 7 * 60 * 1000;
 
 export async function processAiEstimate(
   db: UntypedSupabase,
@@ -71,12 +76,17 @@ export async function processAiEstimate(
   }
 
   // Evita rodar duas análises ao mesmo tempo (ex.: duas abas abertas).
+  // Lock mais velho que PROCESSING_LOCK_MS (7 min) é execução morta:
+  // o watcher/rota pode reprocessar em vez de ficar preso em 'processing'.
   const startedAt = extractProcessingStartedAt(estimate.source_summary);
   if (
     estimate.status === "processing" &&
     startedAt !== null &&
     Date.now() - startedAt < PROCESSING_LOCK_MS
   ) {
+    console.log(
+      `[budget-ai] lock ativo (${Math.round((Date.now() - startedAt) / 1000)}s atras) — pulando disparo duplicado`
+    );
     return { ok: true, alreadyRunning: true };
   }
 
@@ -116,7 +126,12 @@ export async function processAiEstimate(
 
   try {
     const templateId = estimate.template_id ?? (await resolveTemplateId(db));
+    const analysisStartedAt = Date.now();
     const planAnalysis = await analyzePlanFilesFromStorage(storage, files);
+    console.log(
+      `[budget-ai] analise (download+corte+claude): ${Date.now() - analysisStartedAt}ms status=${planAnalysis?.status ?? "null"}`
+    );
+    const persistStartedAt = Date.now();
     await updateEstimateFromPlanAnalysis(db, estimate, planAnalysis);
     await regenerateEstimateRows(
       db,
@@ -125,6 +140,7 @@ export async function processAiEstimate(
       templateId,
       buildEstimateInput(estimate, files.map((file) => file.file_name), planAnalysis)
     );
+    console.log(`[budget-ai] persistencia: ${Date.now() - persistStartedAt}ms`);
     return { ok: true };
   } catch (error) {
     const message =
@@ -133,6 +149,7 @@ export async function processAiEstimate(
         : error instanceof Error
           ? error.message
           : "Falha desconhecida ao processar o estudo.";
+    console.log(`[budget-ai] falha no processamento: ${message.slice(0, 300)}`);
     await markEstimateFailed(db, estimate, message);
     return { ok: false, message };
   }
