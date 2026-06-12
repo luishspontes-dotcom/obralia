@@ -181,7 +181,7 @@ async function downloadPlanDocuments(
 
     const mediaType = file.content_type || "application/pdf";
     if (mediaType.includes("pdf")) {
-      bytes = await trimPdfToFirstPages(bytes, file.file_name);
+      bytes = Buffer.from(await trimPdfToFirstPages(bytes, file.file_name)) as typeof bytes;
     }
 
     documents.push({
