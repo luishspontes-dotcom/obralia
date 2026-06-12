@@ -4,8 +4,7 @@ import { Topbar, type TopbarMenuCounts } from "@/components/layout/Topbar";
 import { MobileTabBar } from "@/components/layout/MobileTabBar";
 import { KeyboardShortcuts } from "@/components/KeyboardShortcuts";
 import { OfflineIndicator } from "@/components/OfflineIndicator";
-import { VISIBLE_SOURCE_PROVIDERS } from "@/lib/rdo-source-scope";
-import { getDiarioCadastroSnapshot } from "@/lib/diario-cadastros";
+import { getLayoutSnapshot, type LayoutSnapshot } from "@/lib/layout-counts";
 
 type Profile = {
   full_name: string | null;
@@ -17,6 +16,14 @@ type Organization = {
   name: string;
   slug: string;
   brand_color: string | null;
+};
+
+const EMPTY_SNAPSHOT: LayoutSnapshot = {
+  recentSiteId: null,
+  fotos: 0,
+  videos: 0,
+  anexos: 0,
+  cadastroCounts: {},
 };
 
 export default async function AppLayout({
@@ -48,52 +55,15 @@ export default async function AppLayout({
     orgs.find((org) => org.id === profile?.default_org_id) ?? orgs[0] ?? null;
   const fullName = profile?.full_name ?? null;
 
-  // Obra mais recente (último RDO criado) — alvo do botão ＋ da tab bar mobile
-  let recentSiteId: string | null = null;
-  const { data: lastReportRaw } = await supabase
-    .from("daily_reports")
-    .select("site_id")
-    .in("external_provider", VISIBLE_SOURCE_PROVIDERS)
-    .order("created_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-  recentSiteId = (lastReportRaw as { site_id: string } | null)?.site_id ?? null;
-  if (!recentSiteId) {
-    const { data: lastSiteRaw } = await supabase
-      .from("sites")
-      .select("id")
-      .in("external_provider", VISIBLE_SOURCE_PROVIDERS)
-      .order("created_at", { ascending: false })
-      .limit(1)
-      .maybeSingle();
-    recentSiteId = (lastSiteRaw as { id: string } | null)?.id ?? null;
-  }
-
-  // Contagens reais pros badges dos menus do topo (paridade com o Diário de Obra)
-  const [{ count: fotoCount }, { count: videoCount }, { count: anexoCount }, cadastroSnapshot] =
-    await Promise.all([
-      supabase
-        .from("media")
-        .select("*", { count: "exact", head: true })
-        .in("external_provider", VISIBLE_SOURCE_PROVIDERS)
-        .eq("kind", "photo"),
-      supabase
-        .from("media")
-        .select("*", { count: "exact", head: true })
-        .in("external_provider", VISIBLE_SOURCE_PROVIDERS)
-        .eq("kind", "video"),
-      supabase
-        .from("media")
-        .select("*", { count: "exact", head: true })
-        .in("external_provider", VISIBLE_SOURCE_PROVIDERS)
-        .eq("kind", "file"),
-      getDiarioCadastroSnapshot(),
-    ]);
-  const snapshotCounts: Record<string, number> = cadastroSnapshot.snapshot.counts ?? {};
+  // Contagens dos badges do menu + obra recente da tab bar mobile: saem do
+  // cache do servidor por organização (unstable_cache, revalidate 300s) em
+  // vez de rodar 5+ queries em TODA navegação — navegação volta a ser leve.
+  const snapshot = activeOrg ? await getLayoutSnapshot(activeOrg.id) : EMPTY_SNAPSHOT;
+  const snapshotCounts = snapshot.cadastroCounts;
   const menuCounts: TopbarMenuCounts = {
-    fotos: fotoCount ?? 0,
-    videos: videoCount ?? 0,
-    anexos: anexoCount ?? 0,
+    fotos: snapshot.fotos,
+    videos: snapshot.videos,
+    anexos: snapshot.anexos,
     usuarios: Number(snapshotCounts.usuarios ?? 0),
     gruposDeObra: Number(snapshotCounts.grupos ?? 0),
     modelosRelatorios: Number(snapshotCounts.modelos ?? 0),
@@ -116,7 +86,7 @@ export default async function AppLayout({
       <main id="main-content" className="app-main light-scroll" tabIndex={-1}>
         {children}
       </main>
-      <MobileTabBar recentSiteId={recentSiteId} />
+      <MobileTabBar recentSiteId={snapshot.recentSiteId} />
       <KeyboardShortcuts />
       <OfflineIndicator />
     </div>

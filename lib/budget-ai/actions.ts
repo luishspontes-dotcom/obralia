@@ -3,19 +3,15 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createServerSupabase } from "@/lib/supabase/server";
-import {
-  type BudgetTemplateItem,
-  type EstimateInput,
-  type GeneratedEstimate,
-  generateEstimateFromEtapas,
-  generateEstimateFromTemplate,
-} from "@/lib/budget-ai/estimate-engine";
-import { buildHistoricalPriceIndex } from "@/lib/budget-ai/historical-prices";
+import { type EstimateInput } from "@/lib/budget-ai/estimate-engine";
 import { callClaudeWithDocuments, isClaudeConfigured } from "@/lib/budget-ai/claude";
+import { MAX_PLAN_TOTAL_BYTES, PLAN_LIMIT_MESSAGE } from "@/lib/budget-ai/limits";
 import {
-  analyzePlanFilesFromStorage,
-  type PlanAnalysis,
-} from "@/lib/budget-ai/plan-analysis";
+  type EstimateRow,
+  type UploadedEstimateFile,
+  fetchEstimate,
+  resolveTemplateId,
+} from "@/lib/budget-ai/process";
 import { type UntypedSupabase, untypedDb } from "@/lib/supabase/untyped";
 
 type Profile = {
@@ -26,31 +22,6 @@ type Profile = {
 type Organization = {
   id: string;
   name: string;
-};
-
-type EstimateRow = {
-  id: string;
-  organization_id: string;
-  site_id: string | null;
-  template_id: string | null;
-  title: string;
-  client_name: string | null;
-  address: string | null;
-  built_area_m2: number | null;
-  pool_area_m2: number | null;
-  terrain_area_m2: number | null;
-  floors_count: number | null;
-  has_basement: boolean;
-  quality_standard: string;
-};
-
-type UploadedEstimateFile = {
-  kind: "plan" | "proposal" | "spreadsheet" | "other";
-  file_name: string;
-  storage_bucket: string;
-  storage_path: string;
-  content_type: string | null;
-  size_bytes: number;
 };
 
 type MemorialItemRow = {
@@ -144,8 +115,15 @@ export async function prepareAiEstimate(formData: FormData) {
   return { estimateId, organizationId: activeOrg.id };
 }
 
+/**
+ * Finalização RÁPIDA do upload: registra os arquivos enviados direto pro
+ * Storage e mantém o estudo em 'processing'. A análise da planta pela Claude
+ * (1 a 3 minutos) roda de forma ASSÍNCRONA via POST /api/budget-ai/process,
+ * disparada pelo client component do detalhe do estudo — assim a action
+ * responde em segundos e o 504 da Vercel não acontece mais.
+ */
 export async function finalizeAiEstimateUpload(formData: FormData) {
-  const { supabase, db, user, activeOrg } = await requireContext();
+  const { db, user, activeOrg } = await requireContext();
   const estimateId = asString(formData.get("estimate_id"));
   if (!estimateId) throw new Error("estimate_id obrigatorio.");
 
@@ -155,6 +133,15 @@ export async function finalizeAiEstimateUpload(formData: FormData) {
   }
 
   const files = parseUploadedFiles(formData.get("files_json"), activeOrg.id, estimateId);
+
+  // Recusa amigável antes de qualquer leitura por IA (limite ~80 páginas / 20MB).
+  const planBytes = files
+    .filter((file) => file.kind === "plan")
+    .reduce((sum, file) => sum + (file.size_bytes || 0), 0);
+  if (planBytes > MAX_PLAN_TOTAL_BYTES) {
+    throw new Error(PLAN_LIMIT_MESSAGE);
+  }
+
   if (files.length > 0) {
     const { error: filesError } = await db.from("ai_estimate_files").insert(
       files.map((file) => ({
@@ -166,17 +153,6 @@ export async function finalizeAiEstimateUpload(formData: FormData) {
     );
     if (filesError) throw new Error(filesError.message);
   }
-
-  const templateId = estimate.template_id ?? (await resolveTemplateId(db));
-  const planAnalysis = await analyzePlanFilesFromStorage(supabase, files);
-  await updateEstimateFromPlanAnalysis(db, estimate, planAnalysis);
-  await regenerateEstimateRows(
-    db,
-    estimateId,
-    activeOrg.id,
-    templateId,
-    buildEstimateInput(estimate, files.map((file) => file.file_name), planAnalysis)
-  );
 
   revalidatePath("/orcamento-ia");
   revalidatePath(`/orcamento-ia/${estimateId}`);
@@ -217,8 +193,13 @@ export async function failAiEstimate(formData: FormData) {
   }
 }
 
+/**
+ * Reprocessar agora é RÁPIDO: só rearma o estudo em 'processing'.
+ * O client component do detalhe detecta a transição e dispara a análise
+ * assíncrona via POST /api/budget-ai/process (maxDuration 300).
+ */
 export async function reprocessAiEstimate(formData: FormData) {
-  const { supabase, db, activeOrg } = await requireContext();
+  const { db, activeOrg } = await requireContext();
   const estimateId = asString(formData.get("estimate_id"));
   if (!estimateId) throw new Error("estimate_id obrigatorio.");
 
@@ -227,25 +208,20 @@ export async function reprocessAiEstimate(formData: FormData) {
     throw new Error("Estudo nao encontrado.");
   }
 
-  const templateId = estimate.template_id ?? (await resolveTemplateId(db));
-  const { data: filesRaw } = await db
-    .from("ai_estimate_files")
-    .select("kind, file_name, storage_bucket, storage_path, content_type, size_bytes")
-    .eq("estimate_id", estimateId)
-    .order("created_at", { ascending: true });
-  const files = (filesRaw ?? []) as UploadedEstimateFile[];
+  const sourceSummary =
+    estimate.source_summary &&
+    typeof estimate.source_summary === "object" &&
+    !Array.isArray(estimate.source_summary)
+      ? { ...(estimate.source_summary as Record<string, unknown>) }
+      : {};
+  delete sourceSummary.processing_error;
+  delete sourceSummary.processing_started_at;
 
-  await db.from("ai_estimates").update({ status: "processing" }).eq("id", estimateId);
-  const planAnalysis = await analyzePlanFilesFromStorage(supabase, files);
-  await updateEstimateFromPlanAnalysis(db, estimate, planAnalysis);
-
-  await regenerateEstimateRows(
-    db,
-    estimateId,
-    activeOrg.id,
-    templateId,
-    buildEstimateInput(estimate, files.map((file) => file.file_name), planAnalysis)
-  );
+  await db
+    .from("ai_estimates")
+    .update({ status: "processing", review_notes: null, source_summary: sourceSummary })
+    .eq("id", estimateId)
+    .eq("organization_id", activeOrg.id);
 
   revalidatePath(`/orcamento-ia/${estimateId}`);
   if (estimate.site_id) {
@@ -582,139 +558,6 @@ export async function deleteAiEstimate(formData: FormData) {
   redirect(redirectTo ?? (estimate.site_id ? `/obras/${estimate.site_id}/orcamento-ia` : "/orcamento-ia"));
 }
 
-function buildEstimateInput(
-  estimate: EstimateRow,
-  fileNames: string[],
-  planAnalysis: PlanAnalysis | null
-): EstimateInput {
-  const genericTitle = new Set(["Estudo preliminar", "Novo estudo preliminar"]);
-  return {
-    title: genericTitle.has(estimate.title) && planAnalysis?.projectTitle
-      ? planAnalysis.projectTitle
-      : estimate.title,
-    clientName: estimate.client_name ?? planAnalysis?.clientName ?? null,
-    address: estimate.address ?? planAnalysis?.address ?? null,
-    builtAreaM2: toNullableNumber(estimate.built_area_m2) ?? planAnalysis?.builtAreaM2 ?? null,
-    poolAreaM2: toNullableNumber(estimate.pool_area_m2) ?? planAnalysis?.poolAreaM2 ?? null,
-    terrainAreaM2: toNullableNumber(estimate.terrain_area_m2) ?? planAnalysis?.terrainAreaM2 ?? null,
-    floorsCount: toNullableInteger(estimate.floors_count) ?? planAnalysis?.floorsCount ?? null,
-    hasBasement: estimate.has_basement || planAnalysis?.hasBasement === true,
-    qualityStandard: estimate.quality_standard || planAnalysis?.qualityStandard || "alto_padrao",
-    fileNames,
-    planAnalysis,
-  };
-}
-
-async function updateEstimateFromPlanAnalysis(
-  db: UntypedSupabase,
-  estimate: EstimateRow,
-  planAnalysis: PlanAnalysis | null
-) {
-  if (planAnalysis?.status !== "analyzed") return;
-
-  const patch: Record<string, unknown> = {};
-  const genericTitle = new Set(["Estudo preliminar", "Novo estudo preliminar"]);
-
-  if (genericTitle.has(estimate.title) && planAnalysis.projectTitle) {
-    patch.title = planAnalysis.projectTitle;
-  }
-  if (!estimate.client_name && planAnalysis.clientName) patch.client_name = planAnalysis.clientName;
-  if (!estimate.address && planAnalysis.address) patch.address = planAnalysis.address;
-  if (toNullableNumber(estimate.built_area_m2) === null && planAnalysis.builtAreaM2 !== null) {
-    patch.built_area_m2 = planAnalysis.builtAreaM2;
-  }
-  if (toNullableNumber(estimate.pool_area_m2) === null && planAnalysis.poolAreaM2 !== null) {
-    patch.pool_area_m2 = planAnalysis.poolAreaM2;
-  }
-  if (toNullableNumber(estimate.terrain_area_m2) === null && planAnalysis.terrainAreaM2 !== null) {
-    patch.terrain_area_m2 = planAnalysis.terrainAreaM2;
-  }
-  if (toNullableInteger(estimate.floors_count) === null && planAnalysis.floorsCount !== null) {
-    patch.floors_count = planAnalysis.floorsCount;
-  }
-  if (!estimate.has_basement && typeof planAnalysis.hasBasement === "boolean") {
-    patch.has_basement = planAnalysis.hasBasement;
-  }
-
-  if (Object.keys(patch).length === 0) return;
-  const { error } = await db
-    .from("ai_estimates")
-    .update(patch)
-    .eq("id", estimate.id)
-    .eq("organization_id", estimate.organization_id);
-  if (error) throw new Error(error.message);
-}
-
-async function regenerateEstimateRows(
-  db: UntypedSupabase,
-  estimateId: string,
-  organizationId: string,
-  templateId: string,
-  input: EstimateInput
-) {
-  const etapas = input.planAnalysis?.etapas ?? [];
-  let generated: GeneratedEstimate;
-
-  if (etapas.length > 0) {
-    // Fluxo principal (Claude): etapas lidas da planta no formato historico,
-    // precificadas pelo indice {etapa -> R$/m2 mediano} do historico real.
-    const priceIndex = await buildHistoricalPriceIndex(db, organizationId);
-    generated = generateEstimateFromEtapas(input, etapas, priceIndex);
-  } else {
-    // Fallback: template detalhado parametrico (fluxo anterior/OpenAI).
-    const { data: templateItemsRaw, error: templateError } = await db
-      .from("budget_template_items")
-      .select(
-        "id, code, group_name, description, unit, unit_cost, default_quantity, quantity_rule, confidence_baseline, needs_review_default, source_notes, sort_order"
-      )
-      .eq("template_id", templateId)
-      .order("sort_order", { ascending: true });
-
-    if (templateError) throw new Error(templateError.message);
-    const templateItems = (templateItemsRaw ?? []) as BudgetTemplateItem[];
-    if (templateItems.length === 0) {
-      throw new Error("Template de orcamento sem itens cadastrados.");
-    }
-
-    generated = generateEstimateFromTemplate(input, templateItems);
-  }
-
-  await db.from("ai_extracted_facts").delete().eq("estimate_id", estimateId);
-  await db.from("ai_estimate_items").delete().eq("estimate_id", estimateId);
-
-  const { error: factsError } = await db.from("ai_extracted_facts").insert(
-    generated.facts.map((fact) => ({
-      estimate_id: estimateId,
-      organization_id: organizationId,
-      ...fact,
-      metadata: fact.metadata ?? {},
-    }))
-  );
-  if (factsError) throw new Error(factsError.message);
-
-  const { error: itemsError } = await db.from("ai_estimate_items").insert(
-    generated.items.map((item) => ({
-      estimate_id: estimateId,
-      organization_id: organizationId,
-      ...item,
-    }))
-  );
-  if (itemsError) throw new Error(itemsError.message);
-
-  const { error: updateError } = await db
-    .from("ai_estimates")
-    .update({
-      status: "review",
-      subtotal: generated.subtotal,
-      total: generated.total,
-      confidence_score: generated.confidenceScore,
-      memorial_text: generated.memorialText,
-      source_summary: generated.sourceSummary,
-    })
-    .eq("id", estimateId);
-  if (updateError) throw new Error(updateError.message);
-}
-
 async function recalculateEstimateTotals(
   db: UntypedSupabase,
   estimateId: string,
@@ -767,33 +610,6 @@ async function recalculateEstimateTotals(
     .eq("id", estimateId)
     .eq("organization_id", organizationId);
   if (error) throw new Error(error.message);
-}
-
-async function resolveTemplateId(db: UntypedSupabase): Promise<string> {
-  const { data, error } = await db
-    .from("budget_templates")
-    .select("id")
-    .eq("is_default", true)
-    .order("organization_id", { ascending: true, nullsFirst: true })
-    .order("version", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-  if (error) throw new Error(error.message);
-  const id = (data as { id?: string } | null)?.id;
-  if (!id) throw new Error("Nenhum template de orcamento IA cadastrado.");
-  return id;
-}
-
-async function fetchEstimate(db: UntypedSupabase, estimateId: string): Promise<EstimateRow | null> {
-  const { data, error } = await db
-    .from("ai_estimates")
-    .select(
-      "id, organization_id, site_id, template_id, title, client_name, address, built_area_m2, pool_area_m2, terrain_area_m2, floors_count, has_basement, quality_standard"
-    )
-    .eq("id", estimateId)
-    .maybeSingle();
-  if (error) throw new Error(error.message);
-  return data as EstimateRow | null;
 }
 
 const MEMORIAL_NUM = new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 2 });

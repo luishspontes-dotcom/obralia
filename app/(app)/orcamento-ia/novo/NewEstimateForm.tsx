@@ -8,6 +8,7 @@ import {
   finalizeAiEstimateUpload,
   prepareAiEstimate,
 } from "@/lib/budget-ai/actions";
+import { MAX_PLAN_TOTAL_BYTES, PLAN_LIMIT_MESSAGE } from "@/lib/budget-ai/limits";
 import { createBrowserSupabase } from "@/lib/supabase/client";
 
 type Site = { id: string; name: string };
@@ -56,14 +57,21 @@ export function NewEstimateForm({
       if (planFiles.length === 0) {
         throw new Error("Envie ao menos uma planta em PDF para gerar o estudo.");
       }
+      // Recusa amigável antes mesmo do upload (limite ~80 páginas / 20MB).
+      const planBytes = planFiles.reduce((sum, file) => sum + file.size, 0);
+      if (planBytes > MAX_PLAN_TOTAL_BYTES) {
+        throw new Error(PLAN_LIMIT_MESSAGE);
+      }
       const prepared = await prepareAiEstimate(scalarFormData(source));
       estimateId = prepared.estimateId;
 
       setStatus("uploading");
       const uploaded = await uploadFiles(source, prepared.organizationId, prepared.estimateId);
 
+      // Finalização rápida: só registra os arquivos. A leitura da planta pela
+      // Claude roda de forma assíncrona na página do estudo (1 a 3 minutos).
       setStatus("processing");
-      setMessage("Gerando orçamento e memorial...");
+      setMessage("Abrindo o estudo... a leitura da planta continua em segundo plano.");
       const finalizeData = new FormData();
       finalizeData.set("estimate_id", prepared.estimateId);
       finalizeData.set("files_json", JSON.stringify(uploaded));

@@ -12,8 +12,10 @@ import {
 } from "@/lib/budget-ai/actions";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { untypedDb } from "@/lib/supabase/untyped";
+import { extractProcessingError } from "@/lib/budget-ai/process";
 import { ExportButton } from "@/components/ExportButton";
 import { DeleteEstimateButton } from "@/components/budget-ai/DeleteEstimateButton";
+import { EstimateProcessingWatcher } from "@/components/budget-ai/EstimateProcessingWatcher";
 import { MemorialViewer } from "@/components/budget-ai/MemorialViewer";
 
 type Estimate = {
@@ -34,6 +36,7 @@ type Estimate = {
   confidence_score: number;
   memorial_text: string | null;
   source_summary: unknown | null;
+  review_notes: string | null;
   created_at: string | null;
   sites: { name: string } | null;
 };
@@ -109,7 +112,7 @@ export async function EstimateDetailContent({
   const [estimateR, factsR, itemsR, filesR] = await Promise.all([
     db
       .from("ai_estimates")
-      .select("id, site_id, title, client_name, address, built_area_m2, pool_area_m2, terrain_area_m2, floors_count, has_basement, quality_standard, status, subtotal, total, confidence_score, memorial_text, source_summary, created_at, sites(name)")
+      .select("id, site_id, title, client_name, address, built_area_m2, pool_area_m2, terrain_area_m2, floors_count, has_basement, quality_standard, status, subtotal, total, confidence_score, memorial_text, source_summary, review_notes, created_at, sites(name)")
       .eq("id", id)
       .maybeSingle(),
     db
@@ -141,6 +144,8 @@ export async function EstimateDetailContent({
   const grouped = groupItems(items);
   const planAnalysis = extractPlanAnalysis(estimate.source_summary);
   const memorialValidado = extractMemorialValidado(estimate.source_summary);
+  const processingError =
+    extractProcessingError(estimate.source_summary) ?? estimate.review_notes ?? null;
   const generateMemorialAction = generateMemorialValidado.bind(null, estimate.id);
   const backHref = backHrefOverride ?? (estimate.site_id ? `/obras/${estimate.site_id}/orcamento-ia` : "/orcamento-ia");
   const backLabel = backLabelOverride ?? (estimate.site_id ? `← Orçamento IA · ${estimate.sites?.name ?? "Obra"}` : "← Orçamento IA");
@@ -167,6 +172,11 @@ export async function EstimateDetailContent({
       </div>
 
       <div style={{ padding: "0 24px 40px", maxWidth: 1280, margin: "0 auto" }}>
+        <EstimateProcessingWatcher
+          estimateId={estimate.id}
+          status={estimate.status}
+          errorMessage={processingError}
+        />
         <div className="stat-grid ai-budget-metrics-grid" style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: 12, marginBottom: 18 }}>
           <Metric label="Total preliminar" value={BRL.format(Number(estimate.total ?? 0))} />
           <Metric label={estimate.status === "approved" ? "Validação técnica" : "Confiança técnica"} value={`${Math.round(Number(estimate.confidence_score ?? 0) * 100)}%`} tone={estimate.status === "approved" ? "ok" : undefined} />

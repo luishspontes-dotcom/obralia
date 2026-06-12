@@ -5,8 +5,13 @@ import {
   isClaudeConfigured,
 } from "@/lib/budget-ai/claude";
 import { HISTORICAL_ETAPAS, findHistoricalEtapa } from "@/lib/budget-ai/historical-prices";
+import {
+  MAX_PLAN_PAGES,
+  MAX_PLAN_TOTAL_BYTES,
+  PLAN_LIMIT_MESSAGE,
+} from "@/lib/budget-ai/limits";
 
-type StorageDownloadClient = {
+export type StorageDownloadClient = {
   storage: {
     from(bucket: string): {
       download(path: string): Promise<{ data: Blob | null; error: { message: string } | null }>;
@@ -70,7 +75,17 @@ export type PlanAnalysis = {
   memorialDescritivo: string | null;
 };
 
-const MAX_TOTAL_FILE_BYTES = 18 * 1024 * 1024;
+/**
+ * Erro específico de planta acima dos limites operacionais (~80 páginas / 20MB).
+ * É lançado ANTES de qualquer chamada à IA e propagado até quem orquestra o
+ * processamento, para virar mensagem amigável no estudo.
+ */
+export class PlanFilesTooLargeError extends Error {
+  constructor(message: string = PLAN_LIMIT_MESSAGE) {
+    super(message);
+    this.name = "PlanFilesTooLargeError";
+  }
+}
 
 export async function analyzePlanFilesFromStorage(
   supabase: StorageDownloadClient,
@@ -94,6 +109,7 @@ export async function analyzePlanFilesFromStorage(
   try {
     documents = await downloadPlanDocuments(supabase, planFiles);
   } catch (error) {
+    if (error instanceof PlanFilesTooLargeError) throw error;
     return emptyAnalysis(
       "failed",
       `Leitura visual falhou: ${error instanceof Error ? error.message : "erro desconhecido"}.`
@@ -135,19 +151,43 @@ async function downloadPlanDocuments(
   let totalBytes = 0;
 
   for (const file of planFiles) {
-    if (totalBytes + file.size_bytes > MAX_TOTAL_FILE_BYTES) break;
+    if (totalBytes + file.size_bytes > MAX_PLAN_TOTAL_BYTES) {
+      throw new PlanFilesTooLargeError();
+    }
     const { data, error } = await supabase.storage.from(file.storage_bucket).download(file.storage_path);
     if (error || !data) throw new Error(error?.message ?? `Nao foi possivel baixar ${file.file_name}.`);
     const bytes = Buffer.from(await data.arrayBuffer());
     totalBytes += bytes.byteLength;
+    if (totalBytes > MAX_PLAN_TOTAL_BYTES) {
+      throw new PlanFilesTooLargeError();
+    }
+
+    const mediaType = file.content_type || "application/pdf";
+    if (mediaType.includes("pdf") && countPdfPagesHeuristic(bytes) > MAX_PLAN_PAGES) {
+      throw new PlanFilesTooLargeError(
+        `A planta "${file.file_name}" tem mais de ${MAX_PLAN_PAGES} páginas. ${PLAN_LIMIT_MESSAGE}`
+      );
+    }
+
     documents.push({
       filename: file.file_name,
       base64: bytes.toString("base64"),
-      mediaType: file.content_type || "application/pdf",
+      mediaType,
     });
   }
 
   return documents;
+}
+
+/**
+ * Conta páginas de um PDF por heurística (objetos "/Type /Page" no corpo).
+ * PDFs com streams comprimidos podem subcontar — a checagem é fail-open:
+ * serve para barrar plantas claramente acima do limite, sem falso-positivo.
+ */
+function countPdfPagesHeuristic(bytes: Buffer): number {
+  const text = bytes.toString("latin1");
+  const matches = text.match(/\/Type\s*\/Page(?![a-zA-Z])/g);
+  return matches ? matches.length : 0;
 }
 
 // ---------------------------------------------------------------------------
