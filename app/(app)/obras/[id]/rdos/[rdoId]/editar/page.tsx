@@ -41,7 +41,7 @@ export default async function EditarRdoPage({
   const [wfR, eqR, acR, mtR] = await Promise.all([
     supabase.from("report_workforce").select("role, count").eq("daily_report_id", rdoId),
     supabase.from("report_equipment").select("name, hours").eq("daily_report_id", rdoId),
-    supabase.from("report_activities").select("description, progress_pct, notes, wbs_item_id").eq("daily_report_id", rdoId),
+    supabase.from("report_activities").select("description, progress_pct, notes, wbs_item_id, start_time, end_time, labor").eq("daily_report_id", rdoId),
     supabase.from("report_materials").select("name, quantity, unit, notes").eq("daily_report_id", rdoId),
   ]);
 
@@ -83,7 +83,7 @@ export default async function EditarRdoPage({
             work_break_minutes: rdo.work_break_minutes,
             workforce: (wfR.data ?? []) as { role: string; count: number }[],
             equipment: (eqR.data ?? []) as { name: string; hours: number | null }[],
-            activities: (acR.data ?? []) as { description: string; progress_pct: number | null; notes: string | null; wbs_item_id: string | null }[],
+            activities: (acR.data ?? []) as { description: string; progress_pct: number | null; notes: string | null; wbs_item_id: string | null; start_time: string | null; end_time: string | null; labor: string | null }[],
             materials: (mtR.data ?? []) as { name: string; quantity: number | null; unit: string | null; notes: string | null }[],
           }}
           tasks={tasks}

@@ -46,10 +46,10 @@ type DR = {
   approval_status_label: string | null;
 };
 type Material = { id: string; name: string; unit: string | null; quantity: number | null; notes: string | null };
-type Activity = { id: string; description: string; progress_pct: number | null; notes: string | null };
+type Activity = { id: string; description: string; progress_pct: number | null; notes: string | null; start_time: string | null; end_time: string | null; labor: string | null; wbs_item_id: string | null };
 type Workforce = { id: string; role: string; count: number };
 type Equipment = { id: string; name: string; hours: number | null };
-type Media = { id: string; storage_path: string | null; thumbnail_path: string | null; caption: string | null };
+type Media = { id: string; storage_path: string | null; thumbnail_path: string | null; caption: string | null; wbs_item_id?: string | null };
 type Comment = { id: string; body: string; target_table: string; created_at: string | null };
 type NeighborRdo = { id: string; date: string };
 
@@ -128,10 +128,10 @@ export default async function RdoDetailPage({
   if (!rdo) notFound();
 
   const [actsR, wfR, eqR, photosR, videosR, filesR, commentsR, matsR, prevR, nextR, orgR] = await Promise.all([
-    supabase.from("report_activities").select("id, description, progress_pct, notes").eq("daily_report_id", rdoId),
+    supabase.from("report_activities").select("id, description, progress_pct, notes, start_time, end_time, labor, wbs_item_id").eq("daily_report_id", rdoId),
     supabase.from("report_workforce").select("id, role, count").eq("daily_report_id", rdoId),
     supabase.from("report_equipment").select("id, name, hours").eq("daily_report_id", rdoId),
-    supabase.from("media").select("id, storage_path, thumbnail_path, caption").eq("daily_report_id", rdoId).in("external_provider", VISIBLE_SOURCE_PROVIDERS).eq("kind", "photo").limit(60),
+    supabase.from("media").select("id, storage_path, thumbnail_path, caption, wbs_item_id").eq("daily_report_id", rdoId).in("external_provider", VISIBLE_SOURCE_PROVIDERS).eq("kind", "photo").limit(60),
     supabase.from("media").select("id, storage_path, thumbnail_path, caption").eq("daily_report_id", rdoId).in("external_provider", VISIBLE_SOURCE_PROVIDERS).eq("kind", "video"),
     supabase.from("media").select("id, storage_path, thumbnail_path, caption").eq("daily_report_id", rdoId).in("external_provider", VISIBLE_SOURCE_PROVIDERS).eq("kind", "file"),
     supabase.from("comments").select("id, body, target_table, created_at").eq("target_id", rdoId).order("created_at", { ascending: false }),
@@ -155,6 +155,15 @@ export default async function RdoDetailPage({
   const prevRdo    = prevR.data as NeighborRdo | null;
   const nextRdo    = nextR.data as NeighborRdo | null;
   const org        = orgR.data as { id: string; name: string; logo_url: string | null } | null;
+
+  // F1: fotos vinculadas a cada atividade (agrupadas pela tarefa = wbs_item_id)
+  const photosByWbs = new Map<string, Media[]>();
+  for (const p of photos) {
+    if (!p.wbs_item_id) continue;
+    const arr = photosByWbs.get(p.wbs_item_id) ?? [];
+    arr.push(p);
+    photosByWbs.set(p.wbs_item_id, arr);
+  }
 
   const occurrences = allComments.filter((c) => c.body.startsWith("[OCORRÊNCIA]"));
   const comments = allComments.filter((c) => !c.body.startsWith("[OCORRÊNCIA]"));
@@ -486,11 +495,27 @@ export default async function RdoDetailPage({
               {activities.length > 0 ? (
                 activities.map((a) => {
                   const pct = a.progress_pct ?? 0;
+                  const hin = a.start_time ? a.start_time.slice(0, 5) : null;
+                  const hfim = a.end_time ? a.end_time.slice(0, 5) : null;
+                  const horario = hin && hfim ? `${hin}–${hfim}` : hin || hfim || null;
+                  const extra = [horario ? `🕐 ${horario}` : null, a.labor ? `👷 ${a.labor}` : null].filter(Boolean).join(" · ");
+                  const actPhotos = a.wbs_item_id ? (photosByWbs.get(a.wbs_item_id) ?? []) : [];
                   return (
                     <tr key={a.id}>
                       <td colSpan={3}>
                         {a.description}
                         {a.notes ? <span style={{ color: "#999" }}> · {a.notes}</span> : null}
+                        {extra ? <div style={{ color: "#777", fontSize: 12, marginTop: 2 }}>{extra}</div> : null}
+                        {actPhotos.length > 0 ? (
+                          <div className="do-doc-photos" style={{ marginTop: 6 }}>
+                            {actPhotos.map((p) => (
+                              <a key={p.id} href={mediaUrl(p.storage_path) || "#"} target="_blank" rel="noreferrer">
+                                {/* eslint-disable-next-line @next/next/no-img-element */}
+                                <img src={mediaUrl(p.thumbnail_path ?? p.storage_path)} alt={p.caption ?? "Foto da atividade"} loading="lazy" />
+                              </a>
+                            ))}
+                          </div>
+                        ) : null}
                       </td>
                       <td className="tnum" style={{ textAlign: "right", whiteSpace: "nowrap" }}>
                         {pct}% Concluída

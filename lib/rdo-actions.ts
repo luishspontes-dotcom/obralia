@@ -54,7 +54,7 @@ export async function createOrUpdateRdo(formData: FormData) {
 
   type WF = { role: string; count: number };
   type EQ = { name: string; hours: number | null };
-  type AC = { description: string; progress_pct: number | null; notes: string | null; wbs_item_id?: string | null };
+  type AC = { description: string; progress_pct: number | null; notes: string | null; wbs_item_id?: string | null; start_time?: string | null; end_time?: string | null; labor?: string | null };
   type MT = { name: string; quantity: number | null; unit: string | null; notes: string | null };
 
   const wfList: WF[] = wfRaw ? JSON.parse(wfRaw) : [];
@@ -141,6 +141,9 @@ export async function createOrUpdateRdo(formData: FormData) {
         progress_pct: a.progress_pct,
         notes: a.notes,
         wbs_item_id: a.wbs_item_id ?? null,
+        start_time: a.start_time ?? null,
+        end_time: a.end_time ?? null,
+        labor: a.labor ?? null,
       }));
     if (rows.length > 0) await admin.from("report_activities").insert(rows as never);
 
@@ -162,6 +165,50 @@ export async function createOrUpdateRdo(formData: FormData) {
         .eq("site_id", siteId);
     }
   }
+  // F1: fotos vinculadas a cada atividade. Os arquivos chegam como
+  // activity_photos_wbs_{wbsId} — ligamos a foto à TAREFA da atividade
+  // (wbs_item_id), o que mantém o vínculo mesmo quando o RDO é reeditado.
+  {
+    const seenWbs = new Set<string>();
+    for (const a of acList) {
+      const wbsId = a.wbs_item_id ?? null;
+      if (!wbsId || seenWbs.has(wbsId)) continue;
+      seenWbs.add(wbsId);
+      const files = formData
+        .getAll(`activity_photos_wbs_${wbsId}`)
+        .filter((f): f is File => f instanceof File && f.size > 0);
+      for (const file of files) {
+        const ext = (file.name.split(".").pop() || "jpg").toLowerCase();
+        const isVideo = file.type.startsWith("video/");
+        const mid = crypto.randomUUID();
+        const path = `${siteId}/${mid}.${ext}`;
+        const buf = new Uint8Array(await file.arrayBuffer());
+        const up = await admin.storage.from("media").upload(path, buf, {
+          contentType: file.type || (isVideo ? "video/mp4" : "image/jpeg"),
+          upsert: false,
+        });
+        if (up.error) {
+          console.error("activity photo upload:", up.error.message);
+          continue;
+        }
+        await admin.from("media").insert({
+          id: mid,
+          site_id: siteId,
+          daily_report_id: drId,
+          wbs_item_id: wbsId,
+          kind: isVideo ? "video" : "photo",
+          storage_path: path,
+          size_bytes: file.size,
+          taken_at: new Date().toISOString(),
+          taken_by: user.id,
+          migrated_at: new Date().toISOString(),
+          external_provider: OBRALIA_SOURCE_PROVIDER,
+          sync_metadata: { uploaded_via: "obralia", scope: "activity_photo" },
+        } as never);
+      }
+    }
+  }
+
   if (mtList.length > 0) {
     const rows = mtList
       .filter(m => m.name && m.name.trim())

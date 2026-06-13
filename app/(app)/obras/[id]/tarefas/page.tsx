@@ -156,7 +156,7 @@ export default async function ObraTarefasPage({
           <div className="diario-page-header">
             <div>
               <h1>Lista de tarefas</h1>
-              <p>{site.name}</p>
+              <p>{site.name} · inclui as etapas da obra e as atividades do cronograma (Asana/ClickUp)</p>
             </div>
             <div className="diario-toolbar">
               <button type="button" className="diario-gray-button" title="Em breve">

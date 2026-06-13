@@ -6,7 +6,7 @@ import { enqueueRdo, isNetworkError, isNextRedirectError } from "@/lib/offline/r
 
 type WF = { role: string; count: number };
 type EQ = { name: string; hours: number | null };
-type AC = { description: string; progress_pct: number | null; notes: string | null; wbs_item_id?: string | null };
+type AC = { description: string; progress_pct: number | null; notes: string | null; wbs_item_id?: string | null; start_time?: string | null; end_time?: string | null; labor?: string | null };
 type MT = { name: string; quantity: number | null; unit: string | null; notes: string | null };
 
 export type RdoTemplate = {
@@ -127,6 +127,9 @@ export function RdoForm(props: RdoFormProps) {
   const [submitting, setSubmitting] = useState(false);
   const [banner, setBanner] = useState<{ kind: "offline" | "error"; text: string } | null>(null);
 
+  /* F1: fotos por atividade — guardadas por tarefa (wbs_item_id), fora do draft. */
+  const [actPhotos, setActPhotos] = useState<Record<string, File[]>>({});
+
   /* ── Draft local (localStorage): auto-save a cada mudança, restaura no reload ── */
   const dKey = draftKey(props.siteId, props.rdoId);
   const hydrated = useRef(false);
@@ -195,6 +198,10 @@ export function RdoForm(props: RdoFormProps) {
         fd.set("equipment_json", JSON.stringify(equipment));
         fd.set("activities_json", JSON.stringify(activities));
         fd.set("materials_json", JSON.stringify(materials));
+        // F1: anexa as fotos de cada atividade (chaveadas pela tarefa).
+        for (const [wbsId, files] of Object.entries(actPhotos)) {
+          for (const f of files) fd.append(`activity_photos_wbs_${wbsId}`, f);
+        }
         try {
           if (typeof navigator !== "undefined" && navigator.onLine === false) {
             await saveOffline(fd);
@@ -463,7 +470,7 @@ export function RdoForm(props: RdoFormProps) {
       <div className="card" style={{ padding: "22px 24px" }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
           <h3 className="section-title" style={{ margin: 0 }}>📋 Atividades · {activities.length}</h3>
-          <button type="button" className="chip" onClick={() => setActivities([...activities, { description: "", progress_pct: 0, notes: null, wbs_item_id: null }])}>
+          <button type="button" className="chip" onClick={() => setActivities([...activities, { description: "", progress_pct: 0, notes: null, wbs_item_id: null, start_time: null, end_time: null, labor: null }])}>
             + Adicionar
           </button>
         </div>
@@ -506,6 +513,37 @@ export function RdoForm(props: RdoFormProps) {
                 <button type="button" onClick={() => setActivities(activities.filter((_, j) => j !== i))}
                   style={removeBtn} aria-label="Remover">×</button>
               </div>
+              <div className="rdo-act-extra" style={{ display: "grid", gridTemplateColumns: "120px 120px 1fr", gap: 10, alignItems: "center" }}>
+                <input type="time" placeholder="Início" value={(a.start_time ?? "").slice(0, 5)}
+                  onChange={(ev) => updateAt(activities, setActivities, i, { ...a, start_time: ev.target.value || null })}
+                  style={inputStyle} className="tnum" aria-label="Hora início da tarefa" title="Hora início" />
+                <input type="time" placeholder="Fim" value={(a.end_time ?? "").slice(0, 5)}
+                  onChange={(ev) => updateAt(activities, setActivities, i, { ...a, end_time: ev.target.value || null })}
+                  style={inputStyle} className="tnum" aria-label="Hora fim da tarefa" title="Hora fim" />
+                <input placeholder="Mão de obra (ex: 2 pedreiros, 1 servente)" value={a.labor ?? ""}
+                  onChange={(ev) => updateAt(activities, setActivities, i, { ...a, labor: ev.target.value || null })}
+                  style={inputStyle} aria-label="Mão de obra da tarefa" />
+              </div>
+              {a.wbs_item_id ? (
+                <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                  <span style={{ fontSize: 12, color: "var(--o-text-2)" }}>📷 Fotos desta atividade:</span>
+                  <input type="file" accept="image/*,video/*" multiple
+                    onChange={(ev) => {
+                      const fl = ev.target.files ? Array.from(ev.target.files) : [];
+                      setActPhotos((prev) => ({ ...prev, [a.wbs_item_id as string]: fl }));
+                    }}
+                    style={{ font: "400 12px var(--font-inter)", color: "var(--o-text-2)", maxWidth: 320 }} />
+                  {(actPhotos[a.wbs_item_id] ?? []).length > 0 && (
+                    <span style={{ fontSize: 12, color: "var(--t-brand)" }}>
+                      {(actPhotos[a.wbs_item_id] ?? []).length} arquivo(s) selecionado(s)
+                    </span>
+                  )}
+                </div>
+              ) : (
+                <p style={{ margin: 0, fontSize: 11, color: "var(--o-text-3)" }}>
+                  Selecione a tarefa acima para anexar fotos a esta atividade.
+                </p>
+              )}
             </div>
           ))}
         </div>
