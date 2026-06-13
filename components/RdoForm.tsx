@@ -6,7 +6,7 @@ import { enqueueRdo, isNetworkError, isNextRedirectError } from "@/lib/offline/r
 
 type WF = { role: string; count: number };
 type EQ = { name: string; hours: number | null };
-type AC = { description: string; progress_pct: number | null; notes: string | null };
+type AC = { description: string; progress_pct: number | null; notes: string | null; wbs_item_id?: string | null };
 type MT = { name: string; quantity: number | null; unit: string | null; notes: string | null };
 
 export type RdoTemplate = {
@@ -21,6 +21,8 @@ export type RdoFormProps = {
   siteId: string;
   rdoId?: string | null;
   templates?: RdoTemplate[];
+  /** F2: tarefas da obra (etapa › tarefa) para vincular a cada atividade. */
+  tasks?: { id: string; label: string }[];
   initial?: {
     date?: string;
     status?: string;
@@ -104,6 +106,7 @@ function jornadaTotal(start: string, end: string, breakMin: number): string | nu
 export function RdoForm(props: RdoFormProps) {
   const isEdit = !!props.rdoId;
   const ini = props.initial ?? {};
+  const tasks = props.tasks ?? [];
 
   const [date, setDate] = useState(ini.date ?? new Date().toISOString().slice(0, 10));
   const [wm, setWm] = useState(ini.weather_morning ?? "");
@@ -460,22 +463,49 @@ export function RdoForm(props: RdoFormProps) {
       <div className="card" style={{ padding: "22px 24px" }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
           <h3 className="section-title" style={{ margin: 0 }}>📋 Atividades · {activities.length}</h3>
-          <button type="button" className="chip" onClick={() => setActivities([...activities, { description: "", progress_pct: 0, notes: null }])}>
+          <button type="button" className="chip" onClick={() => setActivities([...activities, { description: "", progress_pct: 0, notes: null, wbs_item_id: null }])}>
             + Adicionar
           </button>
         </div>
         {activities.length === 0 && <Empty text="Nenhuma atividade" />}
-        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+        {tasks.length > 0 && (
+          <p style={{ margin: "0 0 10px", fontSize: 12, color: "var(--o-text-3)" }}>
+            Vincule a atividade a uma tarefa da obra para que o % atualize o progresso da obra.
+          </p>
+        )}
+        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
           {activities.map((a, i) => (
-            <div key={i} className="row-3col" style={{ display: "grid", gridTemplateColumns: "1fr 90px 36px", gap: 10, alignItems: "center" }}>
-              <input placeholder="O que foi feito hoje?" value={a.description}
-                onChange={(ev) => updateAt(activities, setActivities, i, { ...a, description: ev.target.value })}
-                style={inputStyle} />
-              <input type="number" min={0} max={100} placeholder="%" value={a.progress_pct ?? ""}
-                onChange={(ev) => updateAt(activities, setActivities, i, { ...a, progress_pct: ev.target.value ? Number(ev.target.value) : null })}
-                style={inputStyle} className="tnum" />
-              <button type="button" onClick={() => setActivities(activities.filter((_, j) => j !== i))}
-                style={removeBtn} aria-label="Remover">×</button>
+            <div key={i} style={{ display: "flex", flexDirection: "column", gap: 8, borderLeft: "3px solid var(--o-border)", paddingLeft: 10 }}>
+              {tasks.length > 0 && (
+                <select
+                  value={a.wbs_item_id ?? ""}
+                  onChange={(ev) => {
+                    const taskId = ev.target.value || null;
+                    const picked = tasks.find((t) => t.id === taskId);
+                    updateAt(activities, setActivities, i, {
+                      ...a,
+                      wbs_item_id: taskId,
+                      description: a.description || (picked ? picked.label : ""),
+                    });
+                  }}
+                  style={inputStyle}
+                >
+                  <option value="">— Tarefa da obra (opcional) —</option>
+                  {tasks.map((t) => (
+                    <option key={t.id} value={t.id}>{t.label}</option>
+                  ))}
+                </select>
+              )}
+              <div className="row-3col" style={{ display: "grid", gridTemplateColumns: "1fr 90px 36px", gap: 10, alignItems: "center" }}>
+                <input placeholder="O que foi feito hoje?" value={a.description}
+                  onChange={(ev) => updateAt(activities, setActivities, i, { ...a, description: ev.target.value })}
+                  style={inputStyle} />
+                <input type="number" min={0} max={100} placeholder="%" value={a.progress_pct ?? ""}
+                  onChange={(ev) => updateAt(activities, setActivities, i, { ...a, progress_pct: ev.target.value ? Number(ev.target.value) : null })}
+                  style={inputStyle} className="tnum" />
+                <button type="button" onClick={() => setActivities(activities.filter((_, j) => j !== i))}
+                  style={removeBtn} aria-label="Remover">×</button>
+              </div>
             </div>
           ))}
         </div>

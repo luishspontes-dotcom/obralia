@@ -4,6 +4,7 @@ import { createServerSupabase } from "@/lib/supabase/server";
 import { RdoForm } from "@/components/RdoForm";
 import { RdoVoiceAssist } from "@/components/RdoVoiceAssist";
 import { VISIBLE_SOURCE_PROVIDERS } from "@/lib/rdo-source-scope";
+import { loadObraTasks } from "@/lib/obra-tasks";
 
 export default async function NovoRdoPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -20,6 +21,8 @@ export default async function NovoRdoPage({ params }: { params: Promise<{ id: st
   const { data: tplRaw } = await supabase
     .from("rdo_templates").select("id, name, workforce, equipment, activities");
   const templates = (tplRaw ?? []) as Array<{ id: string; name: string; workforce: unknown; equipment: unknown; activities: unknown }>;
+
+  const tasks = await loadObraTasks(supabase, id);
 
   return (
     <div>
@@ -56,6 +59,7 @@ export default async function NovoRdoPage({ params }: { params: Promise<{ id: st
             equipment: Array.isArray(t.equipment) ? (t.equipment as { name: string; hours: number | null }[]) : [],
             activities: Array.isArray(t.activities) ? (t.activities as { description: string; progress_pct: number | null; notes: string | null }[]) : [],
           }))}
+          tasks={tasks}
         />
       </div>
     </div>

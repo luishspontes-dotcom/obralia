@@ -9,6 +9,7 @@ import { VISIBLE_SOURCE_PROVIDERS } from "@/lib/rdo-source-scope";
 import { mediaUrl } from "@/lib/storage";
 import { getCurrentRole, canManageUsers, canWrite } from "@/lib/permissions";
 import { untypedDb } from "@/lib/supabase/untyped";
+import { uploadObraDocuments } from "@/lib/rdo-actions";
 import { createShareLink, revokeShareLink, type ShareLinkRow } from "@/lib/share-actions";
 import { recomputeSiteRisk, type RiskFactor } from "@/lib/risk";
 import { RiskBadge, riskLevel } from "@/components/RiskBadge";
@@ -499,26 +500,38 @@ export default async function ObraDetailPage({
             </div>
           </section>
 
-          {files.length > 0 ? (
+          {(files.length > 0 || writer) ? (
             <section id="documentos" className="do-panel">
               <div className="do-panel__header">
                 <h2>Documentos da obra</h2>
               </div>
-              <div className="do-table-wrap">
-                <table className="do-table">
-                  <tbody>
-                    {files.map((file) => (
-                      <tr key={file.id}>
-                        <td>
-                          <a href={mediaUrl(file.storage_path)} target="_blank" rel="noreferrer">
-                            {file.caption ?? "Documento"}
-                          </a>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+              {writer ? (
+                <form action={uploadObraDocuments} style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap", padding: "12px 14px", borderBottom: "1px solid var(--o-border)" }}>
+                  <input type="hidden" name="siteId" value={id} />
+                  <input type="file" name="documents" multiple style={{ flex: "1 1 260px" }} />
+                  <button type="submit" className="diario-blue-button">Enviar documento</button>
+                  <span style={{ fontSize: 12, color: "var(--o-text-3)" }}>Projetos, plantas, contratos… (até 25MB cada)</span>
+                </form>
+              ) : null}
+              {files.length > 0 ? (
+                <div className="do-table-wrap">
+                  <table className="do-table">
+                    <tbody>
+                      {files.map((file) => (
+                        <tr key={file.id}>
+                          <td>
+                            <a href={mediaUrl(file.storage_path)} target="_blank" rel="noreferrer">
+                              {file.caption ?? "Documento"}
+                            </a>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <div style={{ padding: "14px", fontSize: 13, color: "var(--o-text-3)" }}>Nenhum documento ainda.</div>
+              )}
             </section>
           ) : null}
 

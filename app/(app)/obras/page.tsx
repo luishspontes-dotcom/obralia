@@ -1,7 +1,6 @@
 import Link from "next/link";
 import { Camera, FileText, LayoutGrid, List, Search, Video } from "lucide-react";
 import { createServerSupabase } from "@/lib/supabase/server";
-import { fetchAllPages } from "@/lib/supabase/fetch-all";
 import { VISIBLE_SOURCE_PROVIDERS } from "@/lib/rdo-source-scope";
 import { mediaUrl } from "@/lib/storage";
 
@@ -11,14 +10,6 @@ type Site = {
   status: string;
   client_name: string | null;
   cover_url: string | null;
-};
-
-type WbsItem = {
-  id: string;
-  site_id: string;
-  status: string | null;
-  parent_id: string | null;
-  progress_pct: number | null;
 };
 
 const STATUS_META: Record<string, { label: string; cls: string }> = {
@@ -58,48 +49,36 @@ export default async function ObrasPage({
     .order("name");
   const sites = (sitesRaw ?? []) as Site[];
 
-  const { data: itemsRaw } = await supabase
-    .from("wbs_items")
-    .select("id, site_id, status, parent_id, progress_pct")
-    .in("external_provider", VISIBLE_SOURCE_PROVIDERS);
-  const items = (itemsRaw ?? []) as WbsItem[];
+  // B1: contagens agregadas no banco (view obra_dashboard_counts) — evita baixar
+  // dezenas de milhares de linhas de mídia/tarefas só para contar por obra.
+  type ObraCounts = {
+    site_id: string;
+    tasks_total: number; tasks_done: number; tasks_late: number; tasks_in_progress: number;
+    progress_avg: number | string; rdo_count: number; photo_count: number; video_count: number;
+  };
+  const viewClient = supabase as unknown as {
+    from(table: string): { select(cols: string): Promise<{ data: ObraCounts[] | null }> };
+  };
+  const { data: countsRaw } = await viewClient
+    .from("obra_dashboard_counts")
+    .select("site_id, tasks_total, tasks_done, tasks_late, tasks_in_progress, progress_avg, rdo_count, photo_count, video_count");
+  const counts = (countsRaw ?? []) as ObraCounts[];
 
-  const rdoRows = await fetchAllPages<{ site_id: string }>(() =>
-    supabase
-      .from("daily_reports")
-      .select("site_id")
-      .in("external_provider", VISIBLE_SOURCE_PROVIDERS)
-  );
   const rdoCount = new Map<string, number>();
-  for (const r of rdoRows) rdoCount.set(r.site_id, (rdoCount.get(r.site_id) ?? 0) + 1);
-
-  const mediaRows = await fetchAllPages<{ site_id: string; kind: string | null }>(() =>
-    supabase
-      .from("media")
-      .select("site_id, kind")
-      .in("external_provider", VISIBLE_SOURCE_PROVIDERS)
-      .in("kind", ["photo", "video"])
-  );
   const photoCount = new Map<string, number>();
   const videoCount = new Map<string, number>();
-  for (const row of mediaRows) {
-    if (row.kind === "video") videoCount.set(row.site_id, (videoCount.get(row.site_id) ?? 0) + 1);
-    else photoCount.set(row.site_id, (photoCount.get(row.site_id) ?? 0) + 1);
-  }
-
   const perSite = new Map<string, { total: number; done: number; late: number; in_progress: number; progressAvg: number }>();
-  for (const it of items) {
-    if (it.parent_id === null) continue;
-    const cur = perSite.get(it.site_id) ?? { total: 0, done: 0, late: 0, in_progress: 0, progressAvg: 0 };
-    cur.total += 1;
-    if (it.status === "done") cur.done += 1;
-    if (it.status === "late") cur.late += 1;
-    if (it.status === "in_progress") cur.in_progress += 1;
-    cur.progressAvg += it.progress_pct ?? 0;
-    perSite.set(it.site_id, cur);
-  }
-  for (const stats of perSite.values()) {
-    stats.progressAvg = stats.total > 0 ? Math.round(stats.progressAvg / stats.total) : 0;
+  for (const c of counts) {
+    rdoCount.set(c.site_id, Number(c.rdo_count) || 0);
+    photoCount.set(c.site_id, Number(c.photo_count) || 0);
+    videoCount.set(c.site_id, Number(c.video_count) || 0);
+    perSite.set(c.site_id, {
+      total: Number(c.tasks_total) || 0,
+      done: Number(c.tasks_done) || 0,
+      late: Number(c.tasks_late) || 0,
+      in_progress: Number(c.tasks_in_progress) || 0,
+      progressAvg: Number(c.progress_avg) || 0,
+    });
   }
 
   const visibleSites = sites.filter((site) => {

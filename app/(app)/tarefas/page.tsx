@@ -15,7 +15,7 @@ type WbsItem = {
   parent_id: string | null;
   time_spent_ms: number | null;
 };
-type Site = { id: string; name: string };
+type Site = { id: string; name: string; external_provider?: string | null };
 
 const PER_PAGE = 100;
 
@@ -74,10 +74,13 @@ export default async function TarefasPage({
 
   const { data: sitesRaw } = await supabase
     .from("sites")
-    .select("id, name")
+    .select("id, name, external_provider")
     .in("external_provider", WBS_SOURCE_PROVIDERS);
   const sites = (sitesRaw ?? []) as Site[];
   const siteMap = new Map(sites.map((s) => [s.id, s.name]));
+  // B5: o seletor de obras não deve listar os "baldes operacionais" importados
+  // do ClickUp (AGENDAS/ATA SEMANAL/MEDIÇÕES) — não são obras.
+  const obraOptions = sites.filter((s) => s.external_provider !== "import");
 
   const grouped = new Map<string, WbsItem[]>();
   for (const it of items) {
@@ -141,7 +144,7 @@ export default async function TarefasPage({
             <input name="name" required placeholder="Nome da atividade" style={taskInputStyle} />
             <select name="site_id" defaultValue="" style={taskInputStyle}>
               <option value="">Sem obra (geral)</option>
-              {sites.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+              {obraOptions.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
             </select>
             <input name="date_due" type="date" style={taskInputStyle} />
             <select name="status" defaultValue="waiting" style={taskInputStyle}>

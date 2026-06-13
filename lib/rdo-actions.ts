@@ -54,7 +54,7 @@ export async function createOrUpdateRdo(formData: FormData) {
 
   type WF = { role: string; count: number };
   type EQ = { name: string; hours: number | null };
-  type AC = { description: string; progress_pct: number | null; notes: string | null };
+  type AC = { description: string; progress_pct: number | null; notes: string | null; wbs_item_id?: string | null };
   type MT = { name: string; quantity: number | null; unit: string | null; notes: string | null };
 
   const wfList: WF[] = wfRaw ? JSON.parse(wfRaw) : [];
@@ -140,8 +140,27 @@ export async function createOrUpdateRdo(formData: FormData) {
         description: a.description.trim(),
         progress_pct: a.progress_pct,
         notes: a.notes,
+        wbs_item_id: a.wbs_item_id ?? null,
       }));
     if (rows.length > 0) await admin.from("report_activities").insert(rows as never);
+
+    // F2: quando a atividade está vinculada a uma tarefa da obra e tem %,
+    // atualiza o progresso (e o status) da tarefa — é isso que faz o % do RDO
+    // alimentar o avanço geral da obra. Em caso de duplicados, o último vence.
+    const taskUpdates = new Map<string, number>();
+    for (const a of acList) {
+      if (a.wbs_item_id && a.progress_pct != null) {
+        taskUpdates.set(a.wbs_item_id, Math.min(100, Math.max(0, a.progress_pct)));
+      }
+    }
+    for (const [wbsId, pct] of taskUpdates) {
+      const status = pct >= 100 ? "done" : pct > 0 ? "in_progress" : "waiting";
+      await admin
+        .from("wbs_items")
+        .update({ progress_pct: pct, status } as never)
+        .eq("id", wbsId)
+        .eq("site_id", siteId);
+    }
   }
   if (mtList.length > 0) {
     const rows = mtList
@@ -342,6 +361,56 @@ export async function uploadAttachments(formData: FormData) {
   }
 
   revalidatePath(`/obras/${siteId}/rdos/${rdoId}`);
+}
+
+/* ───────── Documentos da obra (S2) ───────── */
+
+export async function uploadObraDocuments(formData: FormData) {
+  const { supabase, user } = await requireUser();
+  const admin = supabase;
+  const siteId = asString(formData.get("siteId"));
+  if (!siteId) throw new Error("siteId obrigatório");
+
+  const files = formData.getAll("documents").filter((f): f is File => f instanceof File && f.size > 0);
+  if (files.length === 0) return;
+
+  const tooBig = files.find(f => f.size > MAX_ATTACHMENT_BYTES);
+  if (tooBig) {
+    throw new Error(`O arquivo "${tooBig.name}" excede o limite de 25MB.`);
+  }
+
+  for (const file of files) {
+    const ext = (file.name.split(".").pop() || "bin").toLowerCase();
+    const id = crypto.randomUUID();
+    const path = `${siteId}/documentos/${id}.${ext}`;
+
+    const buf = new Uint8Array(await file.arrayBuffer());
+    const up = await admin.storage.from("media").upload(path, buf, {
+      contentType: file.type || "application/octet-stream",
+      upsert: false,
+    });
+    if (up.error) {
+      console.error("documento upload error:", up.error.message);
+      continue;
+    }
+
+    await admin.from("media").insert({
+      id,
+      site_id: siteId,
+      daily_report_id: null,
+      kind: "file",
+      storage_path: path,
+      caption: file.name,
+      size_bytes: file.size,
+      taken_at: new Date().toISOString(),
+      taken_by: user.id,
+      migrated_at: new Date().toISOString(),
+      external_provider: OBRALIA_SOURCE_PROVIDER,
+      sync_metadata: { uploaded_via: "obralia", scope: "obra_document" },
+    } as never);
+  }
+
+  revalidatePath(`/obras/${siteId}`);
 }
 
 /* ───────── Obra edit ───────── */

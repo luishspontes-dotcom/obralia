@@ -667,7 +667,12 @@ async function upsertSite(supabase, organizationId, obraId, obra, context) {
   }
 
   if (existing) {
-    const { data, error } = await supabase.from("sites").update(patch).eq("id", existing.id).select("id,name").single();
+    // B3: não sobrescrever o `status` de obras já existentes — o usuário pode
+    // ter editado manualmente (ex.: marcar como "Concluída"). A sincronização
+    // define o status só na criação; em updates, preserva o que está no banco.
+    const { status: _ignoredStatus, ...updatePatch } = patch;
+    void _ignoredStatus;
+    const { data, error } = await supabase.from("sites").update(updatePatch).eq("id", existing.id).select("id,name").single();
     if (error) throw error;
     stats.sites_updated += 1;
     return data;
@@ -717,7 +722,7 @@ async function importWbsForSite(supabase, siteId, obraId, obraDir, context) {
       code: pickString(etapa, ["item", "codigo", "code"]) ?? String(position + 1),
       name: etapaName,
       description: pickString(etapa, ["observacao", "descricaoCompleta", "notes"]),
-      status: mapTaskStatus(etapa.status),
+      status: reconcileTaskStatus(mapTaskStatus(etapa.status), pickNumber(etapa, ["porcentagem", "percentual", "progresso"])),
       progress_pct: pickNumber(etapa, ["porcentagem", "percentual", "progresso"]) ?? null,
       start_date: toIsoDate(pickValue(etapa, ["dataInicio", "inicio"])),
       due_date: toIsoDate(pickValue(etapa, ["dataFim", "fim", "termino"])),
@@ -739,7 +744,7 @@ async function importWbsForSite(supabase, siteId, obraId, obraDir, context) {
         code: pickString(tarefa, ["item", "codigo", "code"]) ?? `${position + 1}.${taskPosition + 1}`,
         name: pickString(tarefa, ["descricao", "nome", "name", "titulo"]) ?? `Tarefa ${taskPosition + 1}`,
         description: pickString(tarefa, ["observacao", "notes", "descricaoCompleta"]),
-        status: mapTaskStatus(tarefa.status),
+        status: reconcileTaskStatus(mapTaskStatus(tarefa.status), pickNumber(tarefa, ["porcentagem", "percentual", "progresso"])),
         progress_pct: pickNumber(tarefa, ["porcentagem", "percentual", "progresso"]) ?? null,
         start_date: toIsoDate(pickValue(tarefa, ["dataInicio", "inicio"])),
         due_date: toIsoDate(pickValue(tarefa, ["dataFim", "fim", "termino"])),
@@ -1462,6 +1467,16 @@ function mapTaskStatus(status) {
   if (/paralis|paus/i.test(removeAccents(text))) return "paused";
   if (id === 2 || /andamento|progress/i.test(removeAccents(text))) return "in_progress";
   return "waiting";
+}
+
+// P1: a porcentagem do Diário representa o avanço físico da tarefa (confirmado
+// pela engenharia). Se a tarefa está 100% mas o status da origem ficou como
+// "não iniciada"/"em andamento", reconcilia para "concluída" — evita o caso
+// "100% + Não iniciada" na lista de tarefas.
+function reconcileTaskStatus(status, progressPct) {
+  const p = typeof progressPct === "number" ? progressPct : null;
+  if (p != null && p >= 100 && (status === "waiting" || status === "todo")) return "done";
+  return status;
 }
 
 function mapReportStatus(status) {

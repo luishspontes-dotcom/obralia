@@ -139,8 +139,8 @@ export default async function InicioPage() {
               margin: 0,
             }}
           >
-            Resumo da operação. Use a barra lateral pra navegar pelas obras,
-            RDOs e mensagens — ou clique direto numa obra abaixo.
+            Resumo da operação. Use o menu no topo pra navegar pelas obras,
+            relatórios e cadastros — ou clique direto numa obra abaixo.
           </p>
         </div>
       </div>

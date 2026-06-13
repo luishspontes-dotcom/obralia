@@ -195,6 +195,23 @@ export async function setMedicaoStatus(formData: FormData) {
   revalidateMedicao(siteId, medicaoId);
 }
 
+/** B6: editar as observações da medição depois de criada. */
+export async function updateMedicaoNotes(formData: FormData) {
+  const { supabase } = await requireUser();
+  const medicaoId = asString(formData.get("medicaoId"));
+  const siteId = asString(formData.get("siteId"));
+  if (!medicaoId || !siteId) throw new Error("medicaoId e siteId obrigatórios");
+
+  const notes = asString(formData.get("notes")) || null;
+  const { error } = await supabase
+    .from("medicoes")
+    .update({ notes } as never)
+    .eq("id", medicaoId);
+  if (error) throw new Error(error.message);
+
+  revalidateMedicao(siteId, medicaoId);
+}
+
 /* ───────── Itens da medição ───────── */
 
 export async function addMedicaoItem(formData: FormData) {

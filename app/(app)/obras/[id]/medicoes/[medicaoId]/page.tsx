@@ -9,6 +9,7 @@ import {
   deleteMedicaoItem,
   setMedicaoStatus,
   updateMedicaoItem,
+  updateMedicaoNotes,
 } from "@/lib/medicao-actions";
 import { MedicaoPrintButton } from "@/components/MedicaoPrintButton";
 
@@ -192,11 +193,29 @@ export default async function MedicaoDetailPage({
           </div>
         </div>
 
-        {medicao.notes && (
-          <div className="card" style={{ padding: "16px 20px", marginBottom: 20 }}>
+        {editable ? (
+          <form action={updateMedicaoNotes} className="card" style={{ padding: "16px 20px", marginBottom: 20 }}>
+            <input type="hidden" name="medicaoId" value={medicaoId} />
+            <input type="hidden" name="siteId" value={id} />
             <h3 className="section-title" style={{ marginBottom: 8 }}>📝 Observações</h3>
-            <div style={{ fontSize: 14, color: "var(--o-text-1)", whiteSpace: "pre-wrap", lineHeight: 1.6 }}>{medicao.notes}</div>
-          </div>
+            <textarea
+              name="notes"
+              defaultValue={medicao.notes ?? ""}
+              placeholder="Observações da medição (pode editar a qualquer momento)…"
+              rows={3}
+              style={{ width: "100%", fontSize: 14, lineHeight: 1.6, padding: "8px 10px", border: "1px solid var(--o-border)", borderRadius: 8, resize: "vertical" }}
+            />
+            <div style={{ marginTop: 8, textAlign: "right" }}>
+              <button type="submit" className="diario-blue-button">Salvar observações</button>
+            </div>
+          </form>
+        ) : (
+          medicao.notes && (
+            <div className="card" style={{ padding: "16px 20px", marginBottom: 20 }}>
+              <h3 className="section-title" style={{ marginBottom: 8 }}>📝 Observações</h3>
+              <div style={{ fontSize: 14, color: "var(--o-text-1)", whiteSpace: "pre-wrap", lineHeight: 1.6 }}>{medicao.notes}</div>
+            </div>
+          )
         )}
 
         {/* Tabela só-leitura para impressão */}
