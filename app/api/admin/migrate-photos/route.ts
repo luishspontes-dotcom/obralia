@@ -24,8 +24,10 @@ export async function POST(req: Request) {
   if (!canWrite(role)) return NextResponse.json({ error: "sem permissão" }, { status: 403 });
 
   const url = new URL(req.url);
-  const batch = Math.min(Math.max(Number(url.searchParams.get("batch") ?? 12) || 12, 1), 25);
-  const timeBudgetMs = 50_000;
+  // quantos baixar do banco por rodada; processados em paralelo (chunks)
+  const batch = Math.min(Math.max(Number(url.searchParams.get("batch") ?? 200) || 200, 1), 400);
+  const concurrency = Math.min(Math.max(Number(url.searchParams.get("conc") ?? 12) || 12, 1), 20);
+  const timeBudgetMs = 52_000;
   const startedAt = Date.now();
 
   const admin = createAdminSupabase();
@@ -33,6 +35,45 @@ export async function POST(req: Request) {
 
   let migrated = 0;
   const failures: { id: string; reason: string }[] = [];
+
+  type Row = { id: string; site_id: string; storage_path: string; kind: string | null };
+
+  const migrateOne = async (m: Row) => {
+    try {
+      const res = await fetch(m.storage_path, { signal: AbortSignal.timeout(20_000) });
+      if (!res.ok) throw new Error(`origem respondeu ${res.status}`);
+      const contentType = res.headers.get("content-type") ?? "application/octet-stream";
+      const bytes = new Uint8Array(await res.arrayBuffer());
+      if (bytes.byteLength === 0) throw new Error("arquivo vazio");
+      if (bytes.byteLength > 25 * 1024 * 1024) throw new Error("acima de 25MB");
+
+      const urlExt = (m.storage_path.split("?")[0].split(".").pop() || "").toLowerCase();
+      const isVideo = contentType.startsWith("video/") || VIDEO_EXTS.includes(urlExt);
+      const ext = contentType.includes("png") ? "png"
+        : contentType.includes("webp") ? "webp"
+        : isVideo ? (VIDEO_EXTS.includes(urlExt) ? urlExt : "mp4")
+        : "jpg";
+      const path = `${m.site_id}/${m.id}.${ext}`;
+      const buf = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer;
+
+      const up = await admin.storage.from("media").upload(path, buf, { contentType, upsert: true });
+      if (up.error) throw new Error(up.error.message);
+
+      const { error: updErr } = await admin
+        .from("media")
+        .update({ external_url: m.storage_path, storage_path: path, migrated_at: new Date().toISOString() } as never)
+        .eq("id", m.id);
+      if (updErr) throw new Error(updErr.message);
+
+      migrated++;
+    } catch (e) {
+      const reason = e instanceof Error ? e.message : String(e);
+      failures.push({ id: m.id, reason });
+      await admin.from("media")
+        .update({ migration_error: reason.slice(0, 300) } as never)
+        .eq("id", m.id);
+    }
+  };
 
   while (Date.now() - startedAt < timeBudgetMs) {
     const { data: rowsRaw, error } = await admin
@@ -44,48 +85,16 @@ export async function POST(req: Request) {
       .limit(batch);
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-    const rows = (rowsRaw ?? []) as { id: string; site_id: string; storage_path: string; kind: string | null }[];
+    const rows = (rowsRaw ?? []) as Row[];
     if (rows.length === 0) break;
 
-    for (const m of rows) {
+    const before = migrated;
+    for (let i = 0; i < rows.length; i += concurrency) {
       if (Date.now() - startedAt >= timeBudgetMs) break;
-      try {
-        const res = await fetch(m.storage_path, { signal: AbortSignal.timeout(20_000) });
-        if (!res.ok) throw new Error(`origem respondeu ${res.status}`);
-        const contentType = res.headers.get("content-type") ?? "application/octet-stream";
-        const bytes = new Uint8Array(await res.arrayBuffer());
-        if (bytes.byteLength === 0) throw new Error("arquivo vazio");
-        if (bytes.byteLength > 25 * 1024 * 1024) throw new Error("acima de 25MB");
-
-        const urlExt = (m.storage_path.split("?")[0].split(".").pop() || "").toLowerCase();
-        const isVideo = contentType.startsWith("video/") || VIDEO_EXTS.includes(urlExt);
-        const ext = contentType.includes("png") ? "png"
-          : contentType.includes("webp") ? "webp"
-          : isVideo ? (VIDEO_EXTS.includes(urlExt) ? urlExt : "mp4")
-          : "jpg";
-        const path = `${m.site_id}/${m.id}.${ext}`;
-        const buf = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer;
-
-        const up = await admin.storage.from("media").upload(path, buf, { contentType, upsert: true });
-        if (up.error) throw new Error(up.error.message);
-
-        const { error: updErr } = await admin
-          .from("media")
-          .update({ external_url: m.storage_path, storage_path: path, migrated_at: new Date().toISOString() } as never)
-          .eq("id", m.id);
-        if (updErr) throw new Error(updErr.message);
-
-        migrated++;
-      } catch (e) {
-        failures.push({ id: m.id, reason: e instanceof Error ? e.message : String(e) });
-        // marca erro pra não travar no mesmo arquivo eternamente
-        await admin.from("media")
-          .update({ migration_error: (failures[failures.length - 1].reason).slice(0, 300) } as never)
-          .eq("id", m.id);
-      }
+      await Promise.all(rows.slice(i, i + concurrency).map(migrateOne));
     }
-    // se o lote inteiro falhou (ex.: Azure fora do ar), para cedo
-    if (migrated === 0 && failures.length >= batch) break;
+    // se nada migrou no lote inteiro (ex.: Azure fora do ar), para cedo
+    if (migrated === before) break;
   }
 
   const { count: remaining } = await admin
