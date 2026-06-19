@@ -7,8 +7,9 @@ import { VISIBLE_SOURCE_PROVIDERS } from "@/lib/rdo-source-scope";
 type Site = { id: string; name: string; client_name: string | null; address: string | null; contract_number: string | null };
 type DR = {
   id: string; number: number; date: string; status: string;
-  weather_morning: string | null; weather_afternoon: string | null;
-  condition_morning: string | null; condition_afternoon: string | null;
+  weather_morning: string | null; weather_afternoon: string | null; weather_night: string | null;
+  condition_morning: string | null; condition_afternoon: string | null; condition_night: string | null;
+  rain_mm: number | null;
   general_notes: string | null;
   work_start: string | null;
   work_end: string | null;
@@ -53,7 +54,7 @@ export default async function ImprimirRdoPage({
 
   const { data: rdoRaw } = await supabase
     .from("daily_reports")
-    .select("id, number, date, status, weather_morning, weather_afternoon, condition_morning, condition_afternoon, general_notes, work_start, work_end, work_break_minutes, approval_status_label")
+    .select("id, number, date, status, weather_morning, weather_afternoon, weather_night, condition_morning, condition_afternoon, condition_night, rain_mm, general_notes, work_start, work_end, work_break_minutes, approval_status_label")
     .eq("id", rdoId)
     .eq("site_id", id)
     .in("external_provider", VISIBLE_SOURCE_PROVIDERS)
@@ -168,6 +169,19 @@ export default async function ImprimirRdoPage({
                 <td>{rdo.weather_afternoon ?? "—"}</td>
                 <td style={{ color: "#4a5568" }}>{rdo.condition_afternoon ?? "—"}</td>
               </tr>
+              {(rdo.weather_night || rdo.condition_night) && (
+                <tr>
+                  <td style={{ fontWeight: 500, color: "#4a5568" }}>Noite</td>
+                  <td>{rdo.weather_night ?? "—"}</td>
+                  <td style={{ color: "#4a5568" }}>{rdo.condition_night ?? "—"}</td>
+                </tr>
+              )}
+              {rdo.rain_mm != null && (
+                <tr>
+                  <td style={{ fontWeight: 500, color: "#4a5568" }}>Índice pluviométrico</td>
+                  <td colSpan={2}>{rdo.rain_mm} mm</td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>

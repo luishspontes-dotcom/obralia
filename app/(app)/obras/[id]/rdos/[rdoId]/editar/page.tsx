@@ -24,15 +24,16 @@ export default async function EditarRdoPage({
 
   const { data: rdoRaw } = await supabase
     .from("daily_reports")
-    .select("id, number, date, status, weather_morning, weather_afternoon, condition_morning, condition_afternoon, general_notes, work_start, work_end, work_break_minutes")
+    .select("id, number, date, status, weather_morning, weather_afternoon, weather_night, condition_morning, condition_afternoon, condition_night, rain_mm, general_notes, work_start, work_end, work_break_minutes")
     .eq("id", rdoId)
     .eq("site_id", id)
     .in("external_provider", VISIBLE_SOURCE_PROVIDERS)
     .maybeSingle();
   const rdo = rdoRaw as {
     id: string; number: number; date: string; status: string;
-    weather_morning: string | null; weather_afternoon: string | null;
-    condition_morning: string | null; condition_afternoon: string | null;
+    weather_morning: string | null; weather_afternoon: string | null; weather_night: string | null;
+    condition_morning: string | null; condition_afternoon: string | null; condition_night: string | null;
+    rain_mm: number | null;
     general_notes: string | null;
     work_start: string | null; work_end: string | null; work_break_minutes: number | null;
   } | null;
@@ -75,8 +76,11 @@ export default async function EditarRdoPage({
             status: rdo.status,
             weather_morning: rdo.weather_morning,
             weather_afternoon: rdo.weather_afternoon,
+            weather_night: rdo.weather_night,
             condition_morning: rdo.condition_morning,
             condition_afternoon: rdo.condition_afternoon,
+            condition_night: rdo.condition_night,
+            rain_mm: rdo.rain_mm,
             general_notes: rdo.general_notes,
             work_start: rdo.work_start,
             work_end: rdo.work_end,

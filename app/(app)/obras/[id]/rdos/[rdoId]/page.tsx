@@ -28,7 +28,10 @@ type DR = {
   status: string;
   weather_morning: string | null;
   weather_afternoon: string | null;
+  weather_night: string | null;
+  rain_mm: number | null;
   condition_morning: string | null;
+  condition_night: string | null;
   condition_afternoon: string | null;
   general_notes: string | null;
   work_start: string | null;
@@ -119,7 +122,7 @@ export default async function RdoDetailPage({
 
   const { data: rdoRaw } = await supabase
     .from("daily_reports")
-    .select("id, number, date, status, weather_morning, weather_afternoon, condition_morning, condition_afternoon, general_notes, work_start, work_end, work_break_minutes, signature_data_url, signature_signer_name, signature_signed_at, client_summary, client_summary_generated_at, created_at, created_by, approved_at, approved_by, approval_status_label")
+    .select("id, number, date, status, weather_morning, weather_afternoon, weather_night, condition_morning, condition_afternoon, condition_night, rain_mm, general_notes, work_start, work_end, work_break_minutes, signature_data_url, signature_signer_name, signature_signed_at, client_summary, client_summary_generated_at, created_at, created_by, approved_at, approved_by, approval_status_label")
     .eq("id", rdoId)
     .eq("site_id", id)
     .in("external_provider", VISIBLE_SOURCE_PROVIDERS)
@@ -435,6 +438,19 @@ export default async function RdoDetailPage({
                 <td>{rdo.weather_afternoon ?? "—"}</td>
                 <td colSpan={2}>{rdo.condition_afternoon ?? "—"}</td>
               </tr>
+              {(rdo.weather_night || rdo.condition_night) && (
+                <tr>
+                  <td><strong>Noite</strong></td>
+                  <td>{rdo.weather_night ?? "—"}</td>
+                  <td colSpan={2}>{rdo.condition_night ?? "—"}</td>
+                </tr>
+              )}
+              {rdo.rain_mm != null && (
+                <tr>
+                  <td><strong>Índice pluviométrico</strong></td>
+                  <td colSpan={3}>{rdo.rain_mm} mm</td>
+                </tr>
+              )}
 
               {/* 3. Mão de obra */}
               <tr><td className="do-doc-section" colSpan={4}>Mão de obra ({totalWorkers})</td></tr>

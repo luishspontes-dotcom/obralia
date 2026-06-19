@@ -28,8 +28,11 @@ export type RdoFormProps = {
     status?: string;
     weather_morning?: string | null;
     weather_afternoon?: string | null;
+    weather_night?: string | null;
     condition_morning?: string | null;
     condition_afternoon?: string | null;
+    condition_night?: string | null;
+    rain_mm?: number | null;
     general_notes?: string | null;
     work_start?: string | null;
     work_end?: string | null;
@@ -57,8 +60,11 @@ type RdoDraft = {
   status: string;
   weather_morning: string;
   weather_afternoon: string;
+  weather_night: string;
   condition_morning: string;
   condition_afternoon: string;
+  condition_night: string;
+  rain_mm: string;
   general_notes: string;
   work_start: string;
   work_end: string;
@@ -111,8 +117,11 @@ export function RdoForm(props: RdoFormProps) {
   const [date, setDate] = useState(ini.date ?? new Date().toISOString().slice(0, 10));
   const [wm, setWm] = useState(ini.weather_morning ?? "");
   const [wa, setWa] = useState(ini.weather_afternoon ?? "");
+  const [wn, setWn] = useState(ini.weather_night ?? "");
   const [cm, setCm] = useState(ini.condition_morning ?? "");
   const [ca, setCa] = useState(ini.condition_afternoon ?? "");
+  const [cn, setCn] = useState(ini.condition_night ?? "");
+  const [rain, setRain] = useState(ini.rain_mm != null ? String(ini.rain_mm) : "");
   const [notes, setNotes] = useState(ini.general_notes ?? "");
   const [status, setStatus] = useState(ini.status ?? "draft");
   const [workStart, setWorkStart] = useState((ini.work_start ?? "").slice(0, 5));
@@ -141,8 +150,11 @@ export function RdoForm(props: RdoFormProps) {
       setStatus(draft.status);
       setWm(draft.weather_morning);
       setWa(draft.weather_afternoon);
+      setWn(draft.weather_night ?? "");
       setCm(draft.condition_morning);
       setCa(draft.condition_afternoon);
+      setCn(draft.condition_night ?? "");
+      setRain(draft.rain_mm ?? "");
       setNotes(draft.general_notes);
       setWorkStart(draft.work_start);
       setWorkEnd(draft.work_end);
@@ -159,8 +171,9 @@ export function RdoForm(props: RdoFormProps) {
     if (!hydrated.current || typeof window === "undefined") return;
     const draft: RdoDraft = {
       date, status,
-      weather_morning: wm, weather_afternoon: wa,
-      condition_morning: cm, condition_afternoon: ca,
+      weather_morning: wm, weather_afternoon: wa, weather_night: wn,
+      condition_morning: cm, condition_afternoon: ca, condition_night: cn,
+      rain_mm: rain,
       general_notes: notes,
       work_start: workStart, work_end: workEnd, work_break_minutes: workBreak,
       workforce, equipment, activities, materials,
@@ -170,7 +183,7 @@ export function RdoForm(props: RdoFormProps) {
     } catch {
       /* quota cheia/modo privado — segue sem draft */
     }
-  }, [dKey, date, status, wm, wa, cm, ca, notes, workStart, workEnd, workBreak, workforce, equipment, activities, materials]);
+  }, [dKey, date, status, wm, wa, wn, cm, ca, cn, rain, notes, workStart, workEnd, workBreak, workforce, equipment, activities, materials]);
 
   const totalWorkers = workforce.reduce((s, w) => s + (Number(w.count) || 0), 0);
   const jornada = jornadaTotal(workStart, workEnd, workBreak);
@@ -375,6 +388,29 @@ export function RdoForm(props: RdoFormProps) {
             <select name="condition_afternoon" value={ca} onChange={(e) => setCa(e.target.value)} style={inputStyle}>
               {CONDICOES.map(c => <option key={c} value={c}>{c || "—"}</option>)}
             </select>
+          </Field>
+          <Field label="Tempo noite">
+            <select name="weather_night" value={wn} onChange={(e) => setWn(e.target.value)} style={inputStyle}>
+              {CLIMAS.map(c => <option key={c} value={c}>{c || "—"}</option>)}
+            </select>
+          </Field>
+          <Field label="Condição noite">
+            <select name="condition_night" value={cn} onChange={(e) => setCn(e.target.value)} style={inputStyle}>
+              {CONDICOES.map(c => <option key={c} value={c}>{c || "—"}</option>)}
+            </select>
+          </Field>
+          <Field label="Índice pluviométrico (mm)">
+            <input
+              name="rain_mm"
+              type="number"
+              step="0.1"
+              min="0"
+              inputMode="decimal"
+              value={rain}
+              onChange={(e) => setRain(e.target.value)}
+              placeholder="Ex.: 5.30"
+              style={inputStyle}
+            />
           </Field>
         </div>
       </div>

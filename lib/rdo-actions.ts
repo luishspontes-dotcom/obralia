@@ -38,8 +38,11 @@ export async function createOrUpdateRdo(formData: FormData) {
 
   const wm = asString(formData.get("weather_morning")) || null;
   const wa = asString(formData.get("weather_afternoon")) || null;
+  const wn = asString(formData.get("weather_night")) || null;
   const cm = asString(formData.get("condition_morning")) || null;
   const ca = asString(formData.get("condition_afternoon")) || null;
+  const cn = asString(formData.get("condition_night")) || null;
+  const rainMm = asNum(formData.get("rain_mm"));
   const notes = asString(formData.get("general_notes")) || null;
   const status = asString(formData.get("status")) || "draft";
   const workStart = asString(formData.get("work_start")) || null;
@@ -73,8 +76,11 @@ export async function createOrUpdateRdo(formData: FormData) {
         status,
         weather_morning: wm,
         weather_afternoon: wa,
+        weather_night: wn,
         condition_morning: cm,
         condition_afternoon: ca,
+        condition_night: cn,
+        rain_mm: rainMm,
         general_notes: notes,
         work_start: workStart,
         work_end: workEnd,
@@ -100,8 +106,11 @@ export async function createOrUpdateRdo(formData: FormData) {
         status,
         weather_morning: wm,
         weather_afternoon: wa,
+        weather_night: wn,
         condition_morning: cm,
         condition_afternoon: ca,
+        condition_night: cn,
+        rain_mm: rainMm,
         general_notes: notes,
         work_start: workStart,
         work_end: workEnd,
