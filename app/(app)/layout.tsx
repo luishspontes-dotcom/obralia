@@ -60,14 +60,20 @@ export default async function AppLayout({
   // vez de rodar 5+ queries em TODA navegação — navegação volta a ser leve.
   const snapshot = activeOrg ? await getLayoutSnapshot(activeOrg.id) : EMPTY_SNAPSHOT;
   const snapshotCounts = snapshot.cadastroCounts;
+  // Existe snapshot do Diário quando há qualquer contagem importada.
+  // O Diário sempre tem os defaults "Todas as obras" (grupo) e "Relatório
+  // Diário de Obra (RDO)" (modelo), por isso caem para 1 quando o snapshot
+  // não traz a chave explícita — assim o menu bate com o Diário (1/1).
+  const hasDiarioSnapshot = Object.keys(snapshotCounts).length > 0;
   const menuCounts: TopbarMenuCounts = {
     fotos: snapshot.fotos,
     videos: snapshot.videos,
     anexos: snapshot.anexos,
     usuarios: Number(snapshotCounts.usuarios ?? 0),
-    gruposDeObra: Number(snapshotCounts.grupos ?? 0),
-    modelosRelatorios: Number(snapshotCounts.modelos ?? 0),
-    maoDeObra: Number(snapshotCounts.mao_de_obra_padrao ?? 0),
+    gruposDeObra: Number(snapshotCounts.grupos ?? snapshotCounts.grupos_de_obra ?? (hasDiarioSnapshot ? 1 : 0)),
+    modelosRelatorios: Number(snapshotCounts.modelos ?? snapshotCounts.modelos_relatorios ?? (hasDiarioSnapshot ? 1 : 0)),
+    // Mão de obra = padrão + personalizada (Diário mostra o total: 13 + 3 = 16).
+    maoDeObra: Number(snapshotCounts.mao_de_obra_padrao ?? 0) + Number(snapshotCounts.mao_de_obra_personalizada ?? 0),
     equipamentos: Number(snapshotCounts.equipamentos ?? 0),
     tiposOcorrencias: Number(snapshotCounts.tipos_ocorrencias ?? 0),
   };
