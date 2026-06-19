@@ -26,6 +26,7 @@ type Site = {
   contract_number: string | null;
   contract_days: number | null;
   responsible_id: string | null;
+  responsible_name: string | null;
 };
 
 type WbsItem = {
@@ -112,7 +113,7 @@ export default async function ObraDetailPage({
 
   const { data: siteRaw } = await supabase
     .from("sites")
-    .select("id, name, status, client_name, start_date, end_date, address, cover_url, contract_number, contract_days, responsible_id")
+    .select("id, name, status, client_name, start_date, end_date, address, cover_url, contract_number, contract_days, responsible_id, responsible_name")
     .eq("id", id)
     .in("external_provider", VISIBLE_SOURCE_PROVIDERS)
     .maybeSingle();
@@ -365,9 +366,9 @@ export default async function ObraDetailPage({
                 <strong>{schedule.remaining != null ? `${schedule.remaining} dias` : "—"}</strong>
               </Info>
               <Info label="Responsável">
-                <strong>{responsibleName ?? "—"}</strong>
+                <strong>{site.responsible_name || responsibleName || "—"}</strong>
               </Info>
-              <Info label="Cliente">
+              <Info label="Contratante">
                 <strong>{site.client_name || "—"}</strong>
               </Info>
               <Info label="Data início">
