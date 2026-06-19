@@ -93,7 +93,8 @@ function daysBetween(start: string | null, end: string | null): { total: number 
     return { total: null, elapsed: null, remaining: null };
   }
   const day = 1000 * 60 * 60 * 24;
-  const total = Math.ceil((endMs - startMs) / day);
+  // Prazo contratual inclusivo (conta o dia inicial e o final), igual ao Diário de Obra.
+  const total = Math.round((endMs - startMs) / day) + 1;
   const elapsedRaw = Math.ceil((Date.now() - startMs) / day);
   const elapsed = Math.min(Math.max(elapsedRaw, 0), total);
   return { total, elapsed, remaining: Math.max(total - elapsed, 0) };

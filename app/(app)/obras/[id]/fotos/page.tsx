@@ -6,7 +6,7 @@ import { PhotoGrid } from "@/components/PhotoLightbox";
 import { PhotoAiPanel } from "@/components/PhotoAiPanel";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { untypedDb, type DbQuery } from "@/lib/supabase/untyped";
-import { VISIBLE_SOURCE_PROVIDERS } from "@/lib/rdo-source-scope";
+import { VISIBLE_SOURCE_PROVIDERS, MEDIA_SOURCE_PROVIDERS, WBS_SOURCE_PROVIDERS } from "@/lib/rdo-source-scope";
 import { getCurrentRole, canWrite } from "@/lib/permissions";
 import { mediaUrl } from "@/lib/storage";
 import { AI_STAGES, AI_STAGE_LABELS, isAiStage, normalizeAiFlags } from "@/lib/ai-photo-meta";
@@ -94,25 +94,25 @@ export default async function ObraFotosPage({
       .from("media")
       .select("*", { count: "exact", head: true })
       .eq("site_id", id)
-      .in("external_provider", VISIBLE_SOURCE_PROVIDERS)
+      .in("external_provider", MEDIA_SOURCE_PROVIDERS)
       .eq("kind", "photo"),
     supabase
       .from("media")
       .select("*", { count: "exact", head: true })
       .eq("site_id", id)
-      .in("external_provider", VISIBLE_SOURCE_PROVIDERS)
+      .in("external_provider", MEDIA_SOURCE_PROVIDERS)
       .eq("kind", "video"),
     supabase
       .from("media")
       .select("*", { count: "exact", head: true })
       .eq("site_id", id)
-      .in("external_provider", VISIBLE_SOURCE_PROVIDERS)
+      .in("external_provider", MEDIA_SOURCE_PROVIDERS)
       .eq("kind", "file"),
     supabase
       .from("wbs_items")
       .select("*", { count: "exact", head: true })
       .eq("site_id", id)
-      .in("external_provider", VISIBLE_SOURCE_PROVIDERS)
+      .in("external_provider", WBS_SOURCE_PROVIDERS)
       .not("parent_id", "is", null),
   ]);
 
@@ -120,7 +120,7 @@ export default async function ObraFotosPage({
   const applyMediaFilters = <T,>(query: DbQuery<T>): DbQuery<T> => {
     let q2 = query
       .eq("site_id", id)
-      .in("external_provider", VISIBLE_SOURCE_PROVIDERS)
+      .in("external_provider", MEDIA_SOURCE_PROVIDERS)
       .eq("kind", mediaType);
     if (relatorio) q2 = q2.eq("daily_report_id", relatorio);
     if (stageFilter) q2 = q2.eq("ai_stage", stageFilter);
@@ -156,13 +156,13 @@ export default async function ObraFotosPage({
       db.from("media")
         .select("*", { count: "exact", head: true })
         .eq("site_id", id)
-        .in("external_provider", VISIBLE_SOURCE_PROVIDERS)
+        .in("external_provider", MEDIA_SOURCE_PROVIDERS)
         .eq("kind", "photo")
         .is("ai_analyzed_at", null),
       db.from<{ ai_flags: unknown }[]>("media")
         .select("ai_flags")
         .eq("site_id", id)
-        .in("external_provider", VISIBLE_SOURCE_PROVIDERS)
+        .in("external_provider", MEDIA_SOURCE_PROVIDERS)
         .eq("kind", "photo")
         .gte("taken_at", cutoff30d)
         .not("ai_flags", "eq", "[]")

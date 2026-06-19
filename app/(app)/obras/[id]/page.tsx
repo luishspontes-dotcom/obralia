@@ -5,7 +5,7 @@ import { AlertTriangle, Camera, ClipboardList, FileText, MessageSquare, Video } 
 import { ObraSidebar } from "@/components/layout/ObraSidebar";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { fetchAllPages } from "@/lib/supabase/fetch-all";
-import { VISIBLE_SOURCE_PROVIDERS } from "@/lib/rdo-source-scope";
+import { VISIBLE_SOURCE_PROVIDERS, MEDIA_SOURCE_PROVIDERS } from "@/lib/rdo-source-scope";
 import { mediaUrl } from "@/lib/storage";
 import { getCurrentRole, canManageUsers, canWrite } from "@/lib/permissions";
 import { untypedDb } from "@/lib/supabase/untyped";
@@ -91,7 +91,9 @@ function daysBetween(start: string | null, end: string | null): { total: number 
     return { total: null, elapsed: null, remaining: null, pct: 0 };
   }
   const day = 1000 * 60 * 60 * 24;
-  const total = Math.ceil((endMs - startMs) / day);
+  // Prazo contratual inclusivo (conta o dia inicial e o final), igual ao Diário de Obra:
+  // 19/06 → 31/12 = 196 dias.
+  const total = Math.round((endMs - startMs) / day) + 1;
   const todayMs = Date.now();
   const elapsedRaw = Math.ceil((todayMs - startMs) / day);
   const elapsed = Math.min(Math.max(elapsedRaw, 0), total);
@@ -158,7 +160,7 @@ export default async function ObraDetailPage({
       .from("media")
       .select("id, storage_path, thumbnail_path, caption, daily_report_id, kind")
       .eq("site_id", id)
-      .in("external_provider", VISIBLE_SOURCE_PROVIDERS)
+      .in("external_provider", MEDIA_SOURCE_PROVIDERS)
   );
   const photos = mediaRows.filter((media) => media.kind === "photo");
   const videos = mediaRows.filter((media) => media.kind === "video");
@@ -366,7 +368,7 @@ export default async function ObraDetailPage({
                 <strong>{responsibleName ?? "—"}</strong>
               </Info>
               <Info label="Cliente">
-                <strong>{site.client_name || site.name}</strong>
+                <strong>{site.client_name || "—"}</strong>
               </Info>
               <Info label="Data início">
                 <strong>{fmtDate(site.start_date) || "—"}</strong>

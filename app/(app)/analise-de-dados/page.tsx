@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { Camera, FileArchive, FileText, ListTodo, Map, Video } from "lucide-react";
 import { createServerSupabase } from "@/lib/supabase/server";
-import { VISIBLE_SOURCE_PROVIDERS } from "@/lib/rdo-source-scope";
+import { VISIBLE_SOURCE_PROVIDERS, MEDIA_SOURCE_PROVIDERS, WBS_SOURCE_PROVIDERS } from "@/lib/rdo-source-scope";
 
 export default async function AnaliseDeDadosPage() {
   const supabase = await createServerSupabase();
@@ -15,10 +15,10 @@ export default async function AnaliseDeDadosPage() {
   ] = await Promise.all([
     supabase.from("daily_reports").select("*", { count: "exact", head: true }).in("external_provider", VISIBLE_SOURCE_PROVIDERS),
     supabase.from("daily_reports").select("*", { count: "exact", head: true }).in("external_provider", VISIBLE_SOURCE_PROVIDERS).eq("status", "review"),
-    supabase.from("wbs_items").select("*", { count: "exact", head: true }).in("external_provider", VISIBLE_SOURCE_PROVIDERS).not("parent_id", "is", null),
-    supabase.from("media").select("*", { count: "exact", head: true }).in("external_provider", VISIBLE_SOURCE_PROVIDERS).eq("kind", "photo"),
-    supabase.from("media").select("*", { count: "exact", head: true }).in("external_provider", VISIBLE_SOURCE_PROVIDERS).eq("kind", "video"),
-    supabase.from("media").select("*", { count: "exact", head: true }).in("external_provider", VISIBLE_SOURCE_PROVIDERS).eq("kind", "file"),
+    supabase.from("wbs_items").select("*", { count: "exact", head: true }).in("external_provider", WBS_SOURCE_PROVIDERS).not("parent_id", "is", null),
+    supabase.from("media").select("*", { count: "exact", head: true }).in("external_provider", MEDIA_SOURCE_PROVIDERS).eq("kind", "photo"),
+    supabase.from("media").select("*", { count: "exact", head: true }).in("external_provider", MEDIA_SOURCE_PROVIDERS).eq("kind", "video"),
+    supabase.from("media").select("*", { count: "exact", head: true }).in("external_provider", MEDIA_SOURCE_PROVIDERS).eq("kind", "file"),
   ]);
 
   const cards = [

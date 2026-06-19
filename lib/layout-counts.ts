@@ -1,6 +1,6 @@
 import { unstable_cache } from "next/cache";
 import { createAdminSupabase } from "@/lib/supabase/admin";
-import { VISIBLE_SOURCE_PROVIDERS } from "@/lib/rdo-source-scope";
+import { VISIBLE_SOURCE_PROVIDERS, MEDIA_SOURCE_PROVIDERS } from "@/lib/rdo-source-scope";
 
 /**
  * Snapshot leve do shell do app (badges do menu + obra recente da tab bar),
@@ -60,19 +60,19 @@ async function fetchLayoutSnapshot(orgId: string): Promise<LayoutSnapshot> {
       .from("media")
       .select("id", { count: "exact", head: true })
       .in("site_id", siteIds)
-      .in("external_provider", VISIBLE_SOURCE_PROVIDERS)
+      .in("external_provider", MEDIA_SOURCE_PROVIDERS)
       .eq("kind", "photo"),
     admin
       .from("media")
       .select("id", { count: "exact", head: true })
       .in("site_id", siteIds)
-      .in("external_provider", VISIBLE_SOURCE_PROVIDERS)
+      .in("external_provider", MEDIA_SOURCE_PROVIDERS)
       .eq("kind", "video"),
     admin
       .from("media")
       .select("id", { count: "exact", head: true })
       .in("site_id", siteIds)
-      .in("external_provider", VISIBLE_SOURCE_PROVIDERS)
+      .in("external_provider", MEDIA_SOURCE_PROVIDERS)
       .eq("kind", "file"),
     admin
       .from("daily_reports")

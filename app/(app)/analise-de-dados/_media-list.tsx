@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { Search } from "lucide-react";
 import { createServerSupabase } from "@/lib/supabase/server";
-import { VISIBLE_SOURCE_PROVIDERS } from "@/lib/rdo-source-scope";
+import { MEDIA_SOURCE_PROVIDERS } from "@/lib/rdo-source-scope";
 import { mediaUrl } from "@/lib/storage";
 
 type MediaKind = "photo" | "video" | "file";
@@ -36,7 +36,7 @@ export async function MediaListPage({
   const { data } = await supabase
     .from("media")
     .select("id, kind, storage_path, thumbnail_path, caption, taken_at, site_id, daily_report_id, sites(name)")
-    .in("external_provider", VISIBLE_SOURCE_PROVIDERS)
+    .in("external_provider", MEDIA_SOURCE_PROVIDERS)
     .eq("kind", kind)
     .order("taken_at", { ascending: false, nullsFirst: false })
     .limit(300);

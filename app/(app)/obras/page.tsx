@@ -114,7 +114,7 @@ export default async function ObrasPage({
               placeholder="Pesquisa"
             />
             <select className="diario-select" name="status" defaultValue={filterStatus ?? ""}>
-              <option value="">Todas as obras</option>
+              <option value="">Todos os status</option>
               <option value="in_progress">Em andamento</option>
               <option value="not_started">Não iniciadas</option>
               <option value="paused">Pausadas</option>

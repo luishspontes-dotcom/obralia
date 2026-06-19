@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { untypedDb } from "@/lib/supabase/untyped";
-import { VISIBLE_SOURCE_PROVIDERS } from "@/lib/rdo-source-scope";
+import { MEDIA_SOURCE_PROVIDERS } from "@/lib/rdo-source-scope";
 import { getCurrentRole, canWrite } from "@/lib/permissions";
 import { mediaUrl } from "@/lib/storage";
 import { AI_STAGES, AI_FLAGS, isAiStage, isAiFlag } from "@/lib/ai-photo-meta";
@@ -197,7 +197,7 @@ export async function analyzePhotos(formData: FormData): Promise<AnalyzePhotosRe
     .select("id, storage_path, thumbnail_path, ai_analyzed_at")
     .eq("site_id", siteId)
     .eq("kind", "photo")
-    .in("external_provider", VISIBLE_SOURCE_PROVIDERS);
+    .in("external_provider", MEDIA_SOURCE_PROVIDERS);
 
   if (photoIdsCsv) {
     const ids = photoIdsCsv.split(",").map((s) => s.trim()).filter(Boolean).slice(0, batch);

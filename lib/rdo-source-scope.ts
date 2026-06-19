@@ -17,3 +17,15 @@ export const WBS_SOURCE_PROVIDERS = [
   OBRALIA_SOURCE_PROVIDER,
   "import",
 ];
+
+/**
+ * Escopo para `media` (fotos/vídeos/anexos): inclui também o legado
+ * (external_provider = 'import'), igual ao WBS. Sem isso ~10.968 fotos
+ * importadas (ex.: ClickUp/Azure) somem da galeria, dos contadores da obra
+ * e da Análise de dados, fazendo a contagem divergir do Diário de Obra.
+ */
+export const MEDIA_SOURCE_PROVIDERS = [
+  DIARIO_SOURCE_PROVIDER,
+  OBRALIA_SOURCE_PROVIDER,
+  "import",
+];
