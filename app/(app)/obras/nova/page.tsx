@@ -116,10 +116,9 @@ export default function NovaObraPage() {
               </Field>
               <Field label="Tipo de contrato">
                 <select name="contract_type" defaultValue="Contratante" style={inputStyle}>
+                  <option value="Cliente">Cliente</option>
                   <option value="Contratante">Contratante</option>
-                  <option value="Empreitada">Empreitada</option>
-                  <option value="Administração">Administração</option>
-                  <option value="Preço fechado">Preço fechado</option>
+                  <option value="Contratada">Contratada</option>
                 </select>
               </Field>
             </div>

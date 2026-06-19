@@ -1583,6 +1583,37 @@ img[loading="lazy"]:not([src=""]) { opacity: 1; }
 /* ============================================================
    RESPONSIVE / MOBILE
    ============================================================ */
+
+/* Topo: abaixo de ~1200px o menu desktop nao cabe ao lado das acoes
+   (busca + ADICIONAR + avatar/nome/email) e sobrepunha. Empilha a navegacao
+   numa faixa rolavel logo abaixo — mesmo padrao do layout mobile, so que
+   ativado mais cedo para nunca sobrepor. */
+@media (max-width: 1200px) {
+  .do-topbar {
+    grid-template-columns: minmax(0, 1fr) auto;
+    min-height: auto;
+  }
+  .do-topbar__brand {
+    min-height: 46px;
+  }
+  .do-topbar__nav {
+    grid-column: 1 / -1;
+    order: 3;
+    overflow-x: auto;
+    background: rgba(0, 0, 0, 0.12);
+  }
+  .do-topbar-menu__panel {
+    position: fixed;
+    top: 86px;
+    left: auto;
+    right: 0;
+    z-index: 120;
+    min-width: min(210px, calc(100vw - 16px));
+    max-width: calc(100vw - 16px);
+    max-height: calc(100vh - 94px);
+  }
+}
+
 @media (max-width: 768px) {
   .do-auth-bar {
     align-items: flex-start;
