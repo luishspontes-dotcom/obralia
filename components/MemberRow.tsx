@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useState } from "react";
 import { updateMemberRole, removeMember } from "@/lib/rdo-actions";
 import {
@@ -115,6 +116,11 @@ export function MemberRow({
         <span className={`status ${role === "owner" || role === "admin" ? "status-progress" : "status-paused"}`}>
           {ROLE_OPTIONS.find(o => o.value === role)?.label ?? role}
         </span>
+      )}
+
+      {canManage && !editing && confirm === null && (
+        <Link href={`/usuarios/${profileId}`} title="Editar permissões e obras que pode acessar"
+          style={{ ...iconBtnStyle, textDecoration: "none" }}>⚙</Link>
       )}
 
       {canManage && !isMe && !editing && confirm === null && (
