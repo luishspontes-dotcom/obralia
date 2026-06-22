@@ -26,7 +26,7 @@ const iconBtnStyle: React.CSSProperties = {
 
 export function MemberRow({
   profileId, organizationId, name, initials, role, isMe, canManage, email, returnTo, subtitle,
-  accessCount, lastAccessLabel,
+  accessCount, lastAccessLabel, active = true,
 }: {
   profileId: string;
   organizationId: string;
@@ -35,6 +35,8 @@ export function MemberRow({
   role: string;
   isMe: boolean;
   canManage: boolean;
+  /** Status Ativo/Inativo (default Ativo). */
+  active?: boolean;
   email?: string | null;
   /** Página para onde as ações redirecionam (default /usuarios). */
   returnTo?: string;
@@ -98,6 +100,10 @@ export function MemberRow({
           </span>
         </span>
       )}
+
+      <span className={`diario-status-badge ${active ? "is-done" : "is-paused"}`} style={{ flexShrink: 0 }}>
+        {active ? "Ativo" : "Inativo"}
+      </span>
 
       {editing && canManage ? (
         <form action={async (fd) => { await updateMemberRole(fd); setEditing(false); }} style={{ display: "flex", gap: 6 }}>

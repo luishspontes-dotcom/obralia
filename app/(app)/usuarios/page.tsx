@@ -9,6 +9,7 @@ import { TempPasswordBanner } from "./TempPasswordBanner";
 type Member = {
   profile_id: string;
   role: string;
+  profile_label: string | null;
   profiles: {
     id: string;
     full_name: string;
@@ -17,6 +18,20 @@ type Member = {
     last_access_at: string | null;
   } | null;
 };
+
+// Grupos da lista — mesma ordem e nomes do Diário de Obra.
+const MEMBER_GROUPS: Array<{ key: string; title: string }> = [
+  { key: "Administrador", title: "Administradores" },
+  { key: "Personalizado", title: "Personalizados" },
+  { key: "Cliente Obra", title: "Cliente Obra" },
+];
+
+function memberGroup(m: Member): string {
+  const lbl = m.profile_label;
+  if (lbl === "Administrador" || lbl === "Personalizado" || lbl === "Cliente Obra") return lbl;
+  if (m.role === "admin" || m.role === "owner") return "Administrador";
+  return "Personalizado";
+}
 
 const ACCESS_DATE_FMT = new Intl.DateTimeFormat("pt-BR", {
   dateStyle: "short",
@@ -80,7 +95,7 @@ export default async function UsuariosPage({
 
   const { data: membersRaw } = await supabase
     .from("organization_members")
-    .select("profile_id, role, profiles(id, full_name, avatar_url, access_count, last_access_at)")
+    .select("profile_id, role, profile_label, profiles(id, full_name, avatar_url, access_count, last_access_at)")
     .eq("organization_id", activeOrg?.id ?? "");
   const members = (membersRaw ?? []) as unknown as Member[];
   const currentMember = members.find((member) => member.profile_id === user.id);
@@ -90,6 +105,7 @@ export default async function UsuariosPage({
   // E-mails vivem no auth (profiles não tem coluna email) — só busca
   // via service role quando o viewer é admin/owner, e só server-side.
   const emailById = new Map<string, string>();
+  const inactiveIds = new Set<string>();
   if (canInvite && members.length > 0) {
     const admin = createAdminSupabase();
     const perPage = 1000;
@@ -97,7 +113,10 @@ export default async function UsuariosPage({
       const { data, error } = await admin.auth.admin.listUsers({ page, perPage });
       if (error || !data?.users?.length) break;
       for (const u of data.users) {
-        if (u.email && memberIds.has(u.id)) emailById.set(u.id, u.email);
+        if (!memberIds.has(u.id)) continue;
+        if (u.email) emailById.set(u.id, u.email);
+        const banned = (u as { banned_until?: string }).banned_until;
+        if (banned && new Date(banned).getTime() > Date.now()) inactiveIds.add(u.id);
       }
       if (data.users.length < perPage || emailById.size === memberIds.size) break;
     }
@@ -210,66 +229,73 @@ export default async function UsuariosPage({
           <TempPasswordBanner name={tempUser} password={tempPw} />
         )}
 
-        <div className="do-dashboard-grid" style={{ alignItems: "start", marginBottom: 18 }}>
-          <section className="do-panel">
-            <div className="do-panel__header">
-              <h2>Com acesso ({members.length})</h2>
-            </div>
-            <div>
-              {members.map((m) => {
-                const contact = contactByProfileId.get(m.profile_id);
-                const name = m.profiles?.full_name ?? contact?.name ?? "Sem nome";
-                const initials = name.split(" ").map((s: string) => s[0]).slice(0, 2).join("").toUpperCase();
-                const isMe = m.profile_id === user.id;
-                return (
-                  <MemberRow
-                    key={m.profile_id}
-                    profileId={m.profile_id}
-                    organizationId={activeOrg?.id ?? ""}
-                    name={name}
-                    initials={initials}
-                    role={m.role}
-                    isMe={isMe}
-                    canManage={canInvite}
-                    email={emailById.get(m.profile_id) ?? null}
-                    subtitle={contact?.role_label ?? null}
-                    accessCount={canInvite ? m.profiles?.access_count ?? 0 : undefined}
-                    lastAccessLabel={canInvite ? lastAccessLabel(m.profiles?.last_access_at) : undefined}
-                  />
-                );
-              })}
-              {members.length === 0 && (
-                <div style={{ padding: 18, color: "#777", fontSize: 12 }}>
-                  Sem membros ainda.
-                </div>
-              )}
-            </div>
+        {/* Membros com acesso, agrupados por perfil (igual ao Diário) */}
+        {members.length === 0 && (
+          <section className="do-panel" style={{ marginBottom: 18 }}>
+            <div style={{ padding: 18, color: "#777", fontSize: 12 }}>Sem membros ainda.</div>
           </section>
+        )}
+        {MEMBER_GROUPS.map(({ key, title }) => {
+          const groupMembers = members.filter((m) => memberGroup(m) === key);
+          if (groupMembers.length === 0) return null;
+          return (
+            <section key={key} className="do-panel" style={{ marginBottom: 18 }}>
+              <div className="do-panel__header">
+                <h2>{title} ({groupMembers.length})</h2>
+              </div>
+              <div>
+                {groupMembers.map((m) => {
+                  const contact = contactByProfileId.get(m.profile_id);
+                  const name = m.profiles?.full_name ?? contact?.name ?? "Sem nome";
+                  const initials = name.split(" ").map((s: string) => s[0]).slice(0, 2).join("").toUpperCase();
+                  const isMe = m.profile_id === user.id;
+                  return (
+                    <MemberRow
+                      key={m.profile_id}
+                      profileId={m.profile_id}
+                      organizationId={activeOrg?.id ?? ""}
+                      name={name}
+                      initials={initials}
+                      role={m.role}
+                      isMe={isMe}
+                      canManage={canInvite}
+                      active={!inactiveIds.has(m.profile_id)}
+                      email={emailById.get(m.profile_id) ?? null}
+                      subtitle={contact?.role_label ?? null}
+                      accessCount={canInvite ? m.profiles?.access_count ?? 0 : undefined}
+                      lastAccessLabel={canInvite ? lastAccessLabel(m.profiles?.last_access_at) : undefined}
+                    />
+                  );
+                })}
+              </div>
+            </section>
+          );
+        })}
 
-          <aside id="convidar" className="do-panel">
-            <div className="do-panel__header">
-              <h2>Convidar usuário</h2>
-            </div>
-            <div style={{ padding: 16 }}>
-              <p style={{ margin: "0 0 14px", fontSize: 12, color: "#666", lineHeight: 1.5 }}>
-                O usuário recebe um link seguro no e-mail e fica vinculado à organização no papel escolhido.
-              </p>
-              {activeOrg && canInvite ? (
-                <InviteForm
-                  key={`${inviteEmail ?? ""}|${inviteName ?? ""}|${inviteRole}`}
-                  orgId={activeOrg.id}
-                  initialEmail={inviteEmail ?? ""}
-                  initialName={inviteName ?? ""}
-                  initialRole={inviteRole}
-                />
-              ) : (
-                <div style={{ fontSize: 12, color: "#666", lineHeight: 1.5 }}>
-                  Apenas owners e admins podem convidar usuários.
-                </div>
-              )}
-            </div>
-          </aside>
-        </div>
+        {/* Convidar usuário (recurso extra do Obralia) */}
+        <aside id="convidar" className="do-panel" style={{ marginBottom: 18 }}>
+          <div className="do-panel__header">
+            <h2>Convidar usuário</h2>
+          </div>
+          <div style={{ padding: 16 }}>
+            <p style={{ margin: "0 0 14px", fontSize: 12, color: "#666", lineHeight: 1.5 }}>
+              O usuário recebe um link seguro no e-mail e fica vinculado à organização no papel escolhido.
+            </p>
+            {activeOrg && canInvite ? (
+              <InviteForm
+                key={`${inviteEmail ?? ""}|${inviteName ?? ""}|${inviteRole}`}
+                orgId={activeOrg.id}
+                initialEmail={inviteEmail ?? ""}
+                initialName={inviteName ?? ""}
+                initialRole={inviteRole}
+              />
+            ) : (
+              <div style={{ fontSize: 12, color: "#666", lineHeight: 1.5 }}>
+                Apenas owners e admins podem convidar usuários.
+              </div>
+            )}
+          </div>
+        </aside>
 
         {aguardandoGroups.map(({ title, rows }) => (
           <section key={title} className="do-panel" style={{ marginBottom: 18 }}>

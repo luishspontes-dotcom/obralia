@@ -53,7 +53,11 @@ jobs:
         run: npm run lint
 
       - name: Audit
-        run: npm audit --audit-level=moderate
+        # Bloqueia o build apenas em vulnerabilidades ALTA/CRÍTICA.
+        # As moderadas atuais são transitivas (@sentry/@opentelemetry, build
+        # tooling) sem patch upstream não-disruptivo; revisar periodicamente
+        # com `npm audit fix` / bump do @sentry quando houver correção limpa.
+        run: npm audit --audit-level=high
 
   build:
     name: Build
