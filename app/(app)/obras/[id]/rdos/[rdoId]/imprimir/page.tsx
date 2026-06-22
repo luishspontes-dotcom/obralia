@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import { createServerSupabase } from "@/lib/supabase/server";
-import { mediaUrl } from "@/lib/storage";
+import { thumbUrl } from "@/lib/storage";
 import { PrintButton } from "@/components/PrintButton";
 import { VISIBLE_SOURCE_PROVIDERS } from "@/lib/rdo-source-scope";
 
@@ -283,7 +283,7 @@ export default async function ImprimirRdoPage({
             <div className="pr-photos">
               {photos.slice(0, 24).map((p) => (
                 /* eslint-disable-next-line @next/next/no-img-element */
-                <img key={p.id} src={mediaUrl(p.thumbnail_path ?? p.storage_path)} alt={p.caption ?? "Foto"} className="pr-photo" />
+                <img key={p.id} src={thumbUrl(p.thumbnail_path ?? p.storage_path, 600)} alt={p.caption ?? "Foto"} className="pr-photo" loading="lazy" />
               ))}
             </div>
             {photos.length > 24 && (

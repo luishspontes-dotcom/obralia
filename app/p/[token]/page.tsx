@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { createAdminSupabase } from "@/lib/supabase/admin";
 import { untypedDb } from "@/lib/supabase/untyped";
 import { VISIBLE_SOURCE_PROVIDERS } from "@/lib/rdo-source-scope";
-import { mediaUrl } from "@/lib/storage";
+import { mediaUrl, thumbUrl } from "@/lib/storage";
 
 /** Portal público do cliente — revalida a cada 5 minutos. */
 export const revalidate = 300;
@@ -153,7 +153,7 @@ export default async function PortalClientePage({
   const brand = org?.brand_color ?? "#08789B";
   const pct = schedulePct(site.start_date, site.end_date);
   const statusLabel = SITE_STATUS_LABEL[site.status] ?? "Em andamento";
-  const coverSrc = site.cover_url ? mediaUrl(site.cover_url) : "";
+  const coverSrc = site.cover_url ? thumbUrl(site.cover_url, 1000) : "";
 
   return (
     <div style={{ minHeight: "100vh", background: "#f5f6f7", fontFamily: "var(--font-inter, Inter, system-ui, sans-serif)", color: "#1c1f23" }}>
@@ -260,7 +260,7 @@ export default async function PortalClientePage({
                   style={{ display: "block", borderRadius: 10, overflow: "hidden", background: "#e8eaed", aspectRatio: "4 / 3" }}>
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
-                    src={mediaUrl(photo.thumbnail_path ?? photo.storage_path)}
+                    src={thumbUrl(photo.thumbnail_path ?? photo.storage_path, 400)}
                     alt={photo.caption ?? "Foto da obra"}
                     loading="lazy"
                     style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}

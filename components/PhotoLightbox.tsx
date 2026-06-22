@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { mediaUrl } from "@/lib/storage";
+import { mediaUrl, thumbUrl } from "@/lib/storage";
 import { stageLabel, flagLabel, normalizeAiFlags } from "@/lib/ai-photo-meta";
 
 type Photo = {
@@ -84,7 +84,7 @@ export function PhotoGrid({
             >
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
-                src={mediaUrl(p.thumbnail_path ?? p.storage_path)}
+                src={thumbUrl(p.thumbnail_path ?? p.storage_path, 400)}
                 alt={title ?? "Foto"}
                 loading="lazy"
                 decoding="async"

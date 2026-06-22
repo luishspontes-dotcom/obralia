@@ -2,7 +2,7 @@ import Link from "next/link";
 import { Camera, FileText, LayoutGrid, List, Search, Video } from "lucide-react";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { VISIBLE_SOURCE_PROVIDERS } from "@/lib/rdo-source-scope";
-import { mediaUrl } from "@/lib/storage";
+import { thumbUrl } from "@/lib/storage";
 
 type Site = {
   id: string;
@@ -194,7 +194,7 @@ export default async function ObrasPage({
                       // eslint-disable-next-line @next/next/no-img-element
                       <img
                         className="diario-obra-card__cover-img"
-                        src={mediaUrl(site.cover_url)}
+                        src={thumbUrl(site.cover_url, 500)}
                         alt=""
                         loading={cardIdx < 4 ? "eager" : "lazy"}
                         decoding="async"

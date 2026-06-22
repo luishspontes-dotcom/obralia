@@ -2,7 +2,7 @@ import Link from "next/link";
 import { Search } from "lucide-react";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { MEDIA_SOURCE_PROVIDERS } from "@/lib/rdo-source-scope";
-import { mediaUrl } from "@/lib/storage";
+import { mediaUrl, thumbUrl } from "@/lib/storage";
 
 type MediaKind = "photo" | "video" | "file";
 
@@ -65,7 +65,7 @@ export async function MediaListPage({
           <div className="do-media-grid">
             {rows.map((row) => (
               <Link key={row.id} href={`/obras/${row.site_id}/fotos`} className="do-media-card">
-                <span style={{ backgroundImage: `url(${mediaUrl(row.thumbnail_path ?? row.storage_path)})` }} />
+                <span style={{ backgroundImage: `url(${thumbUrl(row.thumbnail_path ?? row.storage_path, 400)})` }} />
                 <strong>{row.sites?.name ?? "Obra"}</strong>
                 <small>{row.caption ?? "Foto"}</small>
               </Link>

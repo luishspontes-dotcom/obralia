@@ -6,7 +6,7 @@ import { ObraSidebar } from "@/components/layout/ObraSidebar";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { fetchAllPages } from "@/lib/supabase/fetch-all";
 import { VISIBLE_SOURCE_PROVIDERS, MEDIA_SOURCE_PROVIDERS } from "@/lib/rdo-source-scope";
-import { mediaUrl } from "@/lib/storage";
+import { mediaUrl, thumbUrl } from "@/lib/storage";
 import { getCurrentRole, canManageUsers, canWrite } from "@/lib/permissions";
 import { untypedDb } from "@/lib/supabase/untyped";
 import { uploadObraDocuments } from "@/lib/rdo-actions";
@@ -326,7 +326,7 @@ export default async function ObraDetailPage({
                   {recentPhotos.map((photo) => (
                     <a key={photo.id} href={mediaUrl(photo.storage_path)} target="_blank" rel="noreferrer">
                       {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={mediaUrl(photo.thumbnail_path ?? photo.storage_path)} alt={photo.caption ?? "Foto da obra"} />
+                      <img src={thumbUrl(photo.thumbnail_path ?? photo.storage_path, 400)} alt={photo.caption ?? "Foto da obra"} loading="lazy" decoding="async" />
                     </a>
                   ))}
                 </div>

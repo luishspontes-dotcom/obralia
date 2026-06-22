@@ -46,3 +46,6 @@ supabase/.temp
 *.tsbuildinfo
 next-env.d.ts
 .env*.local
+
+# scripts temporários de diagnóstico (Cowork)
+_*.mjs

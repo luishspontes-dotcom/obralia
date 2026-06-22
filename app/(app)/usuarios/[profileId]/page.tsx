@@ -40,12 +40,15 @@ export default async function EditarUsuarioPage({
     .from("profiles").select("full_name").eq("id", profileId).maybeSingle();
   const name = (targetProfileR as { full_name: string | null } | null)?.full_name ?? "Usuário";
 
-  // E-mail (best-effort via admin auth).
+  // E-mail + status (Ativo/Inativo) best-effort via admin auth.
   let email: string | null = null;
+  let initialActive = true;
   try {
     const admin = createAdminSupabase();
     const { data: authUser } = await admin.auth.admin.getUserById(profileId);
     email = authUser?.user?.email ?? null;
+    const bannedUntil = (authUser?.user as { banned_until?: string } | undefined)?.banned_until;
+    initialActive = !bannedUntil || new Date(bannedUntil).getTime() <= Date.now();
   } catch { email = null; }
 
   const { data: accessR } = await untypedDb(supabase)
@@ -88,6 +91,7 @@ export default async function EditarUsuarioPage({
           initialJobTitle={member.job_title}
           initialProfileLabel={member.profile_label}
           initialPermissions={member.permissions}
+          initialActive={initialActive}
           initialSiteIds={initialSiteIds}
           sites={sites}
         />

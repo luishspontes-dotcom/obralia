@@ -54,6 +54,19 @@ export async function saveMemberAccess(formData: FormData): Promise<void> {
     .eq("profile_id", profileId);
   if (upErr) throw new Error(upErr.message);
 
+  // 1b) Status Ativo/Inativo via ban/unban do Supabase Auth.
+  //     Trava de segurança: NUNCA desativa a própria conta (evita lockout).
+  const active = asString(formData.get("active")) !== "false";
+  if (profileId !== user.id) {
+    try {
+      await admin.auth.admin.updateUserById(profileId, {
+        ban_duration: active ? "none" : "876000h",
+      });
+    } catch {
+      // não bloqueia o salvamento das permissões se o ban/unban falhar
+    }
+  }
+
   // 2) Substitui o acesso por obra (apaga os atuais e insere os selecionados).
   const udb = untypedDb(admin);
   await udb
@@ -73,5 +86,31 @@ export async function saveMemberAccess(formData: FormData): Promise<void> {
   }
 
   revalidatePath("/usuarios");
+  revalidatePath(`/usuarios/${profileId}`);
+}
+
+/**
+ * Envia e-mail de redefinição de senha para o usuário (botão "Alterar senha").
+ * Funciona assim que o SMTP (Migadu) estiver ativo.
+ */
+export async function sendMemberPasswordReset(formData: FormData): Promise<void> {
+  const supabase = await createServerSupabase();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error("Não autenticado.");
+
+  const role = await getCurrentRole();
+  if (!canManageUsers(role)) throw new Error("Sem permissão para gerenciar usuários.");
+
+  const profileId = asString(formData.get("profileId"));
+  if (!profileId) throw new Error("Usuário inválido.");
+
+  const admin = createAdminSupabase();
+  const { data: authUser } = await admin.auth.admin.getUserById(profileId);
+  const email = authUser?.user?.email;
+  if (!email) throw new Error("Usuário sem e-mail cadastrado.");
+
+  const base = process.env.NEXT_PUBLIC_SITE_URL ?? "https://obralia.com.br";
+  await supabase.auth.resetPasswordForEmail(email, { redirectTo: `${base}/login` });
+
   revalidatePath(`/usuarios/${profileId}`);
 }

@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { AlignLeft, Pencil, Printer } from "lucide-react";
 import { createServerSupabase } from "@/lib/supabase/server";
-import { mediaUrl } from "@/lib/storage";
+import { mediaUrl, thumbUrl } from "@/lib/storage";
 import { PhotoUploader } from "@/components/PhotoUploader";
 import { SignaturePad } from "@/components/SignaturePad";
 import { setRdoStatus, deleteRdo, postComment, addMaterial, deleteMaterial, uploadAttachments, deletePhoto } from "@/lib/rdo-actions";
@@ -528,7 +528,7 @@ export default async function RdoDetailPage({
                             {actPhotos.map((p) => (
                               <a key={p.id} href={mediaUrl(p.storage_path) || "#"} target="_blank" rel="noreferrer">
                                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                                <img src={mediaUrl(p.thumbnail_path ?? p.storage_path)} alt={p.caption ?? "Foto da atividade"} loading="lazy" />
+                                <img src={thumbUrl(p.thumbnail_path ?? p.storage_path, 400)} alt={p.caption ?? "Foto da atividade"} loading="lazy" />
                               </a>
                             ))}
                           </div>
@@ -584,7 +584,7 @@ export default async function RdoDetailPage({
                       {photos.map((p) => (
                         <a key={p.id} href={mediaUrl(p.storage_path) || "#"} target="_blank" rel="noreferrer">
                           {/* eslint-disable-next-line @next/next/no-img-element */}
-                          <img src={mediaUrl(p.thumbnail_path ?? p.storage_path)} alt={p.caption ?? "Foto"} loading="lazy" />
+                          <img src={thumbUrl(p.thumbnail_path ?? p.storage_path, 400)} alt={p.caption ?? "Foto"} loading="lazy" />
                         </a>
                       ))}
                     </div>
