@@ -64,9 +64,9 @@ export function MemberRow({
         flexShrink: 0,
       }}>{initials}</div>
 
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <span style={{ fontWeight: 500, fontSize: 14, color: "var(--o-text-1)" }}>{name}</span>
+      <div style={{ flex: "1 1 170px", minWidth: 0 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
+          <span style={{ fontWeight: 500, fontSize: 14, color: "var(--o-text-1)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0 }} title={name}>{name}</span>
           {isMe && (
             <span style={{ fontSize: 10, padding: "2px 7px", borderRadius: 999, background: "var(--t-brand-soft)", color: "var(--t-brand)", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.04em" }}>
               Você
