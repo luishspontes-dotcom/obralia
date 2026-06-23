@@ -1,10 +1,14 @@
 import Link from "next/link";
 import { Camera, FileArchive, FileText, ListTodo, Map, Video } from "lucide-react";
 import { createServerSupabase } from "@/lib/supabase/server";
+import { createAdminSupabase } from "@/lib/supabase/admin";
 import { VISIBLE_SOURCE_PROVIDERS, MEDIA_SOURCE_PROVIDERS, WBS_SOURCE_PROVIDERS } from "@/lib/rdo-source-scope";
 
 export default async function AnaliseDeDadosPage() {
-  const supabase = await createServerSupabase();
+  // Garante sessão (a rota já é protegida pelo layout) e usa o cliente admin
+  // só para CONTAR — contar 34 mil mídias sob RLS levava ~8s; com admin é ~0,1s.
+  await createServerSupabase();
+  const supabase = createAdminSupabase();
   const [
     { count: reports },
     { count: reviewReports },

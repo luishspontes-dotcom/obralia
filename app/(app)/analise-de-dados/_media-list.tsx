@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Search } from "lucide-react";
 import { createServerSupabase } from "@/lib/supabase/server";
+import { createAdminSupabase } from "@/lib/supabase/admin";
 import { MEDIA_SOURCE_PROVIDERS } from "@/lib/rdo-source-scope";
 import { mediaUrl, thumbUrl } from "@/lib/storage";
 
@@ -31,7 +32,8 @@ export async function MediaListPage({
   kind: MediaKind;
   q?: string;
 }) {
-  const supabase = await createServerSupabase();
+  await createServerSupabase();
+  const supabase = createAdminSupabase();
   const query = (q ?? "").trim().toLowerCase();
   const { data } = await supabase
     .from("media")

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Camera, FileText, LayoutGrid, List, Search, Video } from "lucide-react";
 import { createServerSupabase } from "@/lib/supabase/server";
+import { createAdminSupabase } from "@/lib/supabase/admin";
 import { VISIBLE_SOURCE_PROVIDERS } from "@/lib/rdo-source-scope";
 import { thumbUrl } from "@/lib/storage";
 
@@ -56,7 +57,11 @@ export default async function ObrasPage({
     tasks_total: number; tasks_done: number; tasks_late: number; tasks_in_progress: number;
     progress_avg: number | string; rdo_count: number; photo_count: number; video_count: number;
   };
-  const viewClient = supabase as unknown as {
+  // As contagens agregam dezenas de milhares de linhas (media/tarefas). Sob o
+  // RLS do usuário isso fica lento (~5s) porque a checagem roda por linha.
+  // Usamos o cliente admin só para LER os números agregados por site_id; a
+  // exibição continua restrita às obras visíveis (sites já filtrados).
+  const viewClient = createAdminSupabase() as unknown as {
     from(table: string): { select(cols: string): Promise<{ data: ObraCounts[] | null }> };
   };
   const { data: countsRaw } = await viewClient
