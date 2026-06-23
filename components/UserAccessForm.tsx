@@ -24,6 +24,7 @@ export default function UserAccessForm(props: {
   const [active, setActive] = useState(props.initialActive ?? true);
   const [selected, setSelected] = useState<Set<string>>(new Set(props.initialSiteIds));
   const [siteQuery, setSiteQuery] = useState("");
+  const [adding, setAdding] = useState(false);
   const [saving, setSaving] = useState(false);
 
   const toggle = (domain: string, action: string) => {
@@ -37,15 +38,20 @@ export default function UserAccessForm(props: {
     });
   };
 
-  const filteredSites = useMemo(() => {
+  // Obras já liberadas (mostradas na lista com o X) e obras que ainda dá pra
+  // adicionar (mostradas no seletor "+ Adicionar", filtradas pela busca).
+  const selectedSites = useMemo(
+    () => props.sites.filter((s) => selected.has(s.id)),
+    [props.sites, selected],
+  );
+  const addableSites = useMemo(() => {
     const q = siteQuery.trim().toLowerCase();
-    return q ? props.sites.filter((s) => s.name.toLowerCase().includes(q)) : props.sites;
-  }, [props.sites, siteQuery]);
+    return props.sites.filter((s) => !selected.has(s.id) && (!q || s.name.toLowerCase().includes(q)));
+  }, [props.sites, selected, siteQuery]);
 
   const allSelected = selected.size === props.sites.length && props.sites.length > 0;
-  const toggleAll = () => {
-    setSelected(allSelected ? new Set() : new Set(props.sites.map((s) => s.id)));
-  };
+  const addAll = () => setSelected(new Set(props.sites.map((s) => s.id)));
+  const clearAll = () => setSelected(new Set());
 
   return (
     <form action={saveMemberAccess} onSubmit={() => setSaving(true)} style={{ display: "grid", gap: 18 }}>
@@ -53,6 +59,14 @@ export default function UserAccessForm(props: {
       <input type="hidden" name="permissions_json" value={JSON.stringify(matrix)} />
       <input type="hidden" name="site_ids_json" value={JSON.stringify([...selected])} />
       <input type="hidden" name="active" value={active ? "true" : "false"} />
+
+      {/* Salvar no topo-direito, como no Diário */}
+      <div style={{ display: "flex", justifyContent: "flex-end", marginTop: -4 }}>
+        <button type="submit" disabled={saving}
+          style={{ display: "inline-flex", alignItems: "center", gap: 8, background: "#16a34a", color: "#fff", border: "none", borderRadius: 8, padding: "10px 20px", fontSize: 15, fontWeight: 600, cursor: saving ? "default" : "pointer", opacity: saving ? 0.7 : 1 }}>
+          <span style={{ fontSize: 16, lineHeight: 1 }}>✓</span> {saving ? "Salvando…" : "Salvar"}
+        </button>
+      </div>
 
       {/* Topo: Informações | Obras (2 colunas, como no Diário) */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))", gap: 18, alignItems: "start" }}>
@@ -96,29 +110,60 @@ export default function UserAccessForm(props: {
           </p>
         </div>
 
-        {/* Obras que pode acessar */}
+        {/* Obras que pode acessar — modelo do Diário: lista liberada + Adicionar */}
         <div className="card" style={{ padding: "22px 24px" }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14, gap: 12, flexWrap: "wrap" }}>
             <h3 style={{ ...sectionTitleStyle, margin: 0 }}>Obras que pode acessar ({selected.size})</h3>
-            <button type="button" className="chip" onClick={toggleAll}>
-              {allSelected ? "Desmarcar todas" : "Selecionar todas"}
+            <button type="button" className="btn-brand" style={{ padding: "7px 14px", fontSize: 13 }} onClick={() => setAdding((a) => !a)}>
+              + Adicionar
             </button>
           </div>
-          <input
-            value={siteQuery}
-            onChange={(e) => setSiteQuery(e.target.value)}
-            placeholder="Pesquisar obra…"
-            style={{ ...inputStyle, marginBottom: 12 }}
-          />
-          <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 8, maxHeight: 360, overflowY: "auto" }}>
-            {filteredSites.map((s) => (
-              <label key={s.id} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 14, cursor: "pointer", padding: "4px 2px" }}>
-                <input type="checkbox" checked={selected.has(s.id)} onChange={() => toggleSite(s.id)} style={{ width: 16, height: 16 }} />
-                <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{s.name}</span>
-              </label>
+
+          {adding && (
+            <div style={{ border: "1px solid var(--o-border)", borderRadius: 10, padding: 12, marginBottom: 12, background: "var(--o-surface, #f7f7f7)" }}>
+              <input
+                value={siteQuery}
+                onChange={(e) => setSiteQuery(e.target.value)}
+                placeholder="Pesquisar obra para adicionar…"
+                style={{ ...inputStyle, marginBottom: 8 }}
+              />
+              <div style={{ display: "grid", gap: 4, maxHeight: 220, overflowY: "auto" }}>
+                {addableSites.map((s) => (
+                  <button
+                    key={s.id}
+                    type="button"
+                    onClick={() => toggleSite(s.id)}
+                    style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", textAlign: "left", background: "transparent", border: "none", padding: "7px 8px", borderRadius: 8, cursor: "pointer", fontSize: 14, color: "var(--o-text)" }}
+                  >
+                    <span style={{ color: "var(--t-brand)", fontWeight: 700 }}>+</span>
+                    <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{s.name}</span>
+                  </button>
+                ))}
+                {addableSites.length === 0 && <p style={{ fontSize: 13, color: "var(--o-text-3)", margin: "4px 6px" }}>Todas as obras já foram adicionadas.</p>}
+              </div>
+              {!allSelected && (
+                <button type="button" className="chip" onClick={addAll} style={{ marginTop: 8, fontSize: 12 }}>Adicionar todas</button>
+              )}
+            </div>
+          )}
+
+          <div style={{ border: "1px solid var(--o-border)", borderRadius: 10, maxHeight: 360, overflowY: "auto" }}>
+            {selectedSites.map((s, i) => (
+              <div key={s.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, padding: "11px 14px", borderTop: i === 0 ? "none" : "1px solid var(--o-border)" }}>
+                <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: 14 }}>{s.name}</span>
+                <button type="button" onClick={() => toggleSite(s.id)} title="Remover acesso a esta obra"
+                  style={{ background: "transparent", border: "none", color: "#2563eb", fontSize: 16, lineHeight: 1, cursor: "pointer", padding: 2, flexShrink: 0 }}>✕</button>
+              </div>
             ))}
-            {filteredSites.length === 0 && <p style={{ fontSize: 13, color: "var(--o-text-3)" }}>Nenhuma obra encontrada.</p>}
+            {selectedSites.length === 0 && (
+              <p style={{ fontSize: 13, color: "var(--o-text-3)", padding: "16px 14px", margin: 0 }}>
+                Nenhuma obra liberada. Clique em <strong>+ Adicionar</strong>.
+              </p>
+            )}
           </div>
+          {selected.size > 0 && (
+            <button type="button" className="chip" onClick={clearAll} style={{ marginTop: 10, fontSize: 12 }}>Remover todas</button>
+          )}
         </div>
       </div>
 
@@ -148,11 +193,6 @@ export default function UserAccessForm(props: {
         </div>
       </div>
 
-      <div>
-        <button type="submit" className="btn-brand" disabled={saving} style={{ padding: "12px 22px", fontSize: 15 }}>
-          {saving ? "Salvando…" : "Salvar permissões"}
-        </button>
-      </div>
     </form>
   );
 }
