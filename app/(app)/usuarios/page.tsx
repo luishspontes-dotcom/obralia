@@ -1,3 +1,4 @@
+import { Search } from "lucide-react";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { createAdminSupabase } from "@/lib/supabase/admin";
 import { untypedDb, type UntypedSupabase } from "@/lib/supabase/untyped";
@@ -66,6 +67,9 @@ export default async function UsuariosPage({
     email?: string;
     nome?: string;
     role?: string;
+    q?: string;
+    fstatus?: string;
+    fperfil?: string;
   }>;
 }) {
   const supabase = await createServerSupabase();
@@ -79,7 +83,11 @@ export default async function UsuariosPage({
     email: inviteEmail,
     nome: inviteName,
     role: inviteRoleRaw,
+    q: filterQ,
+    fstatus: filterStatus,
+    fperfil: filterPerfil,
   } = await searchParams;
+  const queryStr = (filterQ ?? "").trim().toLowerCase();
   const inviteRole: "admin" | "engineer" | "viewer" =
     inviteRoleRaw === "admin" || inviteRoleRaw === "engineer" || inviteRoleRaw === "viewer"
       ? inviteRoleRaw
@@ -204,11 +212,31 @@ export default async function UsuariosPage({
       <div className="diario-container">
         <div className="diario-page-header">
           <div>
-            <h1>Usuários</h1>
+            <h1>Usuários ({members.length})</h1>
             <p>
               {members.length} com acesso · {contactsSemLogin.length} aguardando convite em {activeOrg?.name ?? "—"}
             </p>
           </div>
+          <form method="get" action="/usuarios" className="diario-toolbar">
+            <input className="diario-input" type="search" name="q" defaultValue={filterQ ?? ""} placeholder="Pesquisa" />
+            <select className="diario-select" name="fstatus" defaultValue={filterStatus ?? ""}>
+              <option value="">Todos os status</option>
+              <option value="ativo">Ativos</option>
+              <option value="inativo">Inativos</option>
+            </select>
+            <select className="diario-select" name="fperfil" defaultValue={filterPerfil ?? ""}>
+              <option value="">Todos os perfis</option>
+              <option value="Administrador">Administradores</option>
+              <option value="Personalizado">Personalizados</option>
+              <option value="Cliente Obra">Cliente Obra</option>
+            </select>
+            <button className="diario-blue-button" type="submit" title="Filtrar">
+              <Search size={16} />
+            </button>
+            {canInvite && (
+              <a href="#convidar" className="btn-brand" style={{ padding: "8px 14px", fontSize: 13, textDecoration: "none", whiteSpace: "nowrap" }}>+ Adicionar Usuário</a>
+            )}
+          </form>
         </div>
 
         {msg && (
@@ -236,7 +264,19 @@ export default async function UsuariosPage({
           </section>
         )}
         {MEMBER_GROUPS.map(({ key, title }) => {
-          const groupMembers = members.filter((m) => memberGroup(m) === key);
+          if (filterPerfil && filterPerfil !== key) return null;
+          const groupMembers = members.filter((m) => {
+            if (memberGroup(m) !== key) return false;
+            const isActive = !inactiveIds.has(m.profile_id);
+            if (filterStatus === "ativo" && !isActive) return false;
+            if (filterStatus === "inativo" && isActive) return false;
+            if (queryStr) {
+              const nm = (m.profiles?.full_name ?? contactByProfileId.get(m.profile_id)?.name ?? "").toLowerCase();
+              const em = (emailById.get(m.profile_id) ?? "").toLowerCase();
+              if (!nm.includes(queryStr) && !em.includes(queryStr)) return false;
+            }
+            return true;
+          });
           if (groupMembers.length === 0) return null;
           return (
             <section key={key} className="do-panel" style={{ marginBottom: 18 }}>

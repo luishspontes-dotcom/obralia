@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { thumbUrl } from "@/lib/storage";
 import { PrintButton } from "@/components/PrintButton";
-import { VISIBLE_SOURCE_PROVIDERS, MEDIA_SOURCE_PROVIDERS } from "@/lib/rdo-source-scope";
+import { VISIBLE_SOURCE_PROVIDERS } from "@/lib/rdo-source-scope";
 
 type Site = { id: string; name: string; client_name: string | null; address: string | null; contract_number: string | null };
 type DR = {
@@ -66,9 +66,9 @@ export default async function ImprimirRdoPage({
     supabase.from("report_activities").select("id, description, progress_pct, notes").eq("daily_report_id", rdoId),
     supabase.from("report_workforce").select("id, role, count").eq("daily_report_id", rdoId),
     supabase.from("report_equipment").select("id, name, hours").eq("daily_report_id", rdoId),
-    supabase.from("media").select("id, storage_path, thumbnail_path, caption").eq("daily_report_id", rdoId).in("external_provider", MEDIA_SOURCE_PROVIDERS).eq("kind", "photo").limit(60),
-    supabase.from("media").select("id, storage_path, thumbnail_path, caption").eq("daily_report_id", rdoId).in("external_provider", MEDIA_SOURCE_PROVIDERS).eq("kind", "video"),
-    supabase.from("media").select("id, storage_path, thumbnail_path, caption").eq("daily_report_id", rdoId).in("external_provider", MEDIA_SOURCE_PROVIDERS).eq("kind", "file"),
+    supabase.from("media").select("id, storage_path, thumbnail_path, caption").eq("daily_report_id", rdoId).in("external_provider", VISIBLE_SOURCE_PROVIDERS).eq("kind", "photo").limit(60),
+    supabase.from("media").select("id, storage_path, thumbnail_path, caption").eq("daily_report_id", rdoId).in("external_provider", VISIBLE_SOURCE_PROVIDERS).eq("kind", "video"),
+    supabase.from("media").select("id, storage_path, thumbnail_path, caption").eq("daily_report_id", rdoId).in("external_provider", VISIBLE_SOURCE_PROVIDERS).eq("kind", "file"),
     supabase.from("report_materials").select("id, name, unit, quantity, notes").eq("daily_report_id", rdoId),
   ]);
 
@@ -80,7 +80,7 @@ export default async function ImprimirRdoPage({
   const files      = (filesR.data ?? []) as Photo[];
   const materials  = (matsR.data ?? []) as Material[];
 
-  const d = new Date(`${rdo.date.slice(0, 10)}T00:00:00`);
+  const d = new Date(rdo.date);
   const dateLong = d.toLocaleDateString("pt-BR", { weekday: "long", day: "2-digit", month: "long", year: "numeric" });
   const totalWorkers = workforce.reduce((s, w) => s + (w.count ?? 0), 0);
   const horario = formatHorario(rdo.work_start, rdo.work_end, rdo.work_break_minutes);

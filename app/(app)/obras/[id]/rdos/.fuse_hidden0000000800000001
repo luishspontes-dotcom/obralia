@@ -6,7 +6,7 @@ import { PrintButton } from "@/components/PrintButton";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { deleteRdo } from "@/lib/rdo-actions";
 import { getCurrentRole, canWrite } from "@/lib/permissions";
-import { VISIBLE_SOURCE_PROVIDERS, MEDIA_SOURCE_PROVIDERS, WBS_SOURCE_PROVIDERS } from "@/lib/rdo-source-scope";
+import { VISIBLE_SOURCE_PROVIDERS } from "@/lib/rdo-source-scope";
 
 type Site = {
   id: string;
@@ -129,25 +129,25 @@ export default async function ObraRdosPage({
       .from("media")
       .select("*", { count: "exact", head: true })
       .eq("site_id", id)
-      .in("external_provider", MEDIA_SOURCE_PROVIDERS)
+      .in("external_provider", VISIBLE_SOURCE_PROVIDERS)
       .eq("kind", "photo"),
     supabase
       .from("media")
       .select("*", { count: "exact", head: true })
       .eq("site_id", id)
-      .in("external_provider", MEDIA_SOURCE_PROVIDERS)
+      .in("external_provider", VISIBLE_SOURCE_PROVIDERS)
       .eq("kind", "video"),
     supabase
       .from("media")
       .select("*", { count: "exact", head: true })
       .eq("site_id", id)
-      .in("external_provider", MEDIA_SOURCE_PROVIDERS)
+      .in("external_provider", VISIBLE_SOURCE_PROVIDERS)
       .eq("kind", "file"),
     supabase
       .from("wbs_items")
       .select("*", { count: "exact", head: true })
       .eq("site_id", id)
-      .in("external_provider", WBS_SOURCE_PROVIDERS)
+      .in("external_provider", VISIBLE_SOURCE_PROVIDERS)
       .not("parent_id", "is", null),
   ]);
 
@@ -158,7 +158,7 @@ export default async function ObraRdosPage({
       .from("media")
       .select("daily_report_id")
       .eq("site_id", id)
-      .in("external_provider", MEDIA_SOURCE_PROVIDERS)
+      .in("external_provider", VISIBLE_SOURCE_PROVIDERS)
       .eq("kind", "photo")
       .in("daily_report_id", reports.map((report) => report.id));
     const mediaRows = (mediaRowsRaw ?? []) as { daily_report_id: string | null }[];

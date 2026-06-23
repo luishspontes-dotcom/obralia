@@ -1,7 +1,6 @@
 import Link from "next/link";
 import { createServerSupabase } from "@/lib/supabase/server";
-import { createAdminSupabase } from "@/lib/supabase/admin";
-import { VISIBLE_SOURCE_PROVIDERS, MEDIA_SOURCE_PROVIDERS } from "@/lib/rdo-source-scope";
+import { VISIBLE_SOURCE_PROVIDERS } from "@/lib/rdo-source-scope";
 import { MapView } from "@/components/MapView";
 
 type SitePin = {
@@ -16,10 +15,7 @@ type SitePin = {
 };
 
 export default async function MapaPage() {
-  // Rota protegida pelo layout; usa admin nas leituras (agregação de GPS sobre
-  // ~34k mídias sob RLS levava segundos — com admin é instantâneo).
-  await createServerSupabase();
-  const supabase = createAdminSupabase();
+  const supabase = await createServerSupabase();
   const { data: sitesRaw } = await supabase
     .from("sites")
     .select("id, name, client_name, status, lat, lng")

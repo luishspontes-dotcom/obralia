@@ -1,11 +1,14 @@
 import { createServerSupabase } from "@/lib/supabase/server";
+import { createAdminSupabase } from "@/lib/supabase/admin";
 import { VISIBLE_SOURCE_PROVIDERS } from "@/lib/rdo-source-scope";
 import { CadastroShell, EmptyPanel, SimpleTable } from "../_shared";
 
 type Report = { sync_metadata: unknown };
 
 export default async function ModelosRelatoriosPage() {
-  const supabase = await createServerSupabase();
+  // Agrega modelos sobre muitos RDOs — admin evita o custo de RLS por linha.
+  await createServerSupabase();
+  const supabase = createAdminSupabase();
   const { data } = await supabase
     .from("daily_reports")
     .select("sync_metadata")

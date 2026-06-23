@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { createServerSupabase } from "@/lib/supabase/server";
+import { createAdminSupabase } from "@/lib/supabase/admin";
 import { VISIBLE_SOURCE_PROVIDERS } from "@/lib/rdo-source-scope";
 import { CadastroShell, EmptyPanel, SimpleTable } from "../_shared";
 
@@ -13,7 +14,8 @@ const statusLabel: Record<string, string> = {
 };
 
 export default async function GruposDeObraPage() {
-  const supabase = await createServerSupabase();
+  await createServerSupabase();
+  const supabase = createAdminSupabase();
   const { data } = await supabase
     .from("sites")
     .select("id, name, status, client_name")
@@ -32,7 +34,7 @@ export default async function GruposDeObraPage() {
     statusLabel[status] ?? status,
     String(list.length),
     list.slice(0, 4).map((site) => site.name).join(", "),
-    <Link key={status} href={`/obras?status=${status === "done" ? "done" : status}`}>Abrir</Link>,
+    <Link key={status} href={`/obras?status=${status === "completed" ? "done" : status === "planned" ? "not_started" : status}`}>Abrir</Link>,
   ]);
 
   return (

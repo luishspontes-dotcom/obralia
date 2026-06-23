@@ -8,7 +8,7 @@ import { SignaturePad } from "@/components/SignaturePad";
 import { setRdoStatus, deleteRdo, postComment, addMaterial, deleteMaterial, uploadAttachments, deletePhoto } from "@/lib/rdo-actions";
 import { generateClientSummary } from "@/lib/summary-actions";
 import { getCurrentRole, canWrite } from "@/lib/permissions";
-import { VISIBLE_SOURCE_PROVIDERS, MEDIA_SOURCE_PROVIDERS } from "@/lib/rdo-source-scope";
+import { VISIBLE_SOURCE_PROVIDERS } from "@/lib/rdo-source-scope";
 
 type Site = {
   id: string;

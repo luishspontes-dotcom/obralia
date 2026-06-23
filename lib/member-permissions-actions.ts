@@ -46,6 +46,16 @@ export async function saveMemberAccess(formData: FormData): Promise<void> {
 
   const admin = createAdminSupabase();
 
+  // 0) Confirma que o profileId É membro desta org antes de qualquer ação
+  //    administrativa (evita editar/banir usuário de outra organização).
+  const { data: targetMember } = await admin
+    .from("organization_members")
+    .select("profile_id")
+    .eq("organization_id", orgId)
+    .eq("profile_id", profileId)
+    .maybeSingle();
+  if (!targetMember) throw new Error("Usuário não pertence a esta organização.");
+
   // 1) Atualiza permissoes / cargo / perfil no vinculo da organizacao.
   const { error: upErr } = await admin
     .from("organization_members")
@@ -55,7 +65,8 @@ export async function saveMemberAccess(formData: FormData): Promise<void> {
   if (upErr) throw new Error(upErr.message);
 
   // 1b) Status Ativo/Inativo via ban/unban do Supabase Auth.
-  //     Trava de segurança: NUNCA desativa a própria conta (evita lockout).
+  //     Trava de segurança: NUNCA desativa a própria conta (evita lockout) e
+  //     só age sobre membro confirmado da org (checado acima).
   const active = asString(formData.get("active")) !== "false";
   if (profileId !== user.id) {
     try {

@@ -7,7 +7,7 @@ import { PrintButton } from "@/components/PrintButton";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { createOrUpdateTask, deleteTask } from "@/lib/rdo-actions";
 import { getCurrentRole, canWrite } from "@/lib/permissions";
-import { VISIBLE_SOURCE_PROVIDERS, WBS_SOURCE_PROVIDERS, MEDIA_SOURCE_PROVIDERS } from "@/lib/rdo-source-scope";
+import { VISIBLE_SOURCE_PROVIDERS, WBS_SOURCE_PROVIDERS } from "@/lib/rdo-source-scope";
 
 type Site = {
   id: string;
@@ -83,19 +83,19 @@ export default async function ObraTarefasPage({
         .from("media")
         .select("*", { count: "exact", head: true })
         .eq("site_id", id)
-        .in("external_provider", MEDIA_SOURCE_PROVIDERS)
+        .in("external_provider", VISIBLE_SOURCE_PROVIDERS)
         .eq("kind", "photo"),
       supabase
         .from("media")
         .select("*", { count: "exact", head: true })
         .eq("site_id", id)
-        .in("external_provider", MEDIA_SOURCE_PROVIDERS)
+        .in("external_provider", VISIBLE_SOURCE_PROVIDERS)
         .eq("kind", "video"),
       supabase
         .from("media")
         .select("*", { count: "exact", head: true })
         .eq("site_id", id)
-        .in("external_provider", MEDIA_SOURCE_PROVIDERS)
+        .in("external_provider", VISIBLE_SOURCE_PROVIDERS)
         .eq("kind", "file"),
     ]);
 

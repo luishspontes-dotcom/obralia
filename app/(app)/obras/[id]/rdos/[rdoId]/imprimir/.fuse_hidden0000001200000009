@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { thumbUrl } from "@/lib/storage";
 import { PrintButton } from "@/components/PrintButton";
-import { VISIBLE_SOURCE_PROVIDERS, MEDIA_SOURCE_PROVIDERS } from "@/lib/rdo-source-scope";
+import { VISIBLE_SOURCE_PROVIDERS } from "@/lib/rdo-source-scope";
 
 type Site = { id: string; name: string; client_name: string | null; address: string | null; contract_number: string | null };
 type DR = {
@@ -80,7 +80,7 @@ export default async function ImprimirRdoPage({
   const files      = (filesR.data ?? []) as Photo[];
   const materials  = (matsR.data ?? []) as Material[];
 
-  const d = new Date(`${rdo.date.slice(0, 10)}T00:00:00`);
+  const d = new Date(rdo.date);
   const dateLong = d.toLocaleDateString("pt-BR", { weekday: "long", day: "2-digit", month: "long", year: "numeric" });
   const totalWorkers = workforce.reduce((s, w) => s + (w.count ?? 0), 0);
   const horario = formatHorario(rdo.work_start, rdo.work_end, rdo.work_break_minutes);

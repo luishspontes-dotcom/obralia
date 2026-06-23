@@ -8,7 +8,7 @@ import { SignaturePad } from "@/components/SignaturePad";
 import { setRdoStatus, deleteRdo, postComment, addMaterial, deleteMaterial, uploadAttachments, deletePhoto } from "@/lib/rdo-actions";
 import { generateClientSummary } from "@/lib/summary-actions";
 import { getCurrentRole, canWrite } from "@/lib/permissions";
-import { VISIBLE_SOURCE_PROVIDERS, MEDIA_SOURCE_PROVIDERS } from "@/lib/rdo-source-scope";
+import { VISIBLE_SOURCE_PROVIDERS } from "@/lib/rdo-source-scope";
 
 type Site = {
   id: string;
@@ -135,9 +135,9 @@ export default async function RdoDetailPage({
     supabase.from("report_activities").select("id, description, progress_pct, notes, start_time, end_time, labor, wbs_item_id").eq("daily_report_id", rdoId),
     supabase.from("report_workforce").select("id, role, count").eq("daily_report_id", rdoId),
     supabase.from("report_equipment").select("id, name, hours").eq("daily_report_id", rdoId),
-    supabase.from("media").select("id, storage_path, thumbnail_path, caption, wbs_item_id").eq("daily_report_id", rdoId).in("external_provider", MEDIA_SOURCE_PROVIDERS).eq("kind", "photo").limit(60),
-    supabase.from("media").select("id, storage_path, thumbnail_path, caption").eq("daily_report_id", rdoId).in("external_provider", MEDIA_SOURCE_PROVIDERS).eq("kind", "video"),
-    supabase.from("media").select("id, storage_path, thumbnail_path, caption").eq("daily_report_id", rdoId).in("external_provider", MEDIA_SOURCE_PROVIDERS).eq("kind", "file"),
+    supabase.from("media").select("id, storage_path, thumbnail_path, caption, wbs_item_id").eq("daily_report_id", rdoId).in("external_provider", VISIBLE_SOURCE_PROVIDERS).eq("kind", "photo").limit(60),
+    supabase.from("media").select("id, storage_path, thumbnail_path, caption").eq("daily_report_id", rdoId).in("external_provider", VISIBLE_SOURCE_PROVIDERS).eq("kind", "video"),
+    supabase.from("media").select("id, storage_path, thumbnail_path, caption").eq("daily_report_id", rdoId).in("external_provider", VISIBLE_SOURCE_PROVIDERS).eq("kind", "file"),
     supabase.from("comments").select("id, body, target_table, created_at").eq("target_id", rdoId).order("created_at", { ascending: false }),
     supabase.from("report_materials").select("id, name, unit, quantity, notes").eq("daily_report_id", rdoId),
     // Navegação ← Anterior / Próximo → por data dentro da mesma obra

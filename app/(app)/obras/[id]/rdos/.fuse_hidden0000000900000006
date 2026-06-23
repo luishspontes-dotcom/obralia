@@ -6,7 +6,7 @@ import { PrintButton } from "@/components/PrintButton";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { deleteRdo } from "@/lib/rdo-actions";
 import { getCurrentRole, canWrite } from "@/lib/permissions";
-import { VISIBLE_SOURCE_PROVIDERS, MEDIA_SOURCE_PROVIDERS, WBS_SOURCE_PROVIDERS } from "@/lib/rdo-source-scope";
+import { VISIBLE_SOURCE_PROVIDERS } from "@/lib/rdo-source-scope";
 
 type Site = {
   id: string;
