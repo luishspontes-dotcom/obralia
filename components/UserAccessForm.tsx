@@ -58,10 +58,15 @@ export default function UserAccessForm(props: {
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))", gap: 18, alignItems: "start" }}>
         {/* Informações do usuário */}
         <div className="card" style={{ padding: "22px 24px" }}>
-          <h3 className="section-title" style={{ marginBottom: 16 }}>Informações do usuário</h3>
+          <h3 style={sectionTitleStyle}>Informações do usuário</h3>
           <div style={{ display: "grid", gap: 14 }}>
             <FieldRO label="Nome" value={props.name} />
             <FieldRO label="E-mail de acesso" value={props.email ?? "—"} />
+            <div>
+              <button type="submit" formAction={sendMemberPasswordReset} className="chip" style={{ color: "var(--t-brand)" }}>
+                Alterar senha
+              </button>
+            </div>
             <Field label="Cargo">
               <input value={jobTitle} onChange={(e) => setJobTitle(e.target.value)} name="job_title" placeholder="Ex: Engenheiro" style={inputStyle} />
             </Field>
@@ -69,6 +74,9 @@ export default function UserAccessForm(props: {
               <select name="profile_label" value={profileLabel} onChange={(e) => setProfileLabel(e.target.value)} style={inputStyle}>
                 {PROFILE_LABELS.map((p) => <option key={p} value={p}>{p}</option>)}
               </select>
+              <p style={{ margin: "6px 0 0", fontSize: 12, color: "var(--o-text-3)", lineHeight: 1.4 }}>
+                Acessa somente as obras, telas e funcionalidades selecionadas no sistema.
+              </p>
             </Field>
             <Field label="Status">
               <div style={{ display: "flex", gap: 18, alignItems: "center", paddingTop: 4 }}>
@@ -83,20 +91,15 @@ export default function UserAccessForm(props: {
               </div>
             </Field>
           </div>
-          <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap", marginTop: 14 }}>
-            <button type="submit" formAction={sendMemberPasswordReset} className="chip">
-              Alterar senha
-            </button>
-            <span style={{ fontSize: 12, color: "var(--o-text-3)" }}>
-              Papel atual: <strong>{props.roleLabel}</strong>
-            </span>
-          </div>
+          <p style={{ margin: "14px 0 0", fontSize: 11, color: "var(--o-text-3)" }}>
+            Papel atual no sistema: <strong>{props.roleLabel}</strong>
+          </p>
         </div>
 
         {/* Obras que pode acessar */}
         <div className="card" style={{ padding: "22px 24px" }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14, gap: 12, flexWrap: "wrap" }}>
-            <h3 className="section-title" style={{ margin: 0 }}>Obras que pode acessar ({selected.size})</h3>
+            <h3 style={{ ...sectionTitleStyle, margin: 0 }}>Obras que pode acessar ({selected.size})</h3>
             <button type="button" className="chip" onClick={toggleAll}>
               {allSelected ? "Desmarcar todas" : "Selecionar todas"}
             </button>
@@ -121,7 +124,7 @@ export default function UserAccessForm(props: {
 
       {/* Permissões de acesso (largura total) */}
       <div className="card" style={{ padding: "22px 24px" }}>
-        <h3 className="section-title" style={{ marginBottom: 16 }}>Permissões de acesso</h3>
+        <h3 style={sectionTitleStyle}>Permissões de acesso</h3>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 24, alignItems: "start" }}>
           {PERMISSION_GROUPS.map((g) => (
             <div key={g.key} style={{ gridColumn: g.items.length > 6 ? "1 / -1" : "auto" }}>
@@ -171,6 +174,13 @@ function FieldRO({ label, value }: { label: string; value: string }) {
     </div>
   );
 }
+
+const sectionTitleStyle: React.CSSProperties = {
+  margin: "0 0 16px",
+  color: "#e8590c",
+  font: "600 17px var(--font-inter)",
+  letterSpacing: 0,
+};
 
 const inputStyle: React.CSSProperties = {
   width: "100%",

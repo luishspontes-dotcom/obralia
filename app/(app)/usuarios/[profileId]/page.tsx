@@ -68,17 +68,9 @@ export default async function EditarUsuarioPage({
   return (
     <div>
       <div className="page-hero">
-        <div style={{ maxWidth: 880, margin: "0 auto" }}>
-          <div style={{ marginBottom: 12, fontSize: 13 }}>
-            <Link href="/usuarios" style={{ color: "var(--o-text-2)", textDecoration: "none" }}>← Usuários</Link>
-          </div>
-          <div style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: "0.12em", color: "var(--t-brand)", fontWeight: 600, marginBottom: 8 }}>
-            Editar usuário
-          </div>
-          <h1 style={{ margin: "0 0 6px", font: "700 32px var(--font-inter)", letterSpacing: "-0.025em" }}>{name}</h1>
-          <p style={{ margin: 0, fontSize: 14, color: "var(--o-text-2)" }}>
-            Permissões de acesso e obras que este usuário pode acessar.
-          </p>
+        <div style={{ maxWidth: 880, margin: "0 auto", display: "flex", alignItems: "center", gap: 12 }}>
+          <Link href="/usuarios" title="Voltar para Usuários" style={{ color: "var(--t-brand)", textDecoration: "none", fontSize: 24, lineHeight: 1, fontWeight: 700 }}>←</Link>
+          <h1 style={{ margin: 0, font: "600 22px var(--font-inter)", letterSpacing: "-0.01em" }}>Editar usuário</h1>
         </div>
       </div>
 
