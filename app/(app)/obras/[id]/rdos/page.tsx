@@ -293,7 +293,7 @@ export default async function ObraRdosPage({
                             <Link href={`/obras/${id}/rdos/${report.id}/imprimir`} title="Imprimir">
                               <Printer size={15} />
                             </Link>
-                            <Link href={`/obras/${id}/rdos/${report.id}/editar`} title="Editar">
+                            <Link href={`/obras/${id}/rdos/${report.id}/editar`} title="Editar" style={{ color: "#d32f2f" }}>
                               <Pencil size={15} />
                             </Link>
                             {canEdit ? (

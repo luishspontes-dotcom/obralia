@@ -1,4 +1,4 @@
-import { Search } from "lucide-react";
+import { Search, UserPlus } from "lucide-react";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { createAdminSupabase } from "@/lib/supabase/admin";
 import { untypedDb, type UntypedSupabase } from "@/lib/supabase/untyped";
@@ -234,7 +234,10 @@ export default async function UsuariosPage({
               <Search size={16} />
             </button>
             {canInvite && (
-              <a href="#convidar" className="btn-brand" style={{ padding: "8px 14px", fontSize: 13, textDecoration: "none", whiteSpace: "nowrap" }}>+ Adicionar Usuário</a>
+              <a href="#convidar" className="do-add-button" style={{ textDecoration: "none", whiteSpace: "nowrap" }}>
+                <UserPlus size={16} />
+                Adicionar Usuário
+              </a>
             )}
           </form>
         </div>

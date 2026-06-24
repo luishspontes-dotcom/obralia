@@ -63,6 +63,7 @@ export function ObraSidebar({ site, counts, active }: ObraSidebarProps) {
           icon={<ListChecks size={16} />}
           label="Lista de tarefas"
           count={counts.tasks}
+          badgeTone="blue"
         />
         <SideLink
           href={`/obras/${site.id}/rdos`}
@@ -70,33 +71,7 @@ export function ObraSidebar({ site, counts, active }: ObraSidebarProps) {
           icon={<FileText size={16} />}
           label="Relatórios"
           count={counts.reports}
-        />
-        <SideLink
-          href={`/obras/${site.id}/fotos`}
-          active={active === "photos"}
-          icon={<Camera size={16} />}
-          label="Fotos"
-          count={counts.photos}
-        />
-        <SideLink
-          href={`/obras/${site.id}/medicoes`}
-          active={active === "medicoes"}
-          icon={<Ruler size={16} />}
-          label="Medições"
-          count={counts.medicoes}
-        />
-        <SideLink
-          href={`/obras/${site.id}/orcamento-ia`}
-          active={active === "budget"}
-          icon={<Calculator size={16} />}
-          label="Orçamento IA"
-          count={counts.estimates}
-        />
-        <SideLink
-          href={`/obras/${site.id}#risco-de-atraso`}
-          active={false}
-          icon={<Crosshair size={16} />}
-          label="Risco de atraso"
+          badgeTone="gray"
         />
         <div className="do-side-group">
           <div className="do-side-group__label">
@@ -136,6 +111,32 @@ export function ObraSidebar({ site, counts, active }: ObraSidebarProps) {
             nested
           />
         </div>
+        <div className="do-side-group">
+          <div className="do-side-group__label">Obralia</div>
+          <SideLink
+            href={`/obras/${site.id}/medicoes`}
+            active={active === "medicoes"}
+            icon={<Ruler size={16} />}
+            label="Medições"
+            count={counts.medicoes}
+            nested
+          />
+          <SideLink
+            href={`/obras/${site.id}/orcamento-ia`}
+            active={active === "budget"}
+            icon={<Calculator size={16} />}
+            label="Orçamento IA"
+            count={counts.estimates}
+            nested
+          />
+          <SideLink
+            href={`/obras/${site.id}#risco-de-atraso`}
+            active={false}
+            icon={<Crosshair size={16} />}
+            label="Risco de atraso"
+            nested
+          />
+        </div>
         <SideLink
           href={`/obras/${site.id}/editar`}
           active={active === "edit"}
@@ -154,6 +155,7 @@ function SideLink({
   label,
   count,
   nested = false,
+  badgeTone,
 }: {
   href: string;
   active: boolean;
@@ -161,12 +163,18 @@ function SideLink({
   label: string;
   count?: number;
   nested?: boolean;
+  /** Cor fixa do badge (Diário: Lista de tarefas azul, Relatórios cinza). */
+  badgeTone?: "blue" | "gray";
 }) {
+  const badgeStyle: React.CSSProperties | undefined =
+    badgeTone === "blue" ? { background: "#2196F3", color: "#fff" }
+      : badgeTone === "gray" ? { background: "#e2e5ea", color: "#5f6673" }
+      : undefined;
   return (
     <Link className={`do-side-link ${active ? "is-active" : ""} ${nested ? "is-nested" : ""}`} href={href}>
       {icon}
       <span>{label}</span>
-      {typeof count === "number" ? <em>{count}</em> : null}
+      {typeof count === "number" ? <em style={badgeStyle}>{count}</em> : null}
     </Link>
   );
 }

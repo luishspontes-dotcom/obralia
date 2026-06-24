@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useState } from "react";
+import { Copy } from "lucide-react";
 import { updateMemberRole, removeMember } from "@/lib/rdo-actions";
 import {
   adminResetPasswordEmail,
@@ -118,11 +119,7 @@ export function MemberRow({
           <button type="submit" className="btn-brand" style={{ padding: "6px 10px", fontSize: 12 }}>Salvar</button>
           <button type="button" onClick={() => setEditing(false)} className="chip" style={{ padding: "6px 10px", fontSize: 12 }}>Cancel</button>
         </form>
-      ) : (
-        <span className={`status ${role === "owner" || role === "admin" ? "status-progress" : "status-paused"}`}>
-          {ROLE_OPTIONS.find(o => o.value === role)?.label ?? role}
-        </span>
-      )}
+      ) : null}
 
       {canManage && !editing && confirm === null && (
         <Link href={`/usuarios/${profileId}`} title="Editar permissões e obras que pode acessar"
@@ -132,7 +129,13 @@ export function MemberRow({
       {canManage && !isMe && !editing && confirm === null && (
         <>
           <button type="button" onClick={() => setEditing(true)} title="Editar papel"
-            style={iconBtnStyle}>✎</button>
+            style={{ ...iconBtnStyle, color: "#d32f2f" }}>✎</button>
+          {email && (
+            <button type="button" onClick={() => { void navigator.clipboard.writeText(email); }}
+              title="Copiar e-mail" style={iconBtnStyle}>
+              <Copy size={14} />
+            </button>
+          )}
           <form action={adminResetPasswordEmail} style={{ display: "contents" }}>
             <input type="hidden" name="profile_id" value={profileId} />
             <input type="hidden" name="email" value={email ?? ""} />

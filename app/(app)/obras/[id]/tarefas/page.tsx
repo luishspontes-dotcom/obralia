@@ -290,6 +290,7 @@ export default async function ObraTarefasPage({
                                     <Link
                                       href={`/obras/${id}/tarefas?edit=${task.id}#task-${task.id}`}
                                       title="Editar"
+                                      style={{ color: "#d32f2f" }}
                                     >
                                       ✏
                                     </Link>

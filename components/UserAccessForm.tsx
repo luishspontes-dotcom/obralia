@@ -217,7 +217,7 @@ function FieldRO({ label, value }: { label: string; value: string }) {
 
 const sectionTitleStyle: React.CSSProperties = {
   margin: "0 0 16px",
-  color: "#e8590c",
+  color: "#FF6F00",
   font: "600 17px var(--font-inter)",
   letterSpacing: 0,
 };

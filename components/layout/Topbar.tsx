@@ -130,11 +130,11 @@ export function Topbar({ activeOrg, userName, userEmail, menuCounts }: TopbarPro
             Anexos
             {menuCounts ? <em className="tnum">{menuCounts.anexos.toLocaleString("pt-BR")}</em> : null}
           </Link>
-          <Link href="/cadastros/mao-de-obra">
+          <Link href="/analise-de-dados/mao-de-obra">
             <HardHat size={15} />
             Mão de obra (histórico)
           </Link>
-          <Link href="/cadastros/equipamentos">
+          <Link href="/analise-de-dados/equipamentos">
             <Settings size={15} />
             Equipamentos (histórico)
           </Link>
@@ -151,15 +151,15 @@ export function Topbar({ activeOrg, userName, userEmail, menuCounts }: TopbarPro
           openMenu={openMenu}
           setOpenMenu={setOpenMenu}
         >
-          <Link href="/configuracoes">
+          <Link href="/cadastros/meu-perfil">
             <User size={15} />
             Meu perfil
           </Link>
-          <Link href="/configuracoes#assinatura">
+          <Link href="/cadastros/assinatura">
             <PenLine size={15} />
             Assinatura
           </Link>
-          <Link href="/cadastros/usuarios-empresas-acesso">
+          <Link href="/cadastros/empresa">
             <Building2 size={15} />
             Empresa
           </Link>
@@ -194,7 +194,7 @@ export function Topbar({ activeOrg, userName, userEmail, menuCounts }: TopbarPro
             Tipos de ocorrências
             {menuCounts ? <em className="tnum">{menuCounts.tiposOcorrencias.toLocaleString("pt-BR")}</em> : null}
           </Link>
-          <Link href="/cadastros" title="Em breve">
+          <Link href="/cadastros/checklist">
             <CheckSquare size={15} />
             Checklist
           </Link>
@@ -216,10 +216,7 @@ export function Topbar({ activeOrg, userName, userEmail, menuCounts }: TopbarPro
         <Link href="/buscar" className="do-icon-action" title="Pesquisar">
           <Search size={17} />
         </Link>
-        <Link href="/obras/nova" className="do-add-button">
-          <Plus size={16} />
-          Adicionar
-        </Link>
+        <AddButton pathname={pathname} />
         <div className={`do-topbar-menu ${openMenu === "usuario" ? "is-open" : ""}`}>
           <button
             type="button"
@@ -268,6 +265,33 @@ export function Topbar({ activeOrg, userName, userEmail, menuCounts }: TopbarPro
         </div>
       </nav>
     </header>
+  );
+}
+
+function AddButton({ pathname }: { pathname: string }) {
+  let href = "/obras/nova";
+  let label = "Adicionar";
+
+  // Dentro de uma obra (/obras/[id]...) → adicionar relatório nessa obra
+  const obraMatch = pathname.match(/^\/obras\/([^/]+)(?:\/|$)/);
+  const obraId = obraMatch?.[1];
+
+  if (obraId && obraId !== "nova") {
+    href = `/obras/${obraId}/rdos/novo`;
+    label = "Adicionar Relatório";
+  } else if (pathname === "/obras" || pathname.startsWith("/obras")) {
+    href = "/obras/nova";
+    label = "Adicionar Obra";
+  } else if (pathname.startsWith("/usuarios")) {
+    href = "/usuarios#convidar";
+    label = "Adicionar Usuário";
+  }
+
+  return (
+    <Link href={href} className="do-add-button">
+      <Plus size={16} />
+      {label}
+    </Link>
   );
 }
 

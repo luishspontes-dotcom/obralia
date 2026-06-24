@@ -933,7 +933,7 @@ img[loading="lazy"]:not([src=""]) { opacity: 1; }
 
 .diario-obra-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(206px, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 18px;
 }
 
@@ -1612,6 +1612,10 @@ img[loading="lazy"]:not([src=""]) { opacity: 1; }
     max-width: calc(100vw - 16px);
     max-height: calc(100vh - 94px);
   }
+  .diario-obra-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 14px;
+  }
 }
 
 @media (max-width: 768px) {
@@ -1936,7 +1940,7 @@ img[loading="lazy"]:not([src=""]) { opacity: 1; }
     height: 52px;
     margin-top: -22px;
     border-radius: 999px;
-    background: var(--o-accent);
+    background: #FFAB02;
     color: var(--o-accent-on);
     display: grid;
     place-items: center;

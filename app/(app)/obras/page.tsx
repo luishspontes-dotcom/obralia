@@ -24,19 +24,38 @@ const STATUS_META: Record<string, { label: string; cls: string }> = {
   cancelled: { label: "Cancelada", cls: "is-paused" },
 };
 
+// Grupos de obra: não existe coluna de agrupamento real em `sites`. A tela
+// `cadastros/grupos-de-obra` deriva grupos a partir do `status`; reaproveitamos
+// a mesma lógica para que o select "Todas as obras" fique funcional.
+const GROUP_LABEL: Record<string, string> = {
+  in_progress: "Em andamento",
+  not_started: "Não iniciada",
+  paused: "Pausada",
+  done: "Concluída",
+};
+
+// Normaliza o status bruto da obra para a chave de grupo (mesma normalização
+// usada na tela de grupos de obra).
+function siteGroupKey(status: string): string {
+  if (status === "completed") return "done";
+  if (status === "planned") return "not_started";
+  return status;
+}
+
 export default async function ObrasPage({
   searchParams,
 }: {
-  searchParams: Promise<{ status?: string; q?: string; view?: string }>;
+  searchParams: Promise<{ status?: string; q?: string; view?: string; grupo?: string }>;
 }) {
   const supabase = await createServerSupabase();
-  const { status: filterStatus, q, view } = await searchParams;
+  const { status: filterStatus, q, view, grupo: filterGrupo } = await searchParams;
   const query = (q ?? "").trim().toLowerCase();
   const isListView = view === "lista";
 
   const viewQs = (target: "grid" | "lista") => {
     const params = new URLSearchParams();
     if (q) params.set("q", q);
+    if (filterGrupo) params.set("grupo", filterGrupo);
     if (filterStatus) params.set("status", filterStatus);
     if (target === "lista") params.set("view", "lista");
     const qs = params.toString();
@@ -49,6 +68,11 @@ export default async function ObrasPage({
     .in("external_provider", VISIBLE_SOURCE_PROVIDERS)
     .order("name");
   const sites = (sitesRaw ?? []) as Site[];
+
+  // Grupos de obra disponíveis (derivados do status) para o select "Todas as obras".
+  const grupoOptions = Array.from(new Set(sites.map((s) => siteGroupKey(s.status))))
+    .map((key) => ({ key, label: GROUP_LABEL[key] ?? key }))
+    .sort((a, b) => a.label.localeCompare(b.label, "pt-BR"));
 
   // B1: contagens agregadas no banco (view obra_dashboard_counts) — evita baixar
   // dezenas de milhares de linhas de mídia/tarefas só para contar por obra.
@@ -88,6 +112,7 @@ export default async function ObrasPage({
 
   const visibleSites = sites.filter((site) => {
     const stats = perSite.get(site.id);
+    if (filterGrupo && siteGroupKey(site.status) !== filterGrupo) return false;
     if (filterStatus === "at-risk" && (stats?.late ?? 0) === 0) return false;
     if (filterStatus === "done" && !["done", "completed"].includes(site.status)) return false;
     if (filterStatus === "in_progress" && site.status !== "in_progress") return false;
@@ -118,6 +143,14 @@ export default async function ObrasPage({
               defaultValue={q ?? ""}
               placeholder="Pesquisa"
             />
+            <select className="diario-select" name="grupo" defaultValue={filterGrupo ?? ""}>
+              <option value="">Todas as obras</option>
+              {grupoOptions.map((g) => (
+                <option key={g.key} value={g.key}>
+                  {g.label}
+                </option>
+              ))}
+            </select>
             <select className="diario-select" name="status" defaultValue={filterStatus ?? ""}>
               <option value="">Todos os status</option>
               <option value="in_progress">Em andamento</option>
