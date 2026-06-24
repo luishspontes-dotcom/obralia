@@ -282,105 +282,6 @@ export default async function RdoDetailPage({
                 </form>
               )}
             </div>
-
-            {/* Resumo IA pro cliente */}
-            {(canEdit || rdo.client_summary) && (
-              <div style={{ borderTop: "1px solid #e6e6e6", paddingTop: 12 }}>
-                <div style={{ fontSize: 12, fontWeight: 700, color: "#555", marginBottom: 6 }}>
-                  Resumo para o cliente (IA)
-                </div>
-                {rdo.client_summary ? (
-                  <>
-                    <div style={{ fontSize: 13, color: "#333", whiteSpace: "pre-wrap", lineHeight: 1.6 }}>
-                      {rdo.client_summary}
-                    </div>
-                    <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 8, flexWrap: "wrap" }}>
-                      {rdo.client_summary_generated_at && (
-                        <span style={{ fontSize: 11, color: "#999" }}>
-                          Gerado com IA em {fmtDateTime(rdo.client_summary_generated_at)}
-                        </span>
-                      )}
-                      {canEdit && (
-                        <form action={generateClientSummary} style={{ display: "inline" }}>
-                          <input type="hidden" name="rdoId" value={rdoId} />
-                          <input type="hidden" name="siteId" value={id} />
-                          <button type="submit" className="diario-gray-button" style={{ height: 28 }}>↺ Regenerar</button>
-                        </form>
-                      )}
-                    </div>
-                  </>
-                ) : (
-                  <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
-                    <span style={{ fontSize: 12, color: "#777" }}>
-                      Gere um resumo do dia em linguagem simples para enviar ao cliente.
-                    </span>
-                    <form action={generateClientSummary} style={{ display: "inline" }}>
-                      <input type="hidden" name="rdoId" value={rdoId} />
-                      <input type="hidden" name="siteId" value={id} />
-                      <button type="submit" className="diario-blue-button" style={{ height: 28 }}>✨ Gerar resumo com IA</button>
-                    </form>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {canEdit && (
-              <div style={{ borderTop: "1px solid #e6e6e6", paddingTop: 12, display: "grid", gap: 12 }}>
-                {/* Upload de fotos/vídeos */}
-                <div>
-                  <div style={{ fontSize: 12, fontWeight: 700, color: "#555", marginBottom: 6 }}>
-                    Adicionar fotos / vídeos
-                  </div>
-                  <PhotoUploader siteId={id} rdoId={rdoId} />
-                </div>
-
-                {/* Anexos */}
-                <form action={uploadAttachments} style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-                  <input type="hidden" name="rdoId" value={rdoId} />
-                  <input type="hidden" name="siteId" value={id} />
-                  <span style={{ fontSize: 12, fontWeight: 700, color: "#555" }}>Anexos:</span>
-                  <input type="file" name="attachments" multiple required
-                    style={{ font: "400 12px var(--font-inter)", color: "#555", maxWidth: 320 }} />
-                  <button type="submit" className="diario-blue-button" style={{ height: 28 }}>Anexar</button>
-                </form>
-
-                {/* Materiais */}
-                <form action={addMaterial} style={{ display: "grid", gridTemplateColumns: "1fr 90px 70px auto", gap: 8, alignItems: "center", maxWidth: 560 }}>
-                  <input type="hidden" name="rdoId" value={rdoId} />
-                  <input type="hidden" name="siteId" value={id} />
-                  <input name="name" required placeholder="Material (ex: cimento)" className="diario-input" style={{ minWidth: 0 }} />
-                  <input name="unit" placeholder="Unid" className="diario-input" style={{ minWidth: 0 }} />
-                  <input name="quantity" type="number" step="0.01" placeholder="Qtde" className="diario-input tnum" style={{ minWidth: 0 }} />
-                  <button type="submit" className="diario-blue-button" style={{ height: 34 }}>+ Material</button>
-                </form>
-
-                {/* Comentar */}
-                <form action={postComment} style={{ display: "grid", gap: 8 }}>
-                  <input type="hidden" name="target_table" value="daily_reports" />
-                  <input type="hidden" name="target_id" value={rdoId} />
-                  <input type="hidden" name="redirect_to" value={`/obras/${id}/rdos/${rdoId}`} />
-                  <textarea name="body" rows={2} required placeholder="Adicione um comentário ou ocorrência…"
-                    style={{
-                      width: "100%", border: "1px solid #d8d8d8", borderRadius: 2,
-                      padding: "8px 10px", font: "400 12px var(--font-inter)", color: "#333",
-                      background: "#fff", outline: "none", resize: "vertical",
-                    }} />
-                  <div style={{ display: "flex", justifyContent: "flex-end" }}>
-                    <button type="submit" className="diario-blue-button" style={{ height: 28 }}>Comentar</button>
-                  </div>
-                </form>
-
-                {/* Assinatura digital */}
-                {!rdo.signature_data_url && (
-                  <div>
-                    <div style={{ fontSize: 12, fontWeight: 700, color: "#555", marginBottom: 6 }}>
-                      Assinatura digital
-                    </div>
-                    <SignaturePad rdoId={rdoId} siteId={id} />
-                  </div>
-                )}
-              </div>
-            )}
           </div>
         </section>
 
@@ -693,6 +594,118 @@ export default async function RdoDetailPage({
             )}
           </div>
         </div>
+
+        {/* ============ FERRAMENTAS DO RELATÓRIO (edição / IA do Obralia) ============ */}
+        {(canEdit || rdo.client_summary) && (
+          <section className="do-panel" style={{ marginTop: 14 }}>
+            <div className="do-panel__header">
+              <h2>Ferramentas do relatório</h2>
+              <span style={{ color: "#777", fontSize: 12 }}>
+                Resumo com IA, fotos, anexos, materiais, comentários e assinatura
+              </span>
+            </div>
+            <div style={{ padding: "12px 12px 14px", display: "flex", flexDirection: "column", gap: 12 }}>
+              {/* Resumo IA pro cliente */}
+              {(canEdit || rdo.client_summary) && (
+                <div>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: "#555", marginBottom: 6 }}>
+                    Resumo para o cliente (IA)
+                  </div>
+                  {rdo.client_summary ? (
+                    <>
+                      <div style={{ fontSize: 13, color: "#333", whiteSpace: "pre-wrap", lineHeight: 1.6 }}>
+                        {rdo.client_summary}
+                      </div>
+                      <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 8, flexWrap: "wrap" }}>
+                        {rdo.client_summary_generated_at && (
+                          <span style={{ fontSize: 11, color: "#999" }}>
+                            Gerado com IA em {fmtDateTime(rdo.client_summary_generated_at)}
+                          </span>
+                        )}
+                        {canEdit && (
+                          <form action={generateClientSummary} style={{ display: "inline" }}>
+                            <input type="hidden" name="rdoId" value={rdoId} />
+                            <input type="hidden" name="siteId" value={id} />
+                            <button type="submit" className="diario-gray-button" style={{ height: 28 }}>↺ Regenerar</button>
+                          </form>
+                        )}
+                      </div>
+                    </>
+                  ) : (
+                    <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+                      <span style={{ fontSize: 12, color: "#777" }}>
+                        Gere um resumo do dia em linguagem simples para enviar ao cliente.
+                      </span>
+                      <form action={generateClientSummary} style={{ display: "inline" }}>
+                        <input type="hidden" name="rdoId" value={rdoId} />
+                        <input type="hidden" name="siteId" value={id} />
+                        <button type="submit" className="diario-blue-button" style={{ height: 28 }}>✨ Gerar resumo com IA</button>
+                      </form>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {canEdit && (
+                <div style={{ borderTop: "1px solid #e6e6e6", paddingTop: 12, display: "grid", gap: 12 }}>
+                  {/* Upload de fotos/vídeos */}
+                  <div>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: "#555", marginBottom: 6 }}>
+                      Adicionar fotos / vídeos
+                    </div>
+                    <PhotoUploader siteId={id} rdoId={rdoId} />
+                  </div>
+
+                  {/* Anexos */}
+                  <form action={uploadAttachments} style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+                    <input type="hidden" name="rdoId" value={rdoId} />
+                    <input type="hidden" name="siteId" value={id} />
+                    <span style={{ fontSize: 12, fontWeight: 700, color: "#555" }}>Anexos:</span>
+                    <input type="file" name="attachments" multiple required
+                      style={{ font: "400 12px var(--font-inter)", color: "#555", maxWidth: 320 }} />
+                    <button type="submit" className="diario-blue-button" style={{ height: 28 }}>Anexar</button>
+                  </form>
+
+                  {/* Materiais */}
+                  <form action={addMaterial} style={{ display: "grid", gridTemplateColumns: "1fr 90px 70px auto", gap: 8, alignItems: "center", maxWidth: 560 }}>
+                    <input type="hidden" name="rdoId" value={rdoId} />
+                    <input type="hidden" name="siteId" value={id} />
+                    <input name="name" required placeholder="Material (ex: cimento)" className="diario-input" style={{ minWidth: 0 }} />
+                    <input name="unit" placeholder="Unid" className="diario-input" style={{ minWidth: 0 }} />
+                    <input name="quantity" type="number" step="0.01" placeholder="Qtde" className="diario-input tnum" style={{ minWidth: 0 }} />
+                    <button type="submit" className="diario-blue-button" style={{ height: 34 }}>+ Material</button>
+                  </form>
+
+                  {/* Comentar */}
+                  <form action={postComment} style={{ display: "grid", gap: 8 }}>
+                    <input type="hidden" name="target_table" value="daily_reports" />
+                    <input type="hidden" name="target_id" value={rdoId} />
+                    <input type="hidden" name="redirect_to" value={`/obras/${id}/rdos/${rdoId}`} />
+                    <textarea name="body" rows={2} required placeholder="Adicione um comentário ou ocorrência…"
+                      style={{
+                        width: "100%", border: "1px solid #d8d8d8", borderRadius: 2,
+                        padding: "8px 10px", font: "400 12px var(--font-inter)", color: "#333",
+                        background: "#fff", outline: "none", resize: "vertical",
+                      }} />
+                    <div style={{ display: "flex", justifyContent: "flex-end" }}>
+                      <button type="submit" className="diario-blue-button" style={{ height: 28 }}>Comentar</button>
+                    </div>
+                  </form>
+
+                  {/* Assinatura digital */}
+                  {!rdo.signature_data_url && (
+                    <div>
+                      <div style={{ fontSize: 12, fontWeight: 700, color: "#555", marginBottom: 6 }}>
+                        Assinatura digital
+                      </div>
+                      <SignaturePad rdoId={rdoId} siteId={id} />
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          </section>
+        )}
 
         <div className="diario-toolbar" style={{ marginTop: 12 }}>
           {grayBtn}
