@@ -49,3 +49,7 @@ next-env.d.ts
 
 # scripts temporários de diagnóstico (Cowork)
 _*.mjs
+
+# arquivos-lixo do mount fuse
+.fuse_hidden*
+**/.fuse_hidden*
