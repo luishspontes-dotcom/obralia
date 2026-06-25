@@ -75,17 +75,25 @@ export default async function RelatoriosPage({
                 </tr>
               </thead>
               <tbody>
-                {reports.map((report) => (
-                  <tr key={report.id}>
-                    <td>n° {report.number}</td>
-                    <td>{new Date(`${report.date}T00:00:00`).toLocaleDateString("pt-BR")}</td>
-                    <td>{report.sites?.name ?? "Obra"}</td>
-                    <td>{statusLabel[report.status ?? ""] ?? report.status ?? "-"}</td>
-                    <td>
-                      <Link href={`/obras/${report.site_id}/rdos/${report.id}`}>Abrir</Link>
+                {reports.length === 0 ? (
+                  <tr>
+                    <td colSpan={5} style={{ textAlign: "center", padding: "32px 12px", color: "var(--o-text-2)" }}>
+                      Nenhum relatório encontrado.
                     </td>
                   </tr>
-                ))}
+                ) : (
+                  reports.map((report) => (
+                    <tr key={report.id}>
+                      <td>n° {report.number}</td>
+                      <td>{new Date(`${report.date}T00:00:00`).toLocaleDateString("pt-BR")}</td>
+                      <td>{report.sites?.name ?? "Obra"}</td>
+                      <td>{statusLabel[report.status ?? ""] ?? report.status ?? "-"}</td>
+                      <td>
+                        <Link href={`/obras/${report.site_id}/rdos/${report.id}`}>Abrir</Link>
+                      </td>
+                    </tr>
+                  ))
+                )}
               </tbody>
             </table>
           </div>

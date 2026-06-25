@@ -79,9 +79,25 @@ const TASK_STATUS: Record<string, { label: string; cls: string }> = {
   paused: { label: "Pausada", cls: "is-paused" },
 };
 
+// Status do RDO (mesmo mapa da lista de Relatórios) — evita exibir o status cru
+// ("draft"/"submitted") com badge verde na prévia da visão geral.
+const RDO_STATUS: Record<string, { label: string; cls: string }> = {
+  draft: { label: "Rascunho", cls: "is-paused" },
+  submitted: { label: "Enviado", cls: "" },
+  review: { label: "Em revisão", cls: "" },
+  approved: { label: "Aprovado", cls: "is-done" },
+};
+
 function fmtDate(value: string | null): string {
   if (!value) return "";
   return new Date(`${value}T00:00:00`).toLocaleDateString("pt-BR");
+}
+
+// Progresso da tarefa (mesma regra da Lista de tarefas): usa progress_pct quando
+// houver, senão 100% para concluídas e 0% para o resto.
+function taskProgress(task: WbsItem): number {
+  if (task.progress_pct != null) return Math.min(Math.max(task.progress_pct, 0), 100);
+  return task.status === "done" ? 100 : 0;
 }
 
 function daysBetween(start: string | null, end: string | null): { total: number | null; elapsed: number | null; remaining: number | null; pct: number } {
@@ -281,16 +297,16 @@ export default async function ObraDetailPage({
                     </tr>
                   </thead>
                   <tbody>
-                    {reports.slice(0, 7).map((report) => (
+                    {reports.slice(0, 7).map((report) => {
+                      const rdoMeta = RDO_STATUS[report.status] ?? RDO_STATUS.draft;
+                      return (
                       <tr key={report.id}>
                         <td>
                           <Link href={`/obras/${id}/rdos/${report.id}`}>{fmtDate(report.date)}</Link>
                         </td>
                         <td className="tnum">{report.number}</td>
                         <td>
-                          <span className="diario-status-badge is-done">
-                            {report.status === "approved" ? "Aprovado" : report.status}
-                          </span>
+                          <span className={`diario-status-badge ${rdoMeta.cls}`}>{rdoMeta.label}</span>
                         </td>
                         <td>
                           <span className="do-report-model">
@@ -305,7 +321,8 @@ export default async function ObraDetailPage({
                           </span>
                         </td>
                       </tr>
-                    ))}
+                      );
+                    })}
                     {reports.length === 0 ? (
                       <tr>
                         <td colSpan={5}>Nenhum relatório cadastrado.</td>
@@ -460,8 +477,9 @@ export default async function ObraDetailPage({
                 <tbody>
                   {phases.map((phase) => {
                     const phaseTasks = tasksByPhase.get(phase.id) ?? [];
-                    const phaseDone = phaseTasks.filter((task) => task.status === "done").length;
-                    const phasePct = phaseTasks.length > 0 ? Math.round((phaseDone / phaseTasks.length) * 100) : 0;
+                    const phasePct = phaseTasks.length > 0
+                      ? phaseTasks.reduce((sum, task) => sum + taskProgress(task), 0) / phaseTasks.length
+                      : 0;
                     return (
                       <Fragment key={phase.id}>
                         <tr key={phase.id} className="do-task-phase">
@@ -473,15 +491,16 @@ export default async function ObraDetailPage({
                         </tr>
                         {phaseTasks.map((task) => {
                           const meta = TASK_STATUS[task.status ?? "waiting"] ?? TASK_STATUS.waiting;
+                          const pct = taskProgress(task);
                           return (
                             <tr key={task.id}>
                               <td className="tnum">{task.code}</td>
                               <td>{task.name}</td>
                               <td>1 vb</td>
                               <td>
-                                <span className="tnum" style={{ marginRight: 8 }}>{task.progress_pct ?? 0}%</span>
+                                <span className="tnum" style={{ marginRight: 8 }}>{pct.toFixed(0)}%</span>
                                 <span className="do-task-progress">
-                                  <span style={{ width: `${task.progress_pct ?? 0}%` }} />
+                                  <span style={{ width: `${pct}%` }} />
                                 </span>
                               </td>
                               <td>

@@ -95,10 +95,10 @@ export default async function TarefasPage({
         <div style={{ maxWidth: 1280, margin: "0 auto", display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: 16, flexWrap: "wrap" }}>
           <div>
             <div style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: "0.12em", color: "var(--t-brand)", fontWeight: 600, marginBottom: 8 }}>
-              Cronograma
+              Análise de dados
             </div>
             <h1 style={{ margin: "0 0 8px", font: "700 32px var(--font-inter)", letterSpacing: "-0.025em" }}>
-              Atividades
+              Lista de tarefas
             </h1>
             <p style={{ margin: 0, fontSize: 14, color: "var(--o-text-2)" }}>
               <span className="tnum">{total}</span> atividades · agrupadas por obra

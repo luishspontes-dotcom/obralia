@@ -328,11 +328,11 @@ export default async function AuditoriaPage() {
   const hasExternalAccounts = externalAccounts.length > 0;
 
   const checks = [
-    { label: "Totais batem com a meta historica", ok: allTargetsMet },
-    { label: "Registros possuem origem externa rastreavel", ok: hasExternalEvidence },
+    { label: "Totais batem com a meta histórica", ok: allTargetsMet },
+    { label: "Registros possuem origem externa rastreável", ok: hasExternalEvidence },
     { label: "Contas externas cadastradas", ok: hasExternalAccounts },
-    { label: "Credenciais ou importacao auditada", ok: hasSourceCredentials || hasAuditedImport },
-    { label: "Historico de sincronizacao/auditoria com sucesso", ok: hasSuccessfulSync },
+    { label: "Credenciais ou importação auditada", ok: hasSourceCredentials || hasAuditedImport },
+    { label: "Histórico de sincronização/auditoria com sucesso", ok: hasSuccessfulSync },
   ];
   const score = Math.round((checks.filter((check) => check.ok).length / checks.length) * 10);
 
@@ -340,7 +340,7 @@ export default async function AuditoriaPage() {
     <div style={{ padding: "24px", maxWidth: 1120, margin: "0 auto" }}>
       <div style={{ marginBottom: 18 }}>
         <Link href="/configuracoes" style={{ color: "var(--o-text-2)", textDecoration: "none", fontSize: 14 }}>
-          Configuracoes
+          Configurações
         </Link>
         <span style={{ color: "var(--o-text-3)", margin: "0 8px" }}>/</span>
         <span style={{ color: "var(--o-text-1)", fontSize: 14 }}>Auditoria</span>
@@ -352,14 +352,14 @@ export default async function AuditoriaPage() {
             Auditoria operacional
           </h1>
           <p style={{ margin: 0, color: "var(--o-text-2)", fontSize: 14 }}>
-            Evidencia de dados, origem externa e sincronizacao da organizacao {activeOrg.name}.
+            Evidência de dados, origem externa e sincronização da organização {activeOrg.name}.
           </p>
         </div>
         <div style={{ textAlign: "right" }}>
           <div className="tnum" style={{ font: "700 34px var(--font-inter)", color: score === 10 ? "var(--st-done)" : "var(--t-brand)" }}>
             {score}/10
           </div>
-          <div style={{ fontSize: 12, color: "var(--o-text-2)" }}>prontidao auditavel</div>
+          <div style={{ fontSize: 12, color: "var(--o-text-2)" }}>prontidão auditável</div>
         </div>
       </div>
 
@@ -368,7 +368,7 @@ export default async function AuditoriaPage() {
         <Metric label="Itens WBS" value={totals.wbs_items} hint={`${formatNumber(totals.wbs_phases)} fases · ${formatNumber(totals.wbs_activities)} atividades`} />
         <Metric label="RDOs" value={totals.daily_reports} />
         <Metric label="Atividades em RDO" value={totals.report_activities} />
-        <Metric label="Midias" value={totals.media} />
+        <Metric label="Mídias" value={totals.media} />
       </div>
 
       <Section title="Checklist 10/10">
@@ -379,7 +379,7 @@ export default async function AuditoriaPage() {
         </div>
       </Section>
 
-      <Section title="Meta historica Meu Viver">
+      <Section title="Meta histórica Meu Viver">
         <div style={{ display: "grid", gap: 8 }}>
           {targetRows.map((row) => (
             <div key={row.key} style={{ display: "grid", gridTemplateColumns: "1fr auto auto", gap: 12, alignItems: "center", padding: "10px 0", borderBottom: "1px solid var(--o-border)" }}>
@@ -430,9 +430,9 @@ export default async function AuditoriaPage() {
         </div>
       </Section>
 
-      <Section title="Ultimas sincronizacoes">
+      <Section title="Últimas sincronizações">
         {syncRuns.length === 0 ? (
-          <div style={{ color: "var(--o-text-2)", fontSize: 14 }}>Nenhuma execucao registrada.</div>
+          <div style={{ color: "var(--o-text-2)", fontSize: 14 }}>Nenhuma execução registrada.</div>
         ) : (
           <div style={{ display: "grid", gap: 8 }}>
             {syncRuns.map((run) => (
@@ -505,8 +505,8 @@ function ConnectorCard({
       </div>
       <div style={{ marginTop: 10, display: "grid", gap: 6, fontSize: 12, color: "var(--o-text-2)" }}>
         <span>Credencial: {configured ? "configurada" : optional ? "opcional" : "ausente"}</span>
-        <span>Ultimo sync: {formatDate(account?.last_sync_at)}</span>
-        <span>Ultimo sucesso: {formatDate(account?.last_success_at)}</span>
+        <span>Último sync: {formatDate(account?.last_sync_at)}</span>
+        <span>Último sucesso: {formatDate(account?.last_success_at)}</span>
       </div>
     </div>
   );
@@ -521,7 +521,7 @@ function StatusPill({ status }: { status: string }) {
     partial: { label: "Parcial", color: "var(--o-accent)", bg: "rgba(217, 119, 87, 0.1)" },
     error: { label: "Erro", color: "var(--st-late)", bg: "rgba(220, 38, 38, 0.08)" },
     failed: { label: "Falhou", color: "var(--st-late)", bg: "rgba(220, 38, 38, 0.08)" },
-    not_configured: { label: "Nao configurado", color: "var(--o-text-2)", bg: "rgba(0,0,0,0.04)" },
+    not_configured: { label: "Não configurado", color: "var(--o-text-2)", bg: "rgba(0,0,0,0.04)" },
     optional: { label: "Opcional", color: "var(--o-text-2)", bg: "rgba(0,0,0,0.04)" },
   };
   const item = meta[status] ?? { label: status, color: "var(--o-text-2)", bg: "rgba(0,0,0,0.04)" };

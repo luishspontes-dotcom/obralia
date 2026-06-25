@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Camera, FileArchive, FileText, ListTodo, Map, Video } from "lucide-react";
+import { Camera, FileArchive, FileText, HardHat, ListTodo, Map, Settings, Video } from "lucide-react";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { createAdminSupabase } from "@/lib/supabase/admin";
 import { VISIBLE_SOURCE_PROVIDERS, MEDIA_SOURCE_PROVIDERS, WBS_SOURCE_PROVIDERS } from "@/lib/rdo-source-scope";
@@ -27,13 +27,15 @@ export default async function AnaliseDeDadosPage() {
 
   const cards = [
     { href: "/inicio", label: "Visão geral", value: reports ?? 0, icon: FileText },
-    { href: "/mapa", label: "Mapa das obras", value: "", icon: Map },
     { href: "/relatorios", label: "Relatórios criados", value: reports ?? 0, icon: FileText },
-    { href: "/caixa", label: "Relatórios aguardando aprovação", value: reviewReports ?? 0, icon: FileText },
+    { href: "/caixa", label: "Aguardando aprovação", value: reviewReports ?? 0, icon: FileText },
     { href: "/tarefas", label: "Lista de tarefas", value: tasks ?? 0, icon: ListTodo },
     { href: "/analise-de-dados/fotos", label: "Fotos", value: photos ?? 0, icon: Camera },
     { href: "/analise-de-dados/videos", label: "Vídeos", value: videos ?? 0, icon: Video },
     { href: "/analise-de-dados/anexos", label: "Anexos", value: files ?? 0, icon: FileArchive },
+    { href: "/analise-de-dados/mao-de-obra", label: "Mão de obra", value: "", icon: HardHat },
+    { href: "/analise-de-dados/equipamentos", label: "Equipamentos", value: "", icon: Settings },
+    { href: "/mapa", label: "Mapa das obras", value: "", icon: Map },
   ];
 
   return (

@@ -66,7 +66,7 @@ const PROVIDERS: Array<{
   {
     key: "asana",
     label: "Asana",
-    purpose: "Projetos, tarefas e responsaveis quando a operacao estiver no Asana",
+    purpose: "Projetos, tarefas e responsáveis quando a operação estiver no Asana",
     expected: "ASANA_ACCESS_TOKEN",
   },
 ];
@@ -77,7 +77,7 @@ const STATUS_META: Record<string, { label: string; color: string; bg: string }> 
   needs_auth: { label: "Precisa autenticar", color: "var(--st-late)", bg: "rgba(220, 38, 38, 0.08)" },
   error: { label: "Erro", color: "var(--st-late)", bg: "rgba(220, 38, 38, 0.08)" },
   disabled: { label: "Desativado", color: "var(--o-text-3)", bg: "rgba(0,0,0,0.04)" },
-  not_configured: { label: "Nao configurado", color: "var(--o-text-2)", bg: "rgba(0,0,0,0.04)" },
+  not_configured: { label: "Não configurado", color: "var(--o-text-2)", bg: "rgba(0,0,0,0.04)" },
   queued: { label: "Na fila", color: "var(--o-text-2)", bg: "rgba(0,0,0,0.04)" },
   running: { label: "Rodando", color: "var(--st-progress)", bg: "rgba(8, 120, 155, 0.08)" },
   success: { label: "Sucesso", color: "var(--st-done)", bg: "rgba(34, 139, 34, 0.08)" },
@@ -191,19 +191,19 @@ export default async function IntegracoesPage() {
     <div style={{ padding: "24px", maxWidth: 1040, margin: "0 auto" }}>
       <div style={{ marginBottom: 18 }}>
         <Link href="/configuracoes" style={{ color: "var(--o-text-2)", textDecoration: "none", fontSize: 14 }}>
-          Configuracoes
+          Configurações
         </Link>
         <span style={{ color: "var(--o-text-3)", margin: "0 8px" }}>/</span>
-        <span style={{ color: "var(--o-text-1)", fontSize: 14 }}>Integracoes</span>
+        <span style={{ color: "var(--o-text-1)", fontSize: 14 }}>Integrações</span>
       </div>
 
       <div style={{ display: "flex", justifyContent: "space-between", gap: 20, alignItems: "flex-start", marginBottom: 24 }}>
         <div>
           <h1 style={{ margin: "0 0 4px", font: "700 28px var(--font-inter)", letterSpacing: "-0.02em" }}>
-            Integracoes e sincronizacao
+            Integrações e sincronização
           </h1>
           <p style={{ margin: 0, color: "var(--o-text-2)", fontSize: 14 }}>
-            Controle das fontes externas da organizacao {activeOrg.name}.
+            Controle das fontes externas da organização {activeOrg.name}.
           </p>
         </div>
         <StatusPill status={externalAccounts.length > 0 ? "connected" : "not_configured"} />
@@ -241,10 +241,10 @@ export default async function IntegracoesPage() {
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 10, marginTop: 14 }}>
                   <KV label="Conta" value={account?.label ?? "Nenhuma conta cadastrada"} />
                   <KV label="ID externo" value={account?.external_account_id ?? "Sem ID"} mono />
-                  <KV label="Variavel esperada" value={provider.expected} mono />
-                  <KV label="Ultimo sync" value={formatDate(account?.last_sync_at)} />
-                  <KV label="Ultimo sucesso" value={formatDate(account?.last_success_at)} />
-                  <KV label="Ultima execucao" value={lastRun ? `${statusLabel(lastRun.status)} · ${formatDate(lastRun.created_at)}` : "Sem execucoes"} />
+                  <KV label="Variável esperada" value={provider.expected} mono />
+                  <KV label="Último sync" value={formatDate(account?.last_sync_at)} />
+                  <KV label="Último sucesso" value={formatDate(account?.last_success_at)} />
+                  <KV label="Última execução" value={lastRun ? `${statusLabel(lastRun.status)} · ${formatDate(lastRun.created_at)}` : "Sem execuções"} />
                 </div>
 
                 {(account?.last_error || lastRun?.error) && (
@@ -258,7 +258,7 @@ export default async function IntegracoesPage() {
         </div>
       </Section>
 
-      <Section title="Historico de sincronizacao">
+      <Section title="Histórico de sincronização">
         {syncRuns.length === 0 ? (
           <EmptyState />
         ) : (
@@ -364,7 +364,7 @@ function StatusPill({ status }: { status: string }) {
 function EmptyState() {
   return (
     <div style={{ color: "var(--o-text-2)", fontSize: 14 }}>
-      Nenhuma execucao registrada. A proxima etapa e conectar as credenciais e rodar um backfill controlado.
+      Nenhuma execução registrada. A próxima etapa é conectar as credenciais e rodar um backfill controlado.
     </div>
   );
 }

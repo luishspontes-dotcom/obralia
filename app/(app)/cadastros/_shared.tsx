@@ -1,5 +1,3 @@
-import Link from "next/link";
-
 export function CadastroShell({
   title,
   subtitle,
@@ -10,19 +8,14 @@ export function CadastroShell({
   children: React.ReactNode;
 }) {
   return (
-    <div className="diario-page">
-      <div className="diario-container">
-        <div className="diario-page-header">
-          <div>
-            <h1>{title}</h1>
-            {subtitle ? <p>{subtitle}</p> : null}
-          </div>
-          <Link className="diario-gray-button" href="/cadastros">
-            Cadastros
-          </Link>
-        </div>
-        {children}
+    <div style={{ padding: "0 24px 28px" }}>
+      <div style={{ margin: "8px 0 18px" }}>
+        <h1 style={{ font: "600 22px var(--font-inter)", margin: 0 }}>{title}</h1>
+        {subtitle ? (
+          <p style={{ margin: "4px 0 0", color: "var(--o-text-2)", fontSize: 13 }}>{subtitle}</p>
+        ) : null}
       </div>
+      {children}
     </div>
   );
 }

@@ -115,6 +115,7 @@ export function Topbar({ activeOrg, userName, userEmail, menuCounts }: TopbarPro
             <ListTodo size={15} />
             Lista de tarefas
           </Link>
+          <hr />
           <Link href="/analise-de-dados/fotos">
             <Camera size={15} />
             Fotos
@@ -132,11 +133,11 @@ export function Topbar({ activeOrg, userName, userEmail, menuCounts }: TopbarPro
           </Link>
           <Link href="/analise-de-dados/mao-de-obra">
             <HardHat size={15} />
-            Mão de obra (histórico)
+            Mão de obra
           </Link>
           <Link href="/analise-de-dados/equipamentos">
             <Settings size={15} />
-            Equipamentos (histórico)
+            Equipamentos
           </Link>
           <hr />
           <Link href="/mapa">
