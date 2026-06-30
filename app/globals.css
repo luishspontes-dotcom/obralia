@@ -636,7 +636,7 @@ img[loading="lazy"]:not([src=""]) { opacity: 1; }
   z-index: 80;
   min-height: 46px;
   display: grid;
-  grid-template-columns: minmax(220px, 282px) minmax(0, 1fr) auto;
+  grid-template-columns: minmax(176px, 240px) minmax(0, 1fr) auto;
   align-items: stretch;
   background: #3f51b5;
   color: #fff;
@@ -1588,7 +1588,7 @@ img[loading="lazy"]:not([src=""]) { opacity: 1; }
    (busca + ADICIONAR + avatar/nome/email) e sobrepunha. Empilha a navegacao
    numa faixa rolavel logo abaixo — mesmo padrao do layout mobile, so que
    ativado mais cedo para nunca sobrepor. */
-@media (max-width: 1200px) {
+@media (max-width: 1024px) {
   .do-topbar {
     grid-template-columns: minmax(0, 1fr) auto;
     min-height: auto;
@@ -2171,7 +2171,7 @@ img[loading="lazy"]:not([src=""]) { opacity: 1; }
   right: 0;
 }
 
-@media (max-width: 768px) {
+@media (max-width: 1200px) {
   .do-user-pill .do-user-pill__email {
     display: none;
   }

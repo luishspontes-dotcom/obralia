@@ -1,3 +1,4 @@
+import { Camera, Lock } from "lucide-react";
 import { createServerSupabase } from "@/lib/supabase/server";
 
 const inputStyle: React.CSSProperties = {
@@ -135,7 +136,7 @@ export default async function Page() {
             </div>
             <div style={{ fontSize: 12, color: "var(--o-text-2)", marginBottom: 12 }}>Logomarca</div>
             <div style={{ display: "flex", gap: 8 }}>
-              <button type="button" style={blueButtonStyle}>📷 Adicionar</button>
+              <button type="button" style={blueButtonStyle}><Camera size={15} /> Adicionar</button>
               <button type="button" style={redButtonStyle}>✕ Excluir</button>
             </div>
           </div>
@@ -161,7 +162,7 @@ export default async function Page() {
           </div>
 
           <div style={{ marginTop: 22 }}>
-            <h3 style={{ ...sectionTitleStyle, margin: "0 0 12px" }}>Configurações</h3>
+            <h3 style={{ margin: "0 0 12px", color: "var(--o-text)", font: "600 14px var(--font-inter)" }}>Configurações</h3>
             <div style={{ display: "grid", gap: 12 }}>
               {checkboxes.map((c) => (
                 <label key={c.label} style={{ display: "flex", alignItems: "flex-start", gap: 10, fontSize: 14, color: "var(--o-text)", cursor: "pointer" }}>
@@ -193,7 +194,7 @@ export default async function Page() {
                 cursor: "pointer",
               }}
             >
-              🔒 Gerar token
+              <Lock size={14} /> Gerar token
             </button>
           </div>
           <a href="#" style={{ color: "var(--t-brand)", fontSize: 14, fontWeight: 500, textDecoration: "none" }}>

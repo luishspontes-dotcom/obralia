@@ -1,3 +1,4 @@
+import { Camera } from "lucide-react";
 import { createServerSupabase } from "@/lib/supabase/server";
 
 const inputStyle: React.CSSProperties = {
@@ -121,7 +122,7 @@ export default async function Page() {
             >
               👤
             </div>
-            <button type="button" style={blueButtonStyle}>📷 Adicionar</button>
+            <button type="button" style={blueButtonStyle}><Camera size={15} /> Adicionar</button>
           </div>
 
           <div style={{ display: "grid", gap: 14 }}>
@@ -185,7 +186,6 @@ export default async function Page() {
                 color: "var(--o-text)",
               }}
             >
-              <span style={{ fontSize: 16 }}>🏢</span>
               <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{orgName}</span>
             </div>
           </div>

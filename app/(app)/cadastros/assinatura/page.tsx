@@ -91,7 +91,7 @@ export default function Page() {
       <div
         style={{
           display: "grid",
-          gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))",
+          gridTemplateColumns: "minmax(0, 360px) minmax(0, 1fr)",
           gap: 18,
           alignItems: "start",
         }}
