@@ -2212,3 +2212,11 @@ img[loading="lazy"]:not([src=""]) { opacity: 1; }
   .cadastros-nav__title { display: none; }
   .cadastros-nav__item { padding: 7px 10px; font-size: 13px; }
 }
+
+/* Paridade Diário de Obras: o Diário usa Arial (body e títulos, confirmado ao vivo).
+   Redefinimos --font-inter para Arial — vale para o body e para todos os estilos
+   inline que usam var(--font-inter), virando cópia fiel sem tocar dezenas de arquivos.
+   Reversível: basta remover este bloco. */
+:root {
+  --font-inter: Arial, Helvetica, sans-serif !important;
+}
