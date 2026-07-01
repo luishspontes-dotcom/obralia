@@ -206,16 +206,17 @@ export function etapaSampleCount(index: HistoricalPriceIndex, etapaNome: string)
 }
 
 /**
- * Normaliza nomes de etapa para casar variantes de acentuacao,
- * caixa e pontuacao (ex.: "HIDRAULICA - M. D.O" ~ "Hidráulica MDO").
+ * Normaliza nomes de etapa para casar variantes de acentuacao, caixa,
+ * pontuacao e espacamento (ex.: "HIDRAULICA - M. D.O" ~ "Hidráulica MDO").
+ * A chave final remove TODOS os separadores: e usada apenas em memoria
+ * (indice e lookup usam a mesma funcao), nunca persistida.
  */
 export function normalizeEtapaName(name: string): string {
   return name
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
     .toUpperCase()
-    .replace(/[^A-Z0-9]+/g, " ")
-    .trim();
+    .replace(/[^A-Z0-9]+/g, "");
 }
 
 export function findHistoricalEtapa(nome: string): { numero: number; nome: string } | null {
