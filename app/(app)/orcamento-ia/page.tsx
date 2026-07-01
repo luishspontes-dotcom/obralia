@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Calculator, FileText, Plus, Sparkles } from "lucide-react";
+import { Calculator, FileText, Plus, Sparkles, SlidersHorizontal } from "lucide-react";
 import { DeleteEstimateButton } from "@/components/budget-ai/DeleteEstimateButton";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { untypedDb } from "@/lib/supabase/untyped";
@@ -70,9 +70,14 @@ export default async function OrcamentoIaPage() {
               Use esta visão para revisar ou apagar estudos soltos. O orçamento principal fica dentro de cada obra.
             </p>
           </div>
-          <Link href="/obras" className="btn-brand" style={{ textDecoration: "none", display: "inline-flex", gap: 8, alignItems: "center" }}>
-            <Plus size={16} /> Escolher obra
-          </Link>
+          <div style={{ display: "inline-flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+            <Link href="/orcamento-ia/taxas" style={{ textDecoration: "none", display: "inline-flex", gap: 6, alignItems: "center", fontSize: 13, fontWeight: 600, color: "var(--o-text-2)", border: "1px solid var(--o-border)", borderRadius: 8, padding: "8px 14px" }}>
+              <SlidersHorizontal size={15} /> Taxas (R$/m²)
+            </Link>
+            <Link href="/obras" className="btn-brand" style={{ textDecoration: "none", display: "inline-flex", gap: 8, alignItems: "center" }}>
+              <Plus size={16} /> Escolher obra
+            </Link>
+          </div>
         </div>
       </div>
 

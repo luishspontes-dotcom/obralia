@@ -168,6 +168,30 @@ export async function buildHistoricalPriceIndex(
     sampleCountByEtapa.set(etapa, samples.length);
   }
 
+  // Fonte 0 (prioritaria): taxas curadas e editaveis (budget_rates), semeadas
+  // da planilha da Meu Viver e recalibraveis pela tela de gestao. Sao a fonte
+  // de verdade e SOBREPOEM as medianas calculadas acima.
+  const { data: ratesRaw } = await db
+    .from("budget_rates")
+    .select("etapa_nome, cost_per_m2, sample_count")
+    .eq("organization_id", organizationId);
+  const rates = (ratesRaw ?? []) as Array<{
+    etapa_nome: string;
+    cost_per_m2: unknown;
+    sample_count: unknown;
+  }>;
+  for (const rate of rates) {
+    const cost = toNumber(rate.cost_per_m2);
+    if (cost <= 0) continue;
+    const key = normalizeEtapaName(rate.etapa_nome);
+    costPerM2ByEtapa.set(key, cost);
+    sampleCountByEtapa.set(
+      key,
+      Math.max(sampleCountByEtapa.get(key) ?? 0, toNumber(rate.sample_count) || 1)
+    );
+  }
+  if (rates.length > 0) sources.unshift("taxas_editaveis:budget_rates");
+
   return { costPerM2ByEtapa, sampleCountByEtapa, sources };
 }
 
