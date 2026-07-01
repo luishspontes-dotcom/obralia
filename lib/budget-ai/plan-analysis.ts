@@ -120,30 +120,32 @@ export async function analyzePlanFilesFromStorage(
     return emptyAnalysis("failed", "A planta excede o limite operacional de leitura visual.");
   }
 
-  if (hasClaude) {
+  // OpenAI é o PRIMÁRIO: mais rápido e a saída cabe no limite de tokens sem
+  // truncar. O Claude fica como RESERVA — a saída dele estoura o maxTokens
+  // (8192) em plantas complexas e falha no parse, além de gastar ~112s; então
+  // só é acionado se o OpenAI estiver indisponível.
+  if (openaiKey) {
     try {
-      return await analyzeWithClaude(documents);
-    } catch (claudeError) {
-      // Timeout na Claude vira erro propagado: o orquestrador grava status
-      // 'failed' com mensagem amigável em vez de cair no fallback (que
-      // estouraria o restante do tempo da função) ou ficar preso em processing.
-      if (claudeError instanceof ClaudeTimeoutError) throw claudeError;
-      if (!openaiKey) {
+      return await analyzeWithOpenAi(documents, openaiKey);
+    } catch (openaiError) {
+      if (!hasClaude) {
         return emptyAnalysis(
           "failed",
-          `Leitura visual (Claude) falhou: ${claudeError instanceof Error ? claudeError.message : "erro desconhecido"}.`
+          `Leitura visual falhou: ${openaiError instanceof Error ? openaiError.message : "erro desconhecido"}.`
         );
       }
-      // Claude indisponivel mas OpenAI configurada: segue para o fallback abaixo.
+      // OpenAI indisponível mas Claude configurado: segue para a reserva abaixo.
     }
   }
 
   try {
-    return await analyzeWithOpenAi(documents, openaiKey as string);
-  } catch (error) {
+    return await analyzeWithClaude(documents);
+  } catch (claudeError) {
+    // Timeout na Claude vira erro propagado (evita estourar o runtime da função).
+    if (claudeError instanceof ClaudeTimeoutError) throw claudeError;
     return emptyAnalysis(
       "failed",
-      `Leitura visual falhou: ${error instanceof Error ? error.message : "erro desconhecido"}.`
+      `Leitura visual falhou (OpenAI e Claude): ${claudeError instanceof Error ? claudeError.message : "erro desconhecido"}.`
     );
   }
 }
