@@ -55,6 +55,20 @@ export default async function AppLayout({
     orgs.find((org) => org.id === profile?.default_org_id) ?? orgs[0] ?? null;
   const fullName = profile?.full_name ?? null;
 
+  // Papel do usuário na org ativa — usado para esconder Cadastros/Análise e o
+  // botão Adicionar quando o perfil é "Cliente Obra" (viewer), igual ao Diário:
+  // "Acessa somente para consulta dos relatórios e obras selecionadas."
+  const { data: memberRaw } = activeOrg
+    ? await supabase
+        .from("organization_members")
+        .select("role")
+        .eq("profile_id", user.id)
+        .eq("organization_id", activeOrg.id)
+        .maybeSingle()
+    : { data: null };
+  const role = (memberRaw as { role: string } | null)?.role ?? null;
+  const isClient = role === "viewer";
+
   // Contagens dos badges do menu + obra recente da tab bar mobile: saem do
   // cache do servidor por organização (unstable_cache, revalidate 300s) em
   // vez de rodar 5+ queries em TODA navegação — navegação volta a ser leve.
@@ -88,6 +102,7 @@ export default async function AppLayout({
         userName={fullName ?? user.email ?? null}
         userEmail={user.email ?? null}
         menuCounts={menuCounts}
+        isClient={isClient}
       />
       <main id="main-content" className="app-main light-scroll" tabIndex={-1}>
         {children}

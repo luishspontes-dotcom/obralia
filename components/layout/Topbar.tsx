@@ -43,9 +43,11 @@ interface TopbarProps {
   userName: string | null;
   userEmail?: string | null;
   menuCounts?: TopbarMenuCounts | null;
+  /** Perfil "Cliente Obra" (viewer): só consulta obras/relatórios — esconde gestão. */
+  isClient?: boolean;
 }
 
-export function Topbar({ activeOrg, userName, userEmail, menuCounts }: TopbarProps) {
+export function Topbar({ activeOrg, userName, userEmail, menuCounts, isClient = false }: TopbarProps) {
   const pathname = usePathname();
   const topbarRef = useRef<HTMLElement | null>(null);
   const [openMenu, setOpenMenu] = useState<string | null>(null);
@@ -92,6 +94,8 @@ export function Topbar({ activeOrg, userName, userEmail, menuCounts }: TopbarPro
         <TopbarLink href="/obras" label="Obras" pathname={pathname} />
         {/* No Diário de Obra, "Relatórios" do topo abre a caixa de notificações */}
         <TopbarLink href="/caixa" label="Relatórios" pathname={pathname} />
+        {!isClient && (
+        <>
         <Menu
           label="Análise de dados"
           id="analise"
@@ -200,6 +204,8 @@ export function Topbar({ activeOrg, userName, userEmail, menuCounts }: TopbarPro
             Checklist
           </Link>
         </Menu>
+        </>
+        )}
         <Menu
           label="PT"
           id="idioma"
@@ -217,7 +223,7 @@ export function Topbar({ activeOrg, userName, userEmail, menuCounts }: TopbarPro
         <Link href="/buscar" className="do-icon-action" title="Pesquisar">
           <Search size={17} />
         </Link>
-        <AddButton pathname={pathname} />
+        {!isClient && <AddButton pathname={pathname} />}
         <div className={`do-topbar-menu ${openMenu === "usuario" ? "is-open" : ""}`}>
           <button
             type="button"
