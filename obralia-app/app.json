@@ -14,7 +14,8 @@
       "infoPlist": {
         "NSCameraUsageDescription": "O Obralia usa a câmera para registrar fotos do diário de obra.",
         "NSPhotoLibraryUsageDescription": "O Obralia acessa suas fotos para anexá-las ao diário de obra.",
-        "NSLocationWhenInUseUsageDescription": "O Obralia registra a localização da foto para comprovar que foi tirada no canteiro."
+        "NSLocationWhenInUseUsageDescription": "O Obralia registra a localização da foto para comprovar que foi tirada no canteiro.",
+        "ITSAppUsesNonExemptEncryption": false
       }
     },
     "android": {
