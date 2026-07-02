@@ -1,0 +1,21 @@
+# Publica o app iOS na App Store a cada push que altera o app.
+# Build na nuvem EAS -> submit automático pro App Store Connect
+# (usa a chave ASC e o certificado já salvos na conta Expo).
+name: Publicar iOS na App Store
+on:
+  push:
+    branches: ['main']
+    paths: ['obralia-app/**', 'assets/**', 'app.json', 'app/**', 'lib/**', 'components/**', '.eas/**']
+jobs:
+  build_ios:
+    name: Build iOS (production)
+    type: build
+    params:
+      platform: ios
+      profile: production
+  submit_ios:
+    name: Enviar para App Store
+    needs: [build_ios]
+    type: submit
+    params:
+      build_id: ${{ needs.build_ios.outputs.build_id }}
